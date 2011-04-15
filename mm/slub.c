@@ -2069,10 +2069,9 @@ static void __slab_free(struct kmem_cache *s, struct page *page,
 	slab_lock(page);
 	stat(s, FREE_SLOWPATH);
 
-	if (kmem_cache_debug(s))
-		goto debug;
+	if (kmem_cache_debug(s) && !free_debug_processing(s, page, x, addr))
+		goto out_unlock;
 
-checks_ok:
 	prior = page->freelist;
 	set_freepointer(s, object, prior);
 	page->freelist = object;
@@ -2116,12 +2115,6 @@ slab_empty:
 #endif
 	stat(s, FREE_SLAB);
 	discard_slab(s, page);
-	return;
-
-debug:
-	if (!free_debug_processing(s, page, x, addr))
-		goto out_unlock;
-	goto checks_ok;
 }
 
 /*
