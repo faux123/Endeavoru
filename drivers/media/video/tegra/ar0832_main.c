@@ -2541,3 +2541,4 @@ static void __exit ar0832_exit(void)
 
 module_init(ar0832_init);
 module_exit(ar0832_exit);
+MODULE_LICENSE("GPL v2");

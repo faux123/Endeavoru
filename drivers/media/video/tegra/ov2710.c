@@ -679,4 +679,4 @@ static void __exit ov2710_exit(void)
 
 module_init(ov2710_init);
 module_exit(ov2710_exit);
-
+MODULE_LICENSE("GPL v2");
