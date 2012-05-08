@@ -29,6 +29,7 @@
 #include <linux/delay.h>
 #include <linux/clk.h>
 #include <linux/syscore_ops.h>
+#include <linux/cpumask.h>
 #include <mach/dma.h>
 #include <mach/irqs.h>
 #include <mach/iomap.h>
@@ -127,6 +128,7 @@ struct tegra_dma_channel {
 	int			mode;
 	int			irq;
 	int			req_transfer_count;
+        struct cpumask          cpu_affinity_mask;
 };
 
 #define  NV_DMA_MAX_CHANNELS  32
@@ -959,6 +961,18 @@ int __init tegra_dma_init(void)
 				irq, i);
 			goto fail;
 		}
+
+#ifdef CONFIG_SMP
+/*
+INT_APB_DMA_CH5 is for Audio buffer used DMA . We set affinity here to 
+have better interrupt handling in multi-core case to avoid audio glitch.
+*/
+        if (irq == INT_APB_DMA_CH5) {
+                cpumask_setall(&(dma_channels[i].cpu_affinity_mask));
+                irq_set_affinity_hint(irq, &(dma_channels[i].cpu_affinity_mask));
+                irq_set_affinity(irq, &(dma_channels[i].cpu_affinity_mask));
+        }
+#endif
 		ch->irq = irq;
 
 		__clear_bit(i, channel_usage);

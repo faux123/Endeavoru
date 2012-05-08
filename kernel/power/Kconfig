@@ -59,6 +59,12 @@ config EARLYSUSPEND
 	  Call early suspend handlers when the user requested sleep state
 	  changes.
 
+config HTC_ONMODE_CHARGING
+	bool "On Mode Charging Icon Support"
+	default n
+	help
+		support on mode charing icon
+
 choice
 	prompt "User-space screen access"
 	default FB_EARLYSUSPEND if !FRAMEBUFFER_CONSOLE
@@ -296,6 +302,9 @@ config PM_OPP
 	  representing individual voltage domains and provides SOC
 	  implementations a ready to use framework to manage OPPs.
 	  For more information, read <file:Documentation/power/opp.txt>
+
+config POWER_KEY_WAKEUP_FAILED_PATCH
+	bool "POWER_KEY_WAKEUP_FAILED_PATCH"
 
 config SUSPEND_TIME
 	bool "Log time spent in suspend"

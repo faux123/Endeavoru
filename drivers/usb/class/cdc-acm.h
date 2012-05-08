@@ -139,6 +139,5 @@ struct acm {
 #define SINGLE_RX_URB			2
 #define NO_CAP_LINE			4
 #define NOT_A_MODEM			8
-#define NO_DATA_INTERFACE		16
-#define NOT_REAL_ACM			32
-#define NO_HANGUP_IN_RESET_RESUME	64
+#define NOT_REAL_ACM			16
+#define NO_HANGUP_IN_RESET_RESUME	32

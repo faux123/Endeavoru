@@ -499,4 +499,10 @@ config INPUT_ALPS_GPIO_SCROLLWHEEL
 	  To compile this driver as a module, choose M here: the
 	  module will be called alps_gpio_scrollwheel.
 
+config LIGHTSENSOR_MICROP
+        tristate "LIGHTSENSOR MICROP Driver"
+        depends on MICROP_COMMON
+        help
+          HTC LIGHTSENSOR Microp support.
+
 endif

@@ -183,7 +183,10 @@ static struct class video_class = {
 
 struct video_device *video_devdata(struct file *file)
 {
-	return video_device[iminor(file->f_path.dentry->d_inode)];
+	if(iminor(file->f_path.dentry->d_inode) < VIDEO_NUM_DEVICES)
+		return video_device[iminor(file->f_path.dentry->d_inode)];
+	else
+		return NULL;
 }
 EXPORT_SYMBOL(video_devdata);
 
@@ -257,6 +260,8 @@ static ssize_t v4l2_read(struct file *filp, char __user *buf,
 	struct video_device *vdev = video_devdata(filp);
 	int ret = -ENODEV;
 
+	if (!vdev)
+		return -ENODEV;
 	if (!vdev->fops->read)
 		return -EINVAL;
 	if (vdev->lock && mutex_lock_interruptible(vdev->lock))
@@ -274,6 +279,8 @@ static ssize_t v4l2_write(struct file *filp, const char __user *buf,
 	struct video_device *vdev = video_devdata(filp);
 	int ret = -ENODEV;
 
+	if (!vdev)
+		return -ENODEV;
 	if (!vdev->fops->write)
 		return -EINVAL;
 	if (vdev->lock && mutex_lock_interruptible(vdev->lock))
@@ -290,6 +297,8 @@ static unsigned int v4l2_poll(struct file *filp, struct poll_table_struct *poll)
 	struct video_device *vdev = video_devdata(filp);
 	int ret = POLLERR | POLLHUP;
 
+	if (!vdev)
+		return -ENODEV;
 	if (!vdev->fops->poll)
 		return DEFAULT_POLLMASK;
 	if (vdev->lock)
@@ -306,6 +315,8 @@ static long v4l2_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct video_device *vdev = video_devdata(filp);
 	int ret = -ENODEV;
 
+        if (!vdev)
+                return -ENODEV;
 	if (vdev->fops->unlocked_ioctl) {
 		if (vdev->lock && mutex_lock_interruptible(vdev->lock))
 			return -ERESTARTSYS;
@@ -357,6 +368,8 @@ static int v4l2_mmap(struct file *filp, struct vm_area_struct *vm)
 	struct video_device *vdev = video_devdata(filp);
 	int ret = -ENODEV;
 
+        if (!vdev)
+                return -ENODEV;
 	if (!vdev->fops->mmap)
 		return ret;
 	if (vdev->lock && mutex_lock_interruptible(vdev->lock))
@@ -431,6 +444,8 @@ static int v4l2_release(struct inode *inode, struct file *filp)
 	struct video_device *vdev = video_devdata(filp);
 	int ret = 0;
 
+        if (!vdev)
+                return -ENODEV;
 	if (vdev->fops->release) {
 		if (vdev->lock)
 			mutex_lock(vdev->lock);

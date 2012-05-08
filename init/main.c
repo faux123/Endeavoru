@@ -715,7 +715,9 @@ static void __init do_basic_setup(void)
 	driver_init();
 	init_irq_proc();
 	do_ctors();
+	printk(KERN_NOTICE "[BOOT_LOG] Entering do_initcalls\n");
 	do_initcalls();
+	printk(KERN_NOTICE "[BOOT_LOG] Leaving do_initcalls\n");
 }
 
 static void __init do_pre_smp_initcalls(void)
@@ -747,6 +749,7 @@ static noinline int init_post(void)
 
 	current->signal->flags |= SIGNAL_UNKILLABLE;
 
+	printk(KERN_NOTICE "[BOOT_LOG] Entering run_init_process");
 	if (ramdisk_execute_command) {
 		run_init_process(ramdisk_execute_command);
 		printk(KERN_WARNING "Failed to execute %s\n",

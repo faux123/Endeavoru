@@ -32,11 +32,14 @@
 
 #include <linux/mfd/core.h>
 #include <linux/mfd/tps6591x.h>
+#include <mach/cable_detect.h>
+#include <mach/restart.h>
 
 /* device control registers */
 #define TPS6591X_DEVCTRL	0x3F
 #define DEVCTRL_PWR_OFF_SEQ	(1 << 7)
 #define DEVCTRL_DEV_ON		(1 << 2)
+#define DEVCTRL_DEV_OFF		1
 #define DEVCTRL_DEV_SLP		(1 << 1)
 #define TPS6591X_DEVCTRL2	0x40
 
@@ -57,6 +60,10 @@
 #define TPS6591X_INT_MSK2	0x53
 #define TPS6591X_INT_MSK3	0x55
 
+/* GPIO4 Interrupt status bits */
+#define TPS6591X_GPIO4_RISING_EDGE  1
+#define TPS6591X_GPIO4_FALLING_EDGE (1<<1)
+
 /* GPIO register base address */
 #define TPS6591X_GPIO_BASE_ADDR	0x60
 
@@ -66,6 +73,16 @@
 #define TPS6591X_GPIO_SLEEP	7
 #define TPS6591X_GPIO_PDEN	3
 #define TPS6591X_GPIO_DIR	2
+
+/* Backup register will keep data as long as VRTC is active */
+#define TPS6591X_BCK1_REG 0x17
+#define TPS6591X_BCK2_REG 0x18
+#define TPS6591X_BCK3_REG 0x19
+#define TPS6591X_BCK4_REG 0x1A
+#define TPS6591X_BCK5_REG 0x1B
+
+/* Restart reason bits for read in hboot */
+#define TPS6951X_REASON_OFFMODE 1
 
 enum irq_type {
 	EVENT,
@@ -114,6 +131,12 @@ struct tps6591x {
 	struct gpio_chip	gpio;
 	struct irq_chip		irq_chip;
 	struct mutex		irq_lock;
+
+	struct t_usb_status_notifier
+						usb;
+	enum usb_connect_type
+						cable;
+
 	int			irq_base;
 	u32			irq_en;
 	u8			mask_cache[3];
@@ -282,24 +305,130 @@ out:
 }
 EXPORT_SYMBOL_GPL(tps6591x_update);
 
+
+extern int alarm_set_rtc(struct timespec new_time);
+extern struct rtc_device *extern_alarm_rtc_dev;
+
+
+static int set_RTC_alarm_for_power_off_test(struct device *dev)
+{
+
+	struct file *wakeup_after = NULL;
+	static char *wakeup_after_file_path = "/sys/module/power/parameters/wakeup_after";
+	char    buf[64];
+	mm_segment_t old_fs;
+	loff_t offset = 0;
+	char    value_str[10];
+	//RTC var
+	struct rtc_time     rtc_current_rtc_time;
+	unsigned long       rtc_current_time;
+	struct timespec     wall_time;
+	struct timespec     rtc_delta;
+	struct rtc_wkalrm   rtc_alarm;
+	unsigned long       rtc_alarm_time;
+
+	/* change to KERNEL_DS address limit */
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	buf[63] = 0;
+	sprintf(buf, wakeup_after_file_path,0);
+	wakeup_after = filp_open(buf, O_RDONLY, 0);
+	if (IS_ERR_OR_NULL(wakeup_after)) {
+		pr_err("%s. Can't open %s\n", __func__, buf);
+	} else {
+		if (wakeup_after->f_op != NULL &&
+			wakeup_after->f_op->read != NULL)
+			wakeup_after->f_op->read(wakeup_after,
+					value_str,
+					10,
+					&offset);
+		else
+			pr_err("f_op might be null\n");
+
+		filp_close(wakeup_after, NULL);
+	}
+	set_fs(old_fs);
+
+
+	int value_int = simple_strtol(value_str, NULL, 0);
+	if(value_int == 0)
+		return;
+	value_int /= 1000;
+	
+	rtc_read_time(extern_alarm_rtc_dev, &rtc_current_rtc_time);
+
+	rtc_tm_to_time(&rtc_current_rtc_time, &rtc_current_time);
+	rtc_alarm_time = rtc_current_time + value_int;
+	
+	rtc_time_to_tm(rtc_alarm_time, &rtc_alarm.time);
+	rtc_alarm.enabled = 1;
+	rtc_set_alarm(extern_alarm_rtc_dev, &rtc_alarm);
+	rtc_read_time(extern_alarm_rtc_dev, &rtc_current_rtc_time);
+	rtc_tm_to_time(&rtc_current_rtc_time, &rtc_current_time);
+	printk("[SSD Cold boot test]rtc alarm set at %ld, now %ld \n",
+			rtc_alarm_time, rtc_current_time);
+	return value_int;
+}
+
+
+
 static struct i2c_client *tps6591x_i2c_client;
 int tps6591x_power_off(void)
 {
 	struct device *dev = NULL;
+	struct tps6591x *tps6591x;
+	bool usb_in_at_power_off;
 	int ret;
+	u8 tmp;
 
 	if (!tps6591x_i2c_client)
 		return -EINVAL;
 
 	dev = &tps6591x_i2c_client->dev;
+	int wakeup_after_value = set_RTC_alarm_for_power_off_test(dev);
 
-	ret = tps6591x_set_bits(dev, TPS6591X_DEVCTRL, DEVCTRL_PWR_OFF_SEQ);
+	tps6591x = i2c_get_clientdata(tps6591x_i2c_client);
+
+	tps6591x_read(dev, TPS6591X_INT_STS3, &tmp);
+	usb_in_at_power_off = !!(tmp & TPS6591X_GPIO4_RISING_EDGE);
+
+	/* let GPIO4 can wakeup when power off */
+	ret = tps6591x_clr_bits(dev, TPS6591X_INT_MSK3, 
+		TPS6591X_GPIO4_RISING_EDGE);
 	if (ret < 0)
 		return ret;
 
-	ret = tps6591x_clr_bits(dev, TPS6591X_DEVCTRL, DEVCTRL_DEV_ON);
-	if (ret < 0)
-		return ret;
+	if ( (wakeup_after_value == 0) && (tps6591x->cable >= CONNECT_TYPE_USB || usb_in_at_power_off) ) {
+		/* write reboot reason & clean watchdog's reset reason */
+#if defined(CONFIG_RESET_REASON)                                                                                                                             
+		set_hardware_reason("offmode");
+#else
+		ret = tps6591x_set_bits(dev, TPS6591X_BCK1_REG, 
+			TPS6951X_REASON_OFFMODE);
+		if (ret < 0)
+			return ret;
+#endif
+		pr_info("Cable(%d) pluged, reboot to offmode.\n", tps6591x->cable);
+		/* reboot into offmode */
+#if 1 /* Use PMC reboot */
+		arm_pm_restart('h', "offmode");
+#else /* Use PMU reboot */
+		ret = tps6591x_set_bits(dev, TPS6591X_DEVCTRL, 
+			DEVCTRL_PWR_OFF_SEQ | DEVCTRL_DEV_ON | DEVCTRL_DEV_OFF);
+		if (ret < 0)
+			return ret;
+#endif
+	} else {
+		/* Power off */
+		ret = tps6591x_read(dev, TPS6591X_DEVCTRL, &tmp);
+		if (ret < 0)
+			return ret;
+		tmp = (tmp & (~DEVCTRL_DEV_ON)) | DEVCTRL_DEV_OFF;
+		ret = tps6591x_write(dev, TPS6591X_DEVCTRL, tmp);
+		if (ret < 0)
+			return ret;
+	}
 
 	return 0;
 }
@@ -423,6 +552,33 @@ static void tps6591x_gpio_init(struct tps6591x *tps6591x,
 	ret = gpiochip_add(&tps6591x->gpio);
 	if (ret)
 		dev_warn(tps6591x->dev, "GPIO registration failed: %d\n", ret);
+}
+
+static void tps6591x_usb_notifier_callback(int cable_type)
+{
+	struct tps6591x * tps6591x;
+	int ret;
+	u8 tmp_sts;
+
+	if (!tps6591x_i2c_client)
+		return;
+
+	tps6591x = i2c_get_clientdata(tps6591x_i2c_client);
+	tps6591x->cable = cable_type;
+
+	ret = tps6591x_read(tps6591x->dev, TPS6591X_INT_STS3, &tmp_sts);
+	if (ret < 0)
+		goto exit;
+	if (tmp_sts & TPS6591X_GPIO4_RISING_EDGE) {
+		ret = tps6591x_write(tps6591x->dev, TPS6591X_INT_STS3,
+			TPS6591X_GPIO4_RISING_EDGE | TPS6591X_GPIO4_FALLING_EDGE);
+		if (ret < 0)
+			goto exit;
+	}
+
+	return;
+exit:
+	dev_err(tps6591x->dev, "i2c error\n");
 }
 
 static int __remove_subdev(struct device *dev, void *unused)
@@ -565,6 +721,7 @@ static int __devinit tps6591x_irq_init(struct tps6591x *tps6591x, int irq,
 				int irq_base)
 {
 	int i, ret;
+	struct tps6591x_platform_data *pdata;
 
 	if (!irq_base) {
 		dev_warn(tps6591x->dev, "No interrupt support on IRQ base\n");
@@ -612,6 +769,10 @@ static int __devinit tps6591x_irq_init(struct tps6591x *tps6591x, int irq,
 		enable_irq_wake(irq);
 	}
 
+	pdata = tps6591x->dev->platform_data;
+
+	if(!pdata->pwon_lp_off)
+		tps6591x_write(tps6591x->dev, 0x40, 0x30);	//disable PMIC long press shut down function.
 	return ret;
 }
 
@@ -816,6 +977,7 @@ static int __devinit tps6591x_i2c_probe(struct i2c_client *client,
 
 	tps6591x->client = client;
 	tps6591x->dev = &client->dev;
+	tps6591x->cable = CONNECT_TYPE_NONE;
 	i2c_set_clientdata(client, tps6591x);
 
 	mutex_init(&tps6591x->lock);
@@ -842,6 +1004,13 @@ static int __devinit tps6591x_i2c_probe(struct i2c_client *client,
 	tps6591x_sleepinit(tps6591x, pdata);
 
 	tps6591x_i2c_client = client;
+
+	tps6591x->usb.name = "tps6591x";
+	tps6591x->usb.func = tps6591x_usb_notifier_callback;
+	// clean GPIO4 interrupt status
+	tps6591x_usb_notifier_callback(CONNECT_TYPE_NONE);
+
+	usb_register_notifier(&tps6591x->usb);
 
 	return 0;
 

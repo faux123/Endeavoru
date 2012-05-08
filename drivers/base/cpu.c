@@ -11,8 +11,12 @@
 #include <linux/device.h>
 #include <linux/node.h>
 #include <linux/gfp.h>
+#include <linux/delay.h>
 
 #include "base.h"
+
+static struct workqueue_struct *cpuplug_wq;
+static struct work_struct cpuplug_work;
 
 static struct sysdev_class_attribute *cpu_sysdev_class_attrs[];
 
@@ -25,6 +29,79 @@ EXPORT_SYMBOL(cpu_sysdev_class);
 static DEFINE_PER_CPU(struct sys_device *, cpu_sys_devices);
 
 #ifdef CONFIG_HOTPLUG_CPU
+
+static int target_number_of_online_cpus = 0;
+static int cpu_on_mdelay = 0;
+
+static void tegra_cpuplug_work_func(struct work_struct *work)
+{
+	unsigned int cpu;
+	int should_on_cpu;
+
+	should_on_cpu = target_number_of_online_cpus - num_online_cpus();
+
+	pr_info("[cpu] should on %d of cpus\n", should_on_cpu);
+
+	if(should_on_cpu <= 0)
+		return;
+
+	for (cpu = 0; cpu < 4, should_on_cpu != 0; cpu++) {
+		if (!cpu_online(cpu)) {
+			cpu_up(cpu);
+			pr_info("[cpu] cpu %d is on", cpu);
+			should_on_cpu--;
+			mdelay(cpu_on_mdelay);
+		}
+	}
+}
+
+static ssize_t show_cpu_on(struct sysdev_class *class,
+			struct sysdev_class_attribute *attr, char *buf)
+{
+	unsigned int cpu = num_online_cpus();
+
+	return sprintf(buf, "%u\n", cpu);
+}
+
+static ssize_t store_cpu_on(struct sysdev_class *class,
+			 struct sysdev_class_attribute *attr,
+			 const char *buf,
+			 size_t count)
+{
+	strict_strtol(buf, 0, &target_number_of_online_cpus );
+
+	if(target_number_of_online_cpus < 2)
+		return;
+
+	if(target_number_of_online_cpus > 4)
+		target_number_of_online_cpus  = 4;
+
+	pr_info("[cpu] number of online cpus is %d",
+			target_number_of_online_cpus );
+
+	return queue_work(cpuplug_wq, &cpuplug_work);
+}
+
+
+static ssize_t show_cpu_on_mdelay(struct sysdev_class *class,
+			struct sysdev_class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", cpu_on_mdelay);
+}
+
+static ssize_t store_cpu_on_mdelay(struct sysdev_class *class,
+			 struct sysdev_class_attribute *attr,
+			 const char *buf,
+			 size_t count)
+{
+	strict_strtol(buf, 0, &cpu_on_mdelay);
+}
+
+
+static SYSDEV_CLASS_ATTR(cpu_on, 0644, show_cpu_on, store_cpu_on);
+static SYSDEV_CLASS_ATTR(cpu_on_mdelay, 0644,
+		show_cpu_on_mdelay, store_cpu_on_mdelay);
+
 static ssize_t show_online(struct sys_device *dev, struct sysdev_attribute *attr,
 			   char *buf)
 {
@@ -257,6 +334,12 @@ int __init cpu_dev_init(void)
 		err = sched_create_sysfs_power_savings_entries(&cpu_sysdev_class);
 #endif
 
+	cpuplug_wq = alloc_workqueue(
+                "cpu-plug", WQ_UNBOUND | WQ_RESCUER | WQ_FREEZABLE, 1);
+        if (!cpuplug_wq)
+                return -ENOMEM;
+        INIT_WORK(&cpuplug_work, tegra_cpuplug_work_func);
+
 	return err;
 }
 
@@ -270,5 +353,7 @@ static struct sysdev_class_attribute *cpu_sysdev_class_attrs[] = {
 	&cpu_attrs[2].attr,
 	&attr_kernel_max,
 	&attr_offline,
+	&attr_cpu_on,
+	&attr_cpu_on_mdelay,
 	NULL
 };

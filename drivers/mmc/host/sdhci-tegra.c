@@ -26,6 +26,7 @@
 
 #include <mach/gpio.h>
 #include <mach/sdhci.h>
+#include <mach/io_dpd.h>
 
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
@@ -94,6 +95,7 @@ struct tegra_sdhci_host {
 	unsigned int vddio_max_uv;
 	/* max clk supported by the platform */
 	unsigned int max_clk_limit;
+	struct tegra_io_dpd *dpd;
 };
 
 static u32 tegra_sdhci_readl(struct sdhci_host *host, int reg)
@@ -242,7 +244,7 @@ static void sdhci_status_notify_cb(int card_present, void *dev_id)
 	struct tegra_sdhci_platform_data *plat;
 	unsigned int status, oldstat;
 
-	pr_debug("%s: card_present %d\n", mmc_hostname(sdhci->mmc),
+	printk("%s: card_present %d\n", mmc_hostname(sdhci->mmc),
 		card_present);
 
 	plat = pdev->dev.platform_data;
@@ -256,7 +258,7 @@ static void sdhci_status_notify_cb(int card_present, void *dev_id)
 	oldstat = plat->mmc_data.card_present;
 	plat->mmc_data.card_present = status;
 	if (status ^ oldstat) {
-		pr_debug("%s: Slot status change detected (%d -> %d)\n",
+		printk("%s: Slot status change detected (%d -> %d)\n",
 			mmc_hostname(sdhci->mmc), oldstat, status);
 		if (status && !plat->mmc_data.built_in)
 			mmc_detect_change(sdhci->mmc, (5 * HZ) / 2);
@@ -426,6 +428,9 @@ static void tegra_sdhci_set_clock(struct sdhci_host *sdhci, unsigned int clock)
 		mmc_hostname(sdhci->mmc), clock, tegra_host->clk_enabled);
 
 	if (clock) {
+		/* bring out sd instance from io dpd mode */
+		tegra_io_dpd_disable(tegra_host->dpd);
+
 		if (!tegra_host->clk_enabled) {
 			clk_enable(pltfm_host->clk);
 			ctrl = sdhci_readb(sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
@@ -444,6 +449,8 @@ static void tegra_sdhci_set_clock(struct sdhci_host *sdhci, unsigned int clock)
 		sdhci_writeb(sdhci, ctrl, SDHCI_VENDOR_CLOCK_CNTRL);
 		clk_disable(pltfm_host->clk);
 		tegra_host->clk_enabled = false;
+		/* io dpd enable call for sd instance */
+		tegra_io_dpd_enable(tegra_host->dpd);
 	}
 }
 
@@ -494,6 +501,9 @@ static int tegra_sdhci_signal_voltage_switch(struct sdhci_host *sdhci,
 	/* Enable the card clock */
 	clk |= SDHCI_CLOCK_CARD_EN;
 	sdhci_writew(sdhci, clk, SDHCI_CLOCK_CONTROL);
+
+	/* Wait for 1 msec after enabling clock */
+	mdelay(1);
 
 	if (signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
 		/* Do Auto Calibration for 1.8V signal voltage */
@@ -652,6 +662,7 @@ static int tegra_sdhci_pltfm_init(struct sdhci_host *host,
 	tegra_host->clk_enabled = true;
 	tegra_host->max_clk_limit = plat->max_clk_limit;
 	tegra_host->instance = pdev->id;
+	tegra_host->dpd = tegra_io_dpd_get(mmc_dev(host->mmc));
 
 	host->mmc->caps |= MMC_CAP_ERASE;
 	host->mmc->caps |= MMC_CAP_DISABLE;
@@ -660,7 +671,6 @@ static int tegra_sdhci_pltfm_init(struct sdhci_host *host,
 	if (plat->is_8bit)
 		host->mmc->caps |= MMC_CAP_8_BIT_DATA;
 	host->mmc->caps |= MMC_CAP_SDIO_IRQ;
-	host->mmc->caps |= MMC_CAP_BKOPS;
 
 	host->mmc->pm_caps = MMC_PM_KEEP_POWER | MMC_PM_IGNORE_PM_NOTIFY;
 	if (plat->mmc_data.built_in) {
@@ -759,6 +769,10 @@ static int tegra_sdhci_suspend(struct sdhci_host *sdhci, pm_message_t state)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhci);
 	struct tegra_sdhci_host *tegra_host = pltfm_host->priv;
+	struct platform_device *pdev = to_platform_device(mmc_dev(sdhci->mmc));
+	struct tegra_sdhci_platform_data *plat;
+
+	plat = pdev->dev.platform_data;
 
 	tegra_sdhci_set_clock(sdhci, 0);
 
@@ -767,6 +781,10 @@ static int tegra_sdhci_suspend(struct sdhci_host *sdhci, pm_message_t state)
 		regulator_disable(tegra_host->vdd_slot_reg);
 	if (tegra_host->vdd_io_reg)
 		regulator_disable(tegra_host->vdd_io_reg);
+
+	if (plat->suspend_gpiocfg)
+		plat->suspend_gpiocfg();
+
 	return 0;
 }
 
@@ -774,7 +792,14 @@ static int tegra_sdhci_resume(struct sdhci_host *sdhci)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhci);
 	struct tegra_sdhci_host *tegra_host = pltfm_host->priv;
+	struct platform_device *pdev = to_platform_device(mmc_dev(sdhci->mmc));
+	struct tegra_sdhci_platform_data *plat;
 	unsigned long timeout;
+
+	plat = pdev->dev.platform_data;
+
+	if (plat->resume_gpiocfg)
+		plat->resume_gpiocfg();
 
 	/* Enable the power rails if any */
 	if (tegra_host->vdd_io_reg)
@@ -810,6 +835,19 @@ static int tegra_sdhci_resume(struct sdhci_host *sdhci)
 	return 0;
 }
 
+static int tegra_sdhci_get_max_clock(struct sdhci_host *sdhci)
+{
+	if (sdhci->version >= SDHCI_SPEC_300)	
+		return 255000000;
+	else
+		return 63000000;
+}
+
+static int tegra_sdhci_get_min_clock(struct sdhci_host *sdhci)
+{
+	return 400000;
+}
+
 static struct sdhci_ops tegra_sdhci_ops = {
 	.get_ro     = tegra_sdhci_get_ro,
 	.read_l     = tegra_sdhci_readl,
@@ -819,6 +857,8 @@ static struct sdhci_ops tegra_sdhci_ops = {
 	.set_clock  = tegra_sdhci_set_clock,
 	.suspend    = tegra_sdhci_suspend,
 	.resume     = tegra_sdhci_resume,
+	.get_max_clock = tegra_sdhci_get_max_clock,
+	.get_min_clock = tegra_sdhci_get_min_clock,
 	.platform_reset_exit = tegra_sdhci_reset_exit,
 	.set_uhs_signaling = tegra_sdhci_set_uhs_signaling,
 	.switch_signal_voltage = tegra_sdhci_signal_voltage_switch,
@@ -835,6 +875,7 @@ struct sdhci_pltfm_data sdhci_tegra_pdata = {
 #endif
 		  SDHCI_QUIRK_SINGLE_POWER_WRITE |
 		  SDHCI_QUIRK_NO_HISPD_BIT |
+		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
 		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC,
 	.ops  = &tegra_sdhci_ops,
 	.init = tegra_sdhci_pltfm_init,

@@ -210,6 +210,7 @@ int nvhost_syncpt_wait_timeout(struct nvhost_syncpt *sp, u32 id,
 				"%s: syncpoint id %d (%s) stuck waiting %d, timeout=%d\n",
 				 current->comm, id, syncpt_op(sp).name(sp, id),
 				 thresh, timeout);
+
 			syncpt_op(sp).debug(sp);
 			if (check_count > MAX_STUCK_CHECK_COUNT) {
 				if (low_timeout) {

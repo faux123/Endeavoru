@@ -79,6 +79,8 @@ static const char *tegra_revision_name[TEGRA_REVISION_MAX] = {
 	[TEGRA_REVISION_A02] = "A02",
 	[TEGRA_REVISION_A03] = "A03",
 	[TEGRA_REVISION_A03p] = "A03 prime",
+	[TEGRA_REVISION_A04] = "A04",
+	[TEGRA_REVISION_A04p] = "A04 prime",
 };
 
 u32 tegra_fuse_readl(unsigned long offset)
@@ -105,7 +107,13 @@ void tegra_init_fuse(void)
 {
 	u32 reg = readl(IO_TO_VIRT(TEGRA_CLK_RESET_BASE + 0x48));
 	reg |= 1 << 28;
+	reg |= 1 << 0;
 	writel(reg, IO_TO_VIRT(TEGRA_CLK_RESET_BASE + 0x48));
+	pr_err("nv - MISC_CLK_ENB: %x\n", readl(IO_TO_VIRT(TEGRA_CLK_RESET_BASE + 0x48)));
+	reg = readl(IO_TO_VIRT(TEGRA_AHB_ARB_BASE + 0xe0));
+	reg |= 1 << 2;
+	writel(reg, IO_TO_VIRT(TEGRA_AHB_ARB_BASE + 0xe0));
+	pr_err("nv - XBAR_CTRL: %x\n", readl(IO_TO_VIRT(TEGRA_AHB_ARB_BASE + 0xe0)));
 	tegra_init_speedo_data();
 
 	pr_info("Tegra Revision: %s "
@@ -309,6 +317,8 @@ static struct chip_revision tegra_chip_revisions[] = {
 	CHIP_REVISION(TEGRA2, 1, 2, 0,   A02),
 	CHIP_REVISION(TEGRA2, 1, 3, 0,   A03),
 	CHIP_REVISION(TEGRA2, 1, 3, 'p', A03p),
+	CHIP_REVISION(TEGRA2, 1, 4, 0,   A04),
+	CHIP_REVISION(TEGRA2, 1, 4, 'p', A04p),
 	CHIP_REVISION(TEGRA3, 1, 1, 0,   A01),
 	CHIP_REVISION(TEGRA3, 1, 2, 0,   A02),
 	CHIP_REVISION(TEGRA3, 1, 3, 0,   A03),

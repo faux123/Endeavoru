@@ -258,6 +258,13 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 			mmc_card_set_blockaddr(card);
 	}
 
+		if (card->ext_csd.rev >= 3) {
+			card->ext_csd.max_enh_size_mult =
+				ext_csd[EXT_CSD_MAX_ENH_SIZE_MULT + 0] << 0 |
+				ext_csd[EXT_CSD_MAX_ENH_SIZE_MULT + 1] << 8 |
+				ext_csd[EXT_CSD_MAX_ENH_SIZE_MULT + 2] << 16;
+		}
+
 	switch (ext_csd[EXT_CSD_CARD_TYPE] & EXT_CSD_CARD_TYPE_MASK) {
 	case EXT_CSD_CARD_TYPE_DDR_52 | EXT_CSD_CARD_TYPE_52 |
 	     EXT_CSD_CARD_TYPE_26:
@@ -349,6 +356,8 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 			ext_csd[EXT_CSD_SEC_FEATURE_SUPPORT];
 		card->ext_csd.trim_timeout = 300 *
 			ext_csd[EXT_CSD_TRIM_MULT];
+		card->ext_csd.part_conf =
+			ext_csd[EXT_CSD_PARTITION_CFG];
 	}
 
 	if (card->ext_csd.rev >= 5) {
@@ -558,11 +567,32 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		mmc_set_erase_size(card);
 	}
 
+	/* htc: For SanDisk X3, we have to enable power class 4 */
+	if (card->cid.manfid == 0x45) {
+		if (card->ext_csd.sectors > 33554432) { /* the storage size larger than 16GB */
+			if (card->ext_csd.max_enh_size_mult < 0xEC) {
+				err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL, EXT_CSD_POWER_CLASS, 4); 
+				if (err && err != -EBADMSG)
+					goto free_card;
+
+				if (err) {
+					printk(KERN_WARNING "%s: switch to power class 4 failed\n",
+						mmc_hostname(card->host));
+					err = 0;
+				} else {
+					printk(KERN_WARNING "%s: switch to power class 4 sucessfully\n",
+						mmc_hostname(card->host));
+				}
+			}
+		}
+	}
+
 	/*
 	 * If enhanced_area_en is TRUE, host needs to enable ERASE_GRP_DEF
 	 * bit.  This bit will be lost every time after a reset or power off.
 	 */
-	if (card->ext_csd.enhanced_area_en) {
+		/* htc: set ERASE_GRP_DET to 1 anyway */
+		//if (card->ext_csd.enhanced_area_en) {
 		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 				EXT_CSD_ERASE_GROUP_DEF, 1);
 
@@ -587,8 +617,29 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			 */
 			mmc_set_erase_size(card);
 		}
-	}
+	//}
 
+	/**
+	 * Enable boot mode (if not enabled yet)
+	 */
+#if 0
+	if (card->ext_csd.part_conf != 0x48) {
+		printk(KERN_INFO "%s: Got default part_conf setting, modify it...\n",
+			mmc_hostname(card->host));
+
+		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+			EXT_CSD_PARTITION_CFG, 0x48);
+
+		if (err && err != -EBADMSG) {
+			printk(KERN_ERR "%s: switch command to set EXT_CSD_PARTITION_CONFIG failed\n",
+				mmc_hostname(card->host));
+			goto free_card;
+		} else {
+			printk(KERN_INFO "%s: boot_mode is enabled\n",
+				mmc_hostname(card->host));
+		}
+	}
+#endif
 	/*
 	 * Activate high speed (if supported)
 	 */
@@ -656,6 +707,16 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	}
 
 	mmc_set_clock(host, max_dtr);
+
+	/* TODO workaround for SanDisk X3 eMMC */
+	if (card->cid.manfid == 0x45) {
+		if (card->ext_csd.sectors > 33554432) { /* the storage size larger than 16GB */
+			printk(KERN_INFO "%s: Force to use SDR for SanDisk X3\n", mmc_hostname(card->host));
+			host->caps &= ~MMC_CAP_1_8V_DDR;
+			host->caps &= ~MMC_CAP_1_2V_DDR;
+			host->caps &= ~MMC_CAP_UHS_DDR50;
+		}
+	}
 
 	/*
 	 * Indicate DDR mode (if supported).

@@ -616,6 +616,7 @@ struct fsl_udc {
 	unsigned vbus_active:1;
 	unsigned stopped:1;
 	unsigned remote_wakeup:1;
+	unsigned selfpowered:1;
 
 	struct ep_queue_head *ep_qh;	/* Endpoints Queue-Head */
 	struct fsl_req *status_req;	/* ep0 status request */
@@ -636,6 +637,22 @@ struct fsl_udc {
 	struct regulator *vbus_regulator;	/* regulator for drawing VBUS */
 	u32 current_limit;
 	struct work_struct charger_work; /* work for settting regulator current limit */
+
+	// start porting:
+	unsigned state;
+	unsigned flags;
+        unsigned myflags; //william: create this for ENR_U#17344
+	enum usb_connect_type connect_type;
+	struct workqueue_struct *usb_wq;
+	struct work_struct detect_work;
+	struct delayed_work chg_work;
+	struct work_struct notifier_work;
+	unsigned int	offmode_charge;
+
+	struct timer_list	ac_detect_timer;
+	int			ac_detect_count;
+
+	struct delayed_work check_vbus_work;
 };
 
 /*-------------------------------------------------------------------------*/

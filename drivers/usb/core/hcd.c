@@ -44,6 +44,8 @@
 
 #include "usb.h"
 
+/* HTC */
+#define MODULE_NAME "[USBHHCD] "
 
 /*-------------------------------------------------------------------------*/
 
@@ -750,8 +752,14 @@ static int rh_urb_enqueue (struct usb_hcd *hcd, struct urb *urb)
 {
 	if (usb_endpoint_xfer_int(&urb->ep->desc))
 		return rh_queue_status (hcd, urb);
-	if (usb_endpoint_xfer_control(&urb->ep->desc))
+	if (usb_endpoint_xfer_control(&urb->ep->desc)){
+
+		/* HTC: show message in case usb device needs to be waken */
+		if (unlikely(!urb->dev->can_submit)){
+			pr_info(MODULE_NAME ": %s - !urb->dev->can_submit\n", __func__);
+                 }
 		return rh_call_control (hcd, urb);
+	}
 	return -EINVAL;
 }
 
@@ -862,6 +870,7 @@ static struct attribute_group usb_bus_attr_group = {
 static void usb_bus_init (struct usb_bus *bus)
 {
 	memset (&bus->devmap, 0, sizeof(struct usb_devmap));
+	//pr_info(MODULE_NAME ": %s start\n", __func__); /* HTC */
 
 	bus->devnum_next = 1;
 
@@ -872,6 +881,7 @@ static void usb_bus_init (struct usb_bus *bus)
 	bus->bandwidth_isoc_reqs = 0;
 
 	INIT_LIST_HEAD (&bus->bus_list);
+	//pr_info(MODULE_NAME ": %s end\n", __func__); /* HTC */
 }
 
 /*-------------------------------------------------------------------------*/
@@ -888,6 +898,8 @@ static int usb_register_bus(struct usb_bus *bus)
 {
 	int result = -E2BIG;
 	int busnum;
+
+	//pr_info(MODULE_NAME ": %s start\n", __func__); /* HTC */
 
 	mutex_lock(&usb_bus_list_lock);
 	busnum = find_next_zero_bit (busmap.busmap, USB_MAXBUS, 1);
@@ -906,6 +918,7 @@ static int usb_register_bus(struct usb_bus *bus)
 
 	dev_info (bus->controller, "new USB bus registered, assigned bus "
 		  "number %d\n", bus->busnum);
+	//pr_info(MODULE_NAME ": %s end\n", __func__); /* HTC */
 	return 0;
 
 error_find_busnum:
@@ -955,6 +968,8 @@ static int register_root_hub(struct usb_hcd *hcd)
 	const int devnum = 1;
 	int retval;
 
+	//pr_info(MODULE_NAME ": %s start\n", __func__); /* HTC */
+
 	usb_dev->devnum = devnum;
 	usb_dev->bus->devnum_next = devnum + 1;
 	memset (&usb_dev->bus->devmap.devicemap, 0,
@@ -989,6 +1004,8 @@ static int register_root_hub(struct usb_hcd *hcd)
 		if (HCD_DEAD(hcd))
 			usb_hc_died (hcd);	/* This time clean up */
 	}
+
+	//pr_info(MODULE_NAME ": %s end\n", __func__); /* HTC */
 
 	return retval;
 }
@@ -1466,8 +1483,12 @@ int usb_hcd_submit_urb (struct urb *urb, gfp_t mem_flags)
 
 	if (is_root_hub(urb->dev)) {
 		status = rh_urb_enqueue(hcd, urb);
+		if(status!=0) /* HTC */
+			pr_info("%s rh_urb_enqueue status=%d\n", __func__, status);
 	} else {
 		status = map_urb_for_dma(hcd, urb, mem_flags);
+		if(status!=0) /* HTC */
+			pr_info("%s map_urb_for_dma status=%d\n", __func__, status);
 		if (likely(status == 0)) {
 			status = hcd->driver->urb_enqueue(hcd, urb, mem_flags);
 			if (unlikely(status))
@@ -2152,6 +2173,8 @@ void usb_hc_died (struct usb_hcd *hcd)
 {
 	unsigned long flags;
 
+	//pr_info(MODULE_NAME ": %s\n", __func__); /* HTC */
+
 	dev_err (hcd->self.controller, "HC died; cleaning up\n");
 
 	spin_lock_irqsave (&hcd_root_hub_lock, flags);
@@ -2204,6 +2227,8 @@ struct usb_hcd *usb_create_shared_hcd(const struct hc_driver *driver,
 {
 	struct usb_hcd *hcd;
 
+	//pr_info(MODULE_NAME ": %s start\n", __func__); /* HTC */
+
 	hcd = kzalloc(sizeof(*hcd) + driver->hcd_priv_size, GFP_KERNEL);
 	if (!hcd) {
 		dev_dbg (dev, "hcd alloc failed\n");
@@ -2245,6 +2270,9 @@ struct usb_hcd *usb_create_shared_hcd(const struct hc_driver *driver,
 	hcd->speed = driver->flags & HCD_MASK;
 	hcd->product_desc = (driver->product_desc) ? driver->product_desc :
 			"USB Host Controller";
+
+	//pr_info(MODULE_NAME ": %s end\n", __func__); /* HTC */
+
 	return hcd;
 }
 EXPORT_SYMBOL_GPL(usb_create_shared_hcd);
@@ -2282,6 +2310,7 @@ EXPORT_SYMBOL_GPL(usb_create_hcd);
 static void hcd_release (struct kref *kref)
 {
 	struct usb_hcd *hcd = container_of (kref, struct usb_hcd, kref);
+	pr_info(MODULE_NAME ": %s \n", __func__); /* HTC */
 
 	if (usb_hcd_is_primary_hcd(hcd))
 		kfree(hcd->bandwidth_mutex);
@@ -2369,6 +2398,14 @@ int usb_add_hcd(struct usb_hcd *hcd,
 	int retval;
 	struct usb_device *rhdev;
 
+	/* HTC */
+	/*
+	pr_info(MODULE_NAME ": %s start hcd=%p, description=%s, product_desc=%s, "
+		"hcd_priv_size=%d, irq=%p, flags=0x%x\n",
+		__func__, hcd, hcd->driver->description, hcd->driver->product_desc,
+		hcd->driver->hcd_priv_size, hcd->driver->irq, hcd->driver->flags
+	);
+	*/
 	dev_info(hcd->self.controller, "%s\n", hcd->product_desc);
 
 	hcd->authorized_default = hcd->wireless? 0 : 1;
@@ -2392,6 +2429,9 @@ int usb_add_hcd(struct usb_hcd *hcd,
 		goto err_allocate_root_hub;
 	}
 	hcd->self.root_hub = rhdev;
+	/* HTC */
+	pr_info(MODULE_NAME ": %s, hcd->driver->flags & HCD_MASK=0x%x\n",
+		__func__, hcd->driver->flags & HCD_MASK);
 
 	switch (hcd->speed) {
 	case HCD_USB11:
@@ -2460,6 +2500,9 @@ int usb_add_hcd(struct usb_hcd *hcd,
 	}
 	if (hcd->uses_new_polling && HCD_POLL_RH(hcd))
 		usb_hcd_poll_rh_status(hcd);
+
+
+	//pr_info(MODULE_NAME ": %s end, retval=%d\n", __func__, retval); /* HTC */
 	return retval;
 
 error_create_attr_group:

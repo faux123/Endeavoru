@@ -13,6 +13,7 @@
 #include <linux/tty_driver.h>
 #include <linux/tty_ldisc.h>
 #include <linux/mutex.h>
+#include <linux/smp_lock.h>
 
 #include <asm/system.h>
 
@@ -50,7 +51,9 @@
 #define N_CAIF		20      /* CAIF protocol for talking to modems */
 #define N_GSM0710	21	/* GSM 0710 Mux */
 #define N_TI_WL		22	/* for TI's WL BT, FM, GPS combo chips */
-
+#define N_TS2710_USB    23      /* 3GPP TS 27.010 MUX over USB */
+#define N_TS2710		24     /* 3GPP TS 27.010 MUX over UART */
+#define N_IP_OVER_TTY   25      /* IP over TTY network driver */
 /*
  * This character is the same as _POSIX_VDISABLE: it cannot be used as
  * a c_cc[] character, but indicates that a particular special character

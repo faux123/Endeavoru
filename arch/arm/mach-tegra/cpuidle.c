@@ -74,7 +74,9 @@ static int tegra_idle_enter_lp3(struct cpuidle_device *dev,
 
 	exit = ktime_sub(ktime_get(), enter);
 	us = ktime_to_us(exit);
-
+	/* move from driver/cpuidle/cpuidle.c */
+	dev->states[0].usage++;
+	dev->states[0].time += (unsigned long long)us;
 	local_fiq_enable();
 	local_irq_enable();
 	return (int)us;

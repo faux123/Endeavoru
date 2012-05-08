@@ -735,11 +735,11 @@ static inline void mmc_set_ios(struct mmc_host *host)
 {
 	struct mmc_ios *ios = &host->ios;
 
-	pr_debug("%s: clock %uHz busmode %u powermode %u cs %u Vdd %u "
-		"width %u timing %u\n",
+	pr_info("%s: clock %uHz busmode %u powermode %u cs %u Vdd %u "
+		"width %u timing %u ddr %d\n",
 		 mmc_hostname(host), ios->clock, ios->bus_mode,
 		 ios->power_mode, ios->chip_select, ios->vdd,
-		 ios->bus_width, ios->timing);
+		 ios->bus_width, ios->timing, ios->ddr);
 
 	if (ios->clock > 0)
 		mmc_set_ungated(host);
@@ -1595,6 +1595,11 @@ int mmc_erase(struct mmc_card *card, unsigned int from, unsigned int nr,
 			return -EINVAL;
 	}
 
+	if (arg == MMC_DISCARD_ARG) {
+		if (nr < 16)
+			return 0;
+	}
+
 	if (arg == MMC_ERASE_ARG) {
 		rem = from % card->erase_size;
 		if (rem) {
@@ -1642,10 +1647,23 @@ int mmc_can_trim(struct mmc_card *card)
 }
 EXPORT_SYMBOL(mmc_can_trim);
 
+int mmc_can_discard(struct mmc_card *card)
+{
+/*
+	if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_GB_CL_EN)
+		return 1;
+	return 0;
+*/
+	return 1;
+}
+EXPORT_SYMBOL(mmc_can_discard);
+
 int mmc_can_secure_erase_trim(struct mmc_card *card)
 {
+/*
 	if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_ER_EN)
 		return 1;
+*/
 	return 0;
 }
 EXPORT_SYMBOL(mmc_can_secure_erase_trim);
@@ -1991,6 +2009,11 @@ int mmc_resume_host(struct mmc_host *host)
 			err = 0;
 		}
 	}
+#if defined CONFIG_MACH_ENDEAVORU || defined CONFIG_MACH_ENDEAVORTD
+    if(host->index==1) {
+        host->pm_flags &= ~MMC_PM_KEEP_POWER;
+    }
+#endif
 	mmc_bus_put(host);
 
 	return err;
@@ -2025,11 +2048,10 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		if (!host->bus_ops || host->bus_ops->suspend)
 			break;
 
-		mmc_claim_host(host);
-
 		if (host->bus_ops->remove)
 			host->bus_ops->remove(host);
 
+		mmc_claim_host(host);
 		mmc_detach_bus(host);
 		mmc_release_host(host);
 		host->pm_flags = 0;

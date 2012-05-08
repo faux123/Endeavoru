@@ -247,6 +247,8 @@ static void tegra3_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 		exit_time = ktime_get();
 		if (!is_lp_cluster())
 			tegra_dvfs_rail_on(tegra_cpu_rail, exit_time);
+		idle_stats.in_lp2_time[cpu_number(dev->cpu)] +=
+			ktime_to_us(ktime_sub(exit_time, entry_time));
 	} else
 		exit_time = ktime_get();
 
@@ -279,9 +281,11 @@ static void tegra3_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 
 		idle_stats.lp2_completed_count++;
 		idle_stats.lp2_completed_count_bin[bin]++;
-		idle_stats.in_lp2_time[cpu_number(dev->cpu)] +=
-			ktime_to_us(ktime_sub(exit_time, entry_time));
 
+
+		/* move from driver/cpuidle/cpuidle.c */
+		dev->states[1].usage++;
+		dev->states[1].time += ktime_to_us(ktime_sub(exit_time, entry_time));
 		pr_debug("%lld %lld %d %d\n", request,
 			ktime_to_us(ktime_sub(exit_time, entry_time)),
 			offset, bin);
@@ -296,6 +300,7 @@ static void tegra3_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	u32 twd_cnt;
 	u32 twd_ctrl = readl(twd_base + TWD_TIMER_CONTROL);
 	unsigned long twd_rate = clk_get_rate(twd_clk);
+	struct tick_sched *ts = tick_get_tick_sched(dev->cpu);
 
 	if ((twd_ctrl & TWD_TIMER_CONTROL_ENABLE) &&
 	    (twd_ctrl & TWD_TIMER_CONTROL_IT_ENABLE)) {
@@ -303,7 +308,8 @@ static void tegra3_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 		request = div_u64((u64)twd_cnt * 1000000, twd_rate);
 	}
 
-	if (request < tegra_lp2_exit_latency) {
+	if (request < tegra_lp2_exit_latency ||
+		(!ts) || (ts->nohz_mode == NOHZ_MODE_INACTIVE)) {
 		/*
 		 * Not enough time left to enter LP2
 		 */
@@ -327,6 +333,10 @@ static void tegra3_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 
 	idle_stats.in_lp2_time[cpu_number(dev->cpu)] +=
 		ktime_to_us(ktime_sub(ktime_get(), entery_time));
+
+	/* move from driver/cpuidle/cpuidle.c */
+	dev->states[1].usage++;
+	dev->states[1].time += ktime_to_us(ktime_sub(ktime_get(), entery_time));
 #endif
 }
 

@@ -993,7 +993,8 @@ void fb_edid_add_monspecs(unsigned char *edid, struct fb_monspecs *specs)
 	unsigned char *block;
 	struct fb_videomode *m;
 	int num = 0, i;
-	u8 svd[64], edt[(128 - 4) / DETAILED_TIMING_DESCRIPTION_SIZE];
+	u8 svd[64] = {NULL};
+	u8 edt[(128 - 4) / DETAILED_TIMING_DESCRIPTION_SIZE] = {NULL};
 	u8 pos = 4, svd_n = 0;
 
 	if (!edid)

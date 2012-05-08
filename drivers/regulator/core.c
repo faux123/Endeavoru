@@ -1321,6 +1321,7 @@ static int _regulator_enable(struct regulator_dev *rdev)
 			/* Allow the regulator to ramp; it would be useful
 			 * to extend this for bulk operations so that the
 			 * regulators can ramp together.  */
+			pr_info("[REGULATOR]+_regulator_enable ri=%s\n", rdev_get_name(rdev));
 			ret = rdev->desc->ops->enable(rdev);
 			if (ret < 0)
 				return ret;
@@ -1336,6 +1337,7 @@ static int _regulator_enable(struct regulator_dev *rdev)
 
 			_notifier_call_chain(
 				rdev, REGULATOR_EVENT_POST_ENABLE, NULL);
+			pr_info("[REGULATOR]-_regulator_enable ri=%s\n", rdev_get_name(rdev));
 			trace_regulator_enable_complete(rdev_get_name(rdev));
 
 		} else if (ret < 0) {
@@ -1376,7 +1378,7 @@ int regulator_enable(struct regulator *regulator)
 	ret = _regulator_enable(rdev);
 	mutex_unlock(&rdev->mutex);
 
-	if (ret != 0)
+	if (ret != 0 && rdev->supply)
 		regulator_disable(rdev->supply);
 
 	return ret;
@@ -1400,13 +1402,13 @@ static int _regulator_disable(struct regulator_dev *rdev)
 		if (_regulator_can_change_status(rdev) &&
 		    rdev->desc->ops->disable) {
 			trace_regulator_disable(rdev_get_name(rdev));
-
+			pr_info("[REGULATOR]+_regulator_disable ri=%s\n", rdev_get_name(rdev));
 			ret = rdev->desc->ops->disable(rdev);
 			if (ret < 0) {
 				rdev_err(rdev, "failed to disable\n");
 				return ret;
 			}
-
+			pr_info("[REGULATOR]-_regulator_disable ri=%s\n", rdev_get_name(rdev));
 			trace_regulator_disable_complete(rdev_get_name(rdev));
 
 			_notifier_call_chain(rdev, REGULATOR_EVENT_DISABLE,
@@ -1463,6 +1465,7 @@ static int _regulator_force_disable(struct regulator_dev *rdev)
 	/* force disable */
 	if (rdev->desc->ops->disable) {
 		/* ah well, who wants to live forever... */
+		printk("Force disable regulator: %s\n", rdev_get_name(rdev));
 		ret = rdev->desc->ops->disable(rdev);
 		if (ret < 0) {
 			rdev_err(rdev, "failed to force disable\n");
@@ -1761,6 +1764,64 @@ out:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(regulator_set_voltage);
+
+/**
+ * regulator_force_set_voltage - set regulator output voltage without checking
+ * @regulator: regulator source
+ * @min_uV: Minimum required voltage in uV
+ * @max_uV: Maximum acceptable voltage in uV
+ *
+ * Sets a voltage regulator to the desired output voltage. This can be set
+ * during any regulator state. IOW, regulator can be disabled or enabled.
+ *
+ * If the regulator is enabled then the voltage will change to the new value
+ * immediately otherwise if the regulator is disabled the regulator will
+ * output at the new voltage when enabled.
+ *
+ * NOTE: If the regulator is shared between several devices then the lowest
+ * request voltage that meets the system constraints will be used.
+ * Regulator system constraints must be set for this regulator before
+ * calling this function otherwise this call will fail.
+ */
+int regulator_force_set_voltage(struct regulator *regulator, int min_uV, int max_uV)
+{
+	struct regulator_dev *rdev = regulator->rdev;
+	int ret = 0;
+
+	mutex_lock(&rdev->mutex);
+
+	/* If we're setting the same range as last time the change
+	 * should be a noop (some cpufreq implementations use the same
+	 * voltage for multiple frequencies, for example).
+	 */
+	if (regulator->min_uV == min_uV && regulator->max_uV == max_uV)
+		goto out;
+
+	/* sanity check */
+	if (!rdev->desc->ops->set_voltage &&
+	    !rdev->desc->ops->set_voltage_sel) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* constraints check */
+//	ret = regulator_check_voltage(rdev, &min_uV, &max_uV);
+//	if (ret < 0)
+//		goto out;
+	regulator->min_uV = min_uV;
+	regulator->max_uV = max_uV;
+
+//	ret = regulator_check_consumers(rdev, &min_uV, &max_uV);
+//	if (ret < 0)
+//		goto out;
+
+	ret = _regulator_do_set_voltage(rdev, min_uV, max_uV);
+
+out:
+	mutex_unlock(&rdev->mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(regulator_force_set_voltage);
 
 /**
  * regulator_set_voltage_time - get raise/fall time
@@ -2606,6 +2667,14 @@ struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,
 		ret = set_supply(rdev, r);
 		if (ret < 0)
 			goto scrub;
+
+		/* Enable supply if rail is enabled */
+		if (rdev->desc->ops->is_enabled &&
+				rdev->desc->ops->is_enabled(rdev)) {
+			ret = regulator_enable(rdev->supply);
+			if (ret < 0)
+				goto scrub;
+		}
 	}
 
 	if (init_data->supply_regulator_dev) {

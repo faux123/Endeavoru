@@ -32,6 +32,9 @@
  * Callbacks for platform drivers to implement.
  */
 extern void (*pm_idle)(void);
+extern void (*pm_debug_idle)(void);
+extern void (*pm_debug_cpu_hotplug)(void);
+extern void (*pm_debug_dvfs)(void);
 extern void (*pm_power_off)(void);
 extern void (*pm_power_off_prepare)(void);
 

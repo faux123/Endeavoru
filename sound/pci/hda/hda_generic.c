@@ -687,9 +687,9 @@ static int create_mixer(struct hda_codec *codec, struct hda_gnode *node,
 	struct snd_kcontrol_new knew;
 
 	if (type)
-		sprintf(name, "%s %s Switch", type, dir_sfx);
+		snprintf(name, sizeof(name), "%s %s Switch", type, dir_sfx);
 	else
-		sprintf(name, "%s Switch", dir_sfx);
+		snprintf(name, sizeof(name), "%s Switch", dir_sfx);
 	if ((node->wid_caps & AC_WCAP_IN_AMP) &&
 	    (node->amp_in_caps & AC_AMPCAP_MUTE)) {
 		knew = (struct snd_kcontrol_new)HDA_CODEC_MUTE(name, node->nid, index, HDA_INPUT);
@@ -715,9 +715,9 @@ static int create_mixer(struct hda_codec *codec, struct hda_gnode *node,
 	}
 
 	if (type)
-		sprintf(name, "%s %s Volume", type, dir_sfx);
+		snprintf(name, sizeof(name), "%s %s Volume", type, dir_sfx);
 	else
-		sprintf(name, "%s Volume", dir_sfx);
+		snprintf(name, sizeof(name), "%s Volume", dir_sfx);
 	if ((node->wid_caps & AC_WCAP_IN_AMP) &&
 	    (node->amp_in_caps & AC_AMPCAP_NUM_STEPS)) {
 		knew = (struct snd_kcontrol_new)HDA_CODEC_VOLUME(name, node->nid, index, HDA_INPUT);
@@ -748,11 +748,11 @@ static int check_existing_control(struct hda_codec *codec, const char *type, con
 {
 	struct snd_ctl_elem_id id;
 	memset(&id, 0, sizeof(id));
-	sprintf(id.name, "%s %s Volume", type, dir);
+	snprintf(id.name, sizeof(id.name), "%s %s Volume", type, dir);
 	id.iface = SNDRV_CTL_ELEM_IFACE_MIXER;
 	if (snd_ctl_find_id(codec->bus->card, &id))
 		return 1;
-	sprintf(id.name, "%s %s Switch", type, dir);
+	snprintf(id.name, sizeof(id.name), "%s %s Switch", type, dir);
 	id.iface = SNDRV_CTL_ELEM_IFACE_MIXER;
 	if (snd_ctl_find_id(codec->bus->card, &id))
 		return 1;
@@ -844,7 +844,7 @@ static int build_input_controls(struct hda_codec *codec)
 	for (i = 0; i < spec->input_mux.num_items; i++) {
 		struct snd_kcontrol_new knew;
 		char name[32];
-		sprintf(name, "%s Capture Volume",
+		snprintf(name, sizeof(name), "%s Capture Volume",
 			spec->input_mux.items[i].label);
 		knew = (struct snd_kcontrol_new)
 			HDA_CODEC_VOLUME(name, adc_node->nid,

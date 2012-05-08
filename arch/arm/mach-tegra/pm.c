@@ -67,6 +67,7 @@
 #include "sleep.h"
 #include "timer.h"
 #include "dvfs.h"
+#include "cpu-tegra.h"
 
 struct suspend_context {
 	/*
@@ -130,6 +131,7 @@ struct suspend_context tegra_sctx;
 
 #define PMC_WAKE_STATUS		0x14
 #define PMC_SW_WAKE_STATUS	0x18
+#define PMC_WAKE2_STATUS	0x168
 #define PMC_COREPWRGOOD_TIMER	0x3c
 #define PMC_SCRATCH0		0x50
 #define PMC_SCRATCH1		0x54
@@ -156,6 +158,10 @@ struct suspend_context tegra_sctx;
 #define CLK_RESET_SOURCE_CSITE	0x1d4
 
 #define CLK_RESET_CCLK_BURST_POLICY_SHIFT 28
+#define CLK_RESET_CCLK_RUN_POLICY_SHIFT    4
+#define CLK_RESET_CCLK_IDLE_POLICY_SHIFT   0
+#define CLK_RESET_CCLK_IDLE_POLICY	   1
+#define CLK_RESET_CCLK_RUN_POLICY	   2
 #define CLK_RESET_CCLK_BURST_POLICY_PLLM   3
 #define CLK_RESET_CCLK_BURST_POLICY_PLLX   8
 
@@ -357,44 +363,56 @@ static void set_power_timers(unsigned long us_on, unsigned long us_off,
 static void restore_cpu_complex(u32 mode)
 {
 	int cpu = smp_processor_id();
-	unsigned int reg;
+	unsigned int reg, policy;
 
 	BUG_ON(cpu != 0);
 
 	/* restore original PLL settings */
-	writel(tegra_sctx.pllx_misc, clk_rst + CLK_RESET_PLLX_MISC);
-	writel(tegra_sctx.pllx_base, clk_rst + CLK_RESET_PLLX_BASE);
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	writel(tegra_sctx.pllp_misc, clk_rst + CLK_RESET_PLLP_MISC);
 	writel(tegra_sctx.pllp_base, clk_rst + CLK_RESET_PLLP_BASE);
+#endif
 	writel(tegra_sctx.pllp_outa, clk_rst + CLK_RESET_PLLP_OUTA);
 	writel(tegra_sctx.pllp_outb, clk_rst + CLK_RESET_PLLP_OUTB);
 
 	/* Is CPU complex already running on PLLX? */
 	reg = readl(clk_rst + CLK_RESET_CCLK_BURST);
-	reg &= 0xF;
-	if (reg != 0x8) {
-		/* restore original burst policy setting; PLLX state restored
-		 * by CPU boot-up code - wait for PLL stabilization if PLLX
-		 * was enabled */
+	policy = (reg >> CLK_RESET_CCLK_BURST_POLICY_SHIFT) & 0xF;
 
-		reg = readl(clk_rst + CLK_RESET_PLLX_BASE);
-		/* mask out bit 27 - not to check PLL lock bit */
-		BUG_ON((reg & (~(1 << 27))) !=
-				(tegra_sctx.pllx_base & (~(1 << 27))));
+	if (policy == CLK_RESET_CCLK_IDLE_POLICY)
+		reg = (reg >> CLK_RESET_CCLK_IDLE_POLICY_SHIFT) & 0xF;
+	else if (policy == CLK_RESET_CCLK_RUN_POLICY)
+		reg = (reg >> CLK_RESET_CCLK_RUN_POLICY_SHIFT) & 0xF;
+	else
+		BUG();
 
+	if (reg != CLK_RESET_CCLK_BURST_POLICY_PLLX) {
+		/* restore PLLX settings if CPU is on different PLL */
+		writel(tegra_sctx.pllx_misc, clk_rst + CLK_RESET_PLLX_MISC);
+		writel(tegra_sctx.pllx_base, clk_rst + CLK_RESET_PLLX_BASE);
+
+		/* wait for PLL stabilization if PLLX was enabled */
 		if (tegra_sctx.pllx_base & (1<<30)) {
 #if USE_PLL_LOCK_BITS
 			/* Enable lock detector */
 			reg = readl(clk_rst + CLK_RESET_PLLX_MISC);
 			reg |= 1<<18;
 			writel(reg, clk_rst + CLK_RESET_PLLX_MISC);
-			while (!(readl(clk_rst + CLK_RESET_PLLX_BASE) &&
+			while (!(readl(clk_rst + CLK_RESET_PLLX_BASE) &
 				 (1<<27)))
 				cpu_relax();
+
+			udelay(PLL_POST_LOCK_DELAY);
 #else
 			udelay(300);
 #endif
 		}
+	}
+
+	/* Restore original burst policy setting for calls resulting from CPU
+	   LP2 in idle or system suspend; keep cluster switch prolog setting
+	   intact. */
+	if (!(mode & TEGRA_POWER_CLUSTER_MASK)) {
 		writel(tegra_sctx.cclk_divider, clk_rst +
 		       CLK_RESET_CCLK_DIVIDER);
 		writel(tegra_sctx.cpu_burst, clk_rst +
@@ -617,7 +635,7 @@ unsigned int tegra_idle_lp2_last(unsigned int sleep_time, unsigned int flags)
 
 #if INSTRUMENT_CLUSTER_SWITCH
 	if (flags & TEGRA_POWER_CLUSTER_MASK) {
-		pr_err("%s: prolog %lu us, switch %lu us, epilog %lu us, total %lu us\n",
+		pr_info("%s: prolog %lu us, switch %lu us, epilog %lu us, total %lu us\n",
 			is_lp_cluster() ? "G=>LP" : "LP=>G",
 			tegra_cluster_switch_times[tegra_cluster_switch_time_id_prolog] -
 			tegra_cluster_switch_times[tegra_cluster_switch_time_id_start],
@@ -702,6 +720,7 @@ static void tegra_pm_set(enum tegra_suspend_mode mode)
 
 	switch (mode) {
 	case TEGRA_SUSPEND_LP0:
+		rate = clk_get_rate_all_locked(tegra_pclk);
 		if (pdata->combined_req) {
 			reg |= TEGRA_POWER_PWRREQ_OE;
 			reg &= ~TEGRA_POWER_CPU_PWRREQ_OE;
@@ -808,6 +827,12 @@ static void tegra_suspend_check_pwr_stats(void)
 	return;
 }
 
+unsigned long long wake_reason_resume;
+EXPORT_SYMBOL(wake_reason_resume);
+
+int resume_from_deep_suspend;
+EXPORT_SYMBOL(resume_from_deep_suspend);
+
 int tegra_suspend_dram(enum tegra_suspend_mode mode, unsigned int flags)
 {
 	BUG_ON(mode < 0 || mode >= TEGRA_MAX_SUSPEND_MODE);
@@ -892,6 +917,10 @@ int tegra_suspend_dram(enum tegra_suspend_mode mode, unsigned int flags)
 
 	tegra_common_resume();
 
+	wake_reason_resume = __raw_readl(pmc + PMC_WAKE_STATUS);
+	wake_reason_resume |= ((u64)readl(pmc + PMC_WAKE2_STATUS)) << 32;
+	resume_from_deep_suspend = 1;
+
 	return 0;
 }
 
@@ -910,6 +939,22 @@ static int tegra_suspend_prepare(void)
 
 static void tegra_suspend_finish(void)
 {
+	if((pdata->boost_resume_reason & (u32)wake_reason_resume) !=
+		wake_reason_resume) {
+		goto noboost;
+	}
+
+	if (pdata && pdata->cpu_resume_boost) {
+		int ret = tegra_suspended_target(pdata->cpu_resume_boost);
+		pr_info("Tegra: resume CPU boost to %u KHz: %s (%d)\n",
+			pdata->cpu_resume_boost, ret ? "Failed" : "OK", ret);
+	}
+
+noboost:
+	wake_reason_resume = 0;
+	pr_info("wake reason is 0x%x\n", (u32)wake_reason_resume);
+	pr_info("board boost wake reason is 0x%x\n",
+			(u32)pdata->boost_resume_reason);
 	if ((current_suspend_mode == TEGRA_SUSPEND_LP0) && tegra_deep_sleep)
 		tegra_deep_sleep(0);
 }
@@ -972,7 +1017,7 @@ static struct kobject *suspend_kobj;
 #ifdef CONFIG_PM_SLEEP
 static int tegra_pm_enter_suspend(void)
 {
-	pr_info("Entering suspend state %s\n", lp_state[current_suspend_mode]);
+	pr_info("[R] Entering suspend state %s\n", lp_state[current_suspend_mode]);
 	if (current_suspend_mode == TEGRA_SUSPEND_LP0)
 		tegra_lp0_cpu_mode(true);
 	return 0;
@@ -982,7 +1027,7 @@ static void tegra_pm_enter_resume(void)
 {
 	if (current_suspend_mode == TEGRA_SUSPEND_LP0)
 		tegra_lp0_cpu_mode(false);
-	pr_info("Exited suspend state %s\n", lp_state[current_suspend_mode]);
+	pr_info("[R] Exited suspend state %s\n", lp_state[current_suspend_mode]);
 }
 
 static struct syscore_ops tegra_pm_enter_syscore_ops = {
@@ -1096,11 +1141,13 @@ out:
 	writel(0, pmc + PMC_SCRATCH41);
 
 	/* Always enable CPU power request; just normal polarity is supported */
+//#ifndef CONFIG_MACH_ENDEAVORU || CONFIG_MACH_ENDEAVORUTD
+#if !defined(CONFIG_MACH_ENDEAVORU) && !defined(CONFIG_MACH_ENDEAVORTD)
 	reg = readl(pmc + PMC_CTRL);
 	BUG_ON(reg & TEGRA_POWER_CPU_PWRREQ_POLARITY);
 	reg |= TEGRA_POWER_CPU_PWRREQ_OE;
 	pmc_32kwritel(reg, PMC_CTRL);
-
+#endif
 	/* Configure core power request and system clock control if LP0
 	   is supported */
 	__raw_writel(pdata->core_timer, pmc + PMC_COREPWRGOOD_TIMER);
@@ -1242,67 +1289,3 @@ static int tegra_debug_uart_syscore_init(void)
 	return 0;
 }
 arch_initcall(tegra_debug_uart_syscore_init);
-
-#ifdef CONFIG_DEBUG_FS
-static int tegra_suspend_debug_show(struct seq_file *s, void *data)
-{
-	seq_printf(s, "%s\n", tegra_suspend_name[*(int *)s->private]);
-	return 0;
-}
-
-static int tegra_suspend_debug_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, tegra_suspend_debug_show, inode->i_private);
-}
-
-static int tegra_suspend_debug_write(struct file *file,
-	const char __user *user_buf, size_t count, loff_t *ppos)
-{
-	char buf[32];
-	int buf_size;
-	int i;
-	struct seq_file *s = file->private_data;
-	enum tegra_suspend_mode *val = s->private;
-
-	memset(buf, 0x00, sizeof(buf));
-	buf_size = min(count, (sizeof(buf)-1));
-	if (copy_from_user(buf, user_buf, buf_size))
-		return -EFAULT;
-
-	for (i = 0; i < TEGRA_MAX_SUSPEND_MODE; i++) {
-		if (!strnicmp(buf, tegra_suspend_name[i],
-		    strlen(tegra_suspend_name[i]))) {
-			if (i > pdata->suspend_mode)
-				return -EINVAL;
-			*val = i;
-			return count;
-		}
-	}
-
-	return -EINVAL;
-}
-
-static const struct file_operations tegra_suspend_debug_fops = {
-	.open		= tegra_suspend_debug_open,
-	.write		= tegra_suspend_debug_write,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= single_release,
-};
-
-static int __init tegra_suspend_debug_init(void)
-{
-	struct dentry *d;
-
-	d = debugfs_create_file("suspend_mode", 0755, NULL,
-		(void *)&current_suspend_mode, &tegra_suspend_debug_fops);
-	if (!d) {
-		pr_info("Failed to create suspend_mode debug file\n");
-		return -ENOMEM;
-	}
-
-	return 0;
-}
-
-late_initcall(tegra_suspend_debug_init);
-#endif

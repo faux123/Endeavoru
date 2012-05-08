@@ -289,6 +289,18 @@ __acquires(ehci->lock)
 		urb->actual_length, urb->transfer_buffer_length);
 #endif
 
+#ifdef CONFIG_MACH_ENDEARVORU
+	/* HTC: log for urb trace */
+	if (host_dbg_flag & DBG_EHCI_URB)
+		ehci_info (ehci,
+			"%s %s urb %p ep%d%s status %d len %d/%d\n",
+			__func__, urb->dev->devpath, urb,
+			usb_pipeendpoint (urb->pipe),
+			usb_pipein (urb->pipe) ? "in" : "out",
+			status,
+			urb->actual_length, urb->transfer_buffer_length);
+#endif
+
 	/* complete() can reenter this HCD */
 	usb_hcd_unlink_urb_from_ep(ehci_to_hcd(ehci), urb);
 	spin_unlock (&ehci->lock);
@@ -1109,6 +1121,21 @@ submit_async (
 		struct ehci_qtd *qtd;
 		qtd = list_entry(qtd_list->next, struct ehci_qtd, qtd_list);
 		ehci_dbg(ehci,
+			 "%s %s urb %p ep%d%s len %d, qtd %p [qh %p]\n",
+			 __func__, urb->dev->devpath, urb,
+			 epnum & 0x0f, (epnum & USB_DIR_IN) ? "in" : "out",
+			 urb->transfer_buffer_length,
+			 qtd, urb->ep->hcpriv);
+	}
+#endif
+
+#ifdef CONFIG_MACH_ENDEARVORU
+	/* HTC: log for urb trace */
+	if (host_dbg_flag & DBG_EHCI_URB)
+	{
+		struct ehci_qtd *qtd;
+		qtd = list_entry(qtd_list->next, struct ehci_qtd, qtd_list);
+		ehci_info(ehci,
 			 "%s %s urb %p ep%d%s len %d, qtd %p [qh %p]\n",
 			 __func__, urb->dev->devpath, urb,
 			 epnum & 0x0f, (epnum & USB_DIR_IN) ? "in" : "out",

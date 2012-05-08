@@ -37,6 +37,7 @@ obj-$(CONFIG_JME) += jme.o
 obj-$(CONFIG_BE2NET) += benet/
 obj-$(CONFIG_VMXNET3) += vmxnet3/
 obj-$(CONFIG_BNA) += bna/
+obj-$(CONFIG_IP_OVER_TTY) += ip_over_tty/
 
 gianfar_driver-objs := gianfar.o \
 		gianfar_ethtool.o \
@@ -107,7 +108,7 @@ obj-$(CONFIG_ADAPTEC_STARFIRE) += starfire.o
 obj-$(CONFIG_RIONET) += rionet.o
 obj-$(CONFIG_SH_ETH) += sh_eth.o
 obj-$(CONFIG_STMMAC_ETH) += stmmac/
-
+obj-$(CONFIG_KINETO_GAN) += kineto_gan.o
 #
 # end link order section
 #

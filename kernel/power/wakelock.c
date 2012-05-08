@@ -22,6 +22,8 @@
 #ifdef CONFIG_WAKELOCK_STAT
 #include <linux/proc_fs.h>
 #endif
+#include <htc/log.h>
+#include <mach/board_htc.h>
 #include "power.h"
 
 enum {
@@ -31,7 +33,8 @@ enum {
 	DEBUG_EXPIRE = 1U << 3,
 	DEBUG_WAKE_LOCK = 1U << 4,
 };
-static int debug_mask = DEBUG_EXIT_SUSPEND | DEBUG_WAKEUP;
+
+static int debug_mask = DEBUG_EXIT_SUSPEND | DEBUG_WAKEUP | DEBUG_SUSPEND;
 module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
 
 #define WAKE_LOCK_TYPE_MASK              (0x0f)
@@ -224,6 +227,77 @@ static void print_active_locks(int type)
 	}
 }
 
+void htc_print_active_wake_locks()
+{
+	static char idle_hdr[] = "idle lock: ";
+	static char suspend_hdr[] = "wakelock: ";
+	bool lock_exist[2] = {false, false}; // 0: idle; 1: suspend
+	
+	struct wake_lock *lock;
+	char buf[2][2048]; // maed of 4K page, [0][]: idle; [1][]: suspend
+	int idx = 0;
+	
+	unsigned long irqflags;	
+	spin_lock_irqsave(&list_lock, irqflags);	
+	
+	//
+	// IRQs off, Trap off
+	// finish the dump job ASAP
+	//
+	if((!list_empty(&active_wake_locks[WAKE_LOCK_IDLE]))){
+		/* idle lock is NOT empty */
+		lock_exist[0] = true;
+		idx = 0;
+		
+		list_for_each_entry(lock, &active_wake_locks[WAKE_LOCK_IDLE], link) {
+			if (lock->flags & WAKE_LOCK_AUTO_EXPIRE) {
+				long timeout = lock->expires - jiffies;
+				if (timeout > 0)
+					if (idx < sizeof(buf[0]))
+						idx += snprintf (buf[0]+idx, sizeof(buf[0])-idx, " '%s', time left %ld; ", lock->name, timeout);
+
+			} else {
+				if (idx < sizeof(buf[0]))
+					idx += snprintf (buf[0]+idx, sizeof(buf[0])-idx, " '%s' ", lock->name);
+			}
+		}
+	}
+	
+	if((!list_empty(&active_wake_locks[WAKE_LOCK_SUSPEND]))){
+		/* suspend lock is NOT empty */
+		lock_exist[1] = true;
+		idx = 0;
+		
+		list_for_each_entry(lock, &active_wake_locks[WAKE_LOCK_SUSPEND], link) {
+			if (lock->flags & WAKE_LOCK_AUTO_EXPIRE) {
+				long timeout = lock->expires - jiffies;
+				if (timeout > 0)
+					if (idx < sizeof(buf[1]))
+						idx += snprintf (buf[1]+idx, sizeof(buf[1])-idx, " '%s', time left %ld; ", lock->name, timeout);
+				
+			} else {
+				if (idx < sizeof(buf[1]))
+					idx += snprintf (buf[1]+idx, sizeof(buf[1])-idx, " '%s' ", lock->name);
+			}
+		}
+	}
+	
+	spin_unlock_irqrestore(&list_lock, irqflags);
+	
+	//
+	// IRQ state restored, Trap on
+	//
+	/* idle lockers */
+	if (lock_exist[0]) {
+		printk ("%s%s\n", idle_hdr, buf[0]);
+	}
+	
+	/* suspend lockers */
+	if (lock_exist[1]) {
+		printk ("%s%s\n", suspend_hdr, buf[1]);
+	}
+}
+
 static long has_wake_lock_locked(int type)
 {
 	struct wake_lock *lock, *n;
@@ -251,6 +325,8 @@ long has_wake_lock(int type)
 	ret = has_wake_lock_locked(type);
 	if (ret && (debug_mask & DEBUG_SUSPEND) && type == WAKE_LOCK_SUSPEND)
 		print_active_locks(type);
+	else if (ret)
+		print_active_locks(type);
 	spin_unlock_irqrestore(&list_lock, irqflags);
 	return ret;
 }
@@ -259,7 +335,9 @@ static void suspend(struct work_struct *work)
 {
 	int ret;
 	int entry_event_num;
-
+	struct timespec ts;
+	struct rtc_time tm;
+	pmr_pr_info("[R][wakelock] suspend start\n");
 	if (has_wake_lock(WAKE_LOCK_SUSPEND)) {
 		if (debug_mask & DEBUG_SUSPEND)
 			pr_info("suspend: abort suspend\n");
@@ -272,8 +350,6 @@ static void suspend(struct work_struct *work)
 		pr_info("suspend: enter suspend\n");
 	ret = pm_suspend(requested_suspend_state);
 	if (debug_mask & DEBUG_EXIT_SUSPEND) {
-		struct timespec ts;
-		struct rtc_time tm;
 		getnstimeofday(&ts);
 		rtc_time_to_tm(ts.tv_sec, &tm);
 		pr_info("suspend: exit suspend, ret = %d "
@@ -286,6 +362,14 @@ static void suspend(struct work_struct *work)
 			pr_info("suspend: pm_suspend returned with no event\n");
 		wake_lock_timeout(&unknown_wakeup, HZ / 2);
 	}
+	getnstimeofday(&ts);
+	rtc_time_to_tm(ts.tv_sec, &tm);
+
+	pmr_pr_info("[R][wakelock] resume end "
+		"(%d-%02d-%02d %02d:%02d:%02d.%09lu UTC)\n",
+		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
+
 }
 static DECLARE_WORK(suspend_work, suspend);
 

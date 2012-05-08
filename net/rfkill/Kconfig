@@ -11,9 +11,9 @@ menuconfig RFKILL
 	  module will be called rfkill.
 
 config RFKILL_PM
-	bool "Power off on suspend"
-	depends on RFKILL && PM
-	default y
+       bool "Power off on suspend"
+       depends on RFKILL && PM
+       default y
 
 # LED trigger support
 config RFKILL_LEDS

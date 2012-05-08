@@ -2,6 +2,15 @@ if ARCH_TEGRA
 
 comment "NVIDIA Tegra options"
 
+config SHARK_TD_WORKSHOP
+	bool "Shark TD Project Workshop"
+	default n
+	depends on ARCH_TEGRA_3x_SOC
+	help
+	  Support for Shark TD workshop. Tegra AP30 integration with STE
+	  M6718 baseband processor.
+	  Select "y" to enable.
+
 config ARCH_TEGRA_2x_SOC
 	bool "Tegra 2 family SOC"
 	default y
@@ -19,6 +28,7 @@ config ARCH_TEGRA_2x_SOC
 	select USB_ULPI_VIEWPORT if USB_SUPPORT
 	select ARCH_SUPPORTS_MSI if TEGRA_PCI
 	select PCI_MSI if TEGRA_PCI
+	select ARM_ERRATA_754322
 	help
 	  Support for NVIDIA Tegra AP20 and T20 processors, based on the
 	  ARM CortexA9MP CPU and the ARM PL310 L2 cache controller
@@ -40,6 +50,7 @@ config ARCH_TEGRA_3x_SOC
 	select REPORT_PRESENT_CPUS if TEGRA_AUTO_HOTPLUG
 	select ARCH_SUPPORTS_MSI if TEGRA_PCI
 	select PCI_MSI if TEGRA_PCI
+	select ARM_ERRATA_754322
 	help
 	  Support for NVIDIA Tegra 3 family of SoCs, based upon the
 	  ARM CortexA9MP CPU and the ARM PL310 L2 cache controller
@@ -135,6 +146,7 @@ config MACH_CARDHU
        bool "Cardhu board"
        depends on ARCH_TEGRA_3x_SOC
        select MACH_HAS_SND_SOC_TEGRA_WM8903 if SND_SOC
+       select MACH_HAS_SND_SOC_TEGRA_RT5640 if SND_SOC
        help
          Support for NVIDIA Cardhu development platform
 
@@ -144,6 +156,36 @@ config MACH_TEGRA_ENTERPRISE
        select MACH_HAS_SND_SOC_TEGRA_MAX98088 if SND_SOC
        help
          Support for NVIDIA Enterprise development platform
+
+config MACH_VERTEXF
+       bool "Quattro#F board"
+       depends on ARCH_TEGRA_3x_SOC
+       help
+         Support for HTC Quattro#F tablet
+
+config MACH_VERTEXFP
+       bool "Quattro#F PRM board"
+       depends on ARCH_TEGRA_3x_SOC
+       help
+         Support for HTC Quattro#F PRM tablet
+
+config MACH_ENDEAVORU
+	bool "Edge board"
+	default n
+	depends on ARCH_TEGRA_3x_SOC
+	help
+		Support for HTC EDGE#U phone
+
+config MACH_ENDEAVORTD
+	bool "Edge#TD board"
+	default n
+	depends on ARCH_TEGRA_3x_SOC
+	help
+		Support for HTC EDGE#TD phone
+
+config BATTERY_TPS80032
+	depends on HTC_BATT_CORE && ADC_TPS80032 && VSYS_ALARM_TPS80032
+	bool "HTC battery driver for tps80032"
 
 choice
        prompt "Tegra platform type"
@@ -312,6 +354,11 @@ config WIFI_CONTROL_FUNC
 	help
 	  Enables Power/Reset/Carddetect function abstraction
 
+config WIFI_NVS_PROC_CREATE
+	bool "Store nvs data into /proc/calibration"
+	help
+	  store nvs data into /proc/calibration
+
 config TEGRA_CLOCK_DEBUG_WRITE
 	bool "Enable debugfs write access to clock tree"
 	depends on DEBUG_FS
@@ -362,7 +409,14 @@ config TEGRA_EMC_TO_DDR_CLOCK
 	default "2" if ARCH_TEGRA_2x_SOC
 	default "1"
 
-config TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
+config TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND
+	bool "Use interactive cpu frequency governor when device enters early suspend"
+	depends on HAS_EARLYSUSPEND && CPU_FREQ && !TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
+	default y
+	help
+	 Also will restore to original cpu frequency governor when device is resumed
+
+config TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
 	bool "Use conservative cpu frequency governor when device enters early suspend"
 	depends on HAS_EARLYSUSPEND && CPU_FREQ
 	default n
@@ -387,6 +441,12 @@ config USB_HOTPLUG
 	bool "Enabling the USB hotplug"
 	default n
 
+config TIWLAN_SDIO
+        bool "TI WLAN Enhanced SDIO Contoller support"
+        depends on MACH_ENDEAVORU || MACH_ENDEAVORTD || MACH_BLUE
+        help
+           Say Y here if you want to be able to use TI's WLAN device using the
+           SDIO interface. If unsure, say N.
 config TEGRA_DYNAMIC_PWRDET
 	bool "Enable dynamic activation of IO level auto-detection"
 	depends on TEGRA_SILICON_PLATFORM
@@ -433,6 +493,81 @@ config TEGRA_THERMAL_SYSFS
 	depends on THERMAL
 	default y
 
+config MICROP_COMMON
+    bool "MICROP COMMON Driver"
+    depends on I2C
+    help
+      HTC Microp-P support.
+
+config MICROP_COMMON_QUATTRO
+    bool "MICROP COMMON Driver"
+    depends on I2C
+    help
+      HTC Microp-P support.
+config HTC_HEADSET_MGR
+	tristate "HTC headset manager driver"
+	default n
+	help
+	  Provides support of HTC headset manager.
+
+config HTC_HEADSET_H2W
+	tristate "HTC 2 Wire headset driver"
+	depends on HTC_HEADSET_MGR
+	default n
+	help
+	  Provides support of HTC 2 Wire headset.
+
+config HTC_HEADSET_GPIO
+	tristate "HTC GPIO headset detection driver"
+	depends on HTC_HEADSET_MGR
+	default n
+	help
+	  Provides support of HTC GPIO headset detection.
+
+config HTC_HEADSET_MICROP
+	tristate "HTC Micro-P headset detection driver"
+	depends on HTC_HEADSET_MGR && MICROP_COMMON
+	default n
+	help
+	  Provides support of HTC Micro-P headset detection.
+
+config HTC_HEADSET_PMIC
+	tristate "HTC PMIC headset detection driver"
+	depends on HTC_HEADSET_MGR
+	default n
+	help
+	  Provides support of HTC PMIC headset detection.
+
+config HTC_HEADSET_MISC
+	tristate "HTC MISC headset detection driver"
+	depends on HTC_HEADSET_MGR
+	default n
+	help
+	  Provides support of HTC MISC headset detection.
+
+config HTC_HEADSET_8X60
+	tristate "HTC 8X60 headset detection driver"
+	depends on HTC_HEADSET_MGR
+	default n
+	help
+	  Provides support of HTC 8X60 headset detection.
+
+config HTC_USB_NOTIFIER
+	tristate "HTC usb notifier register"
+	default n
+	help
+	  If usb status are change, a usb notifier will callback to 
+	  registered function.
+
+config HTC_BATT_CORE
+	depends on POWER_SUPPLY
+	bool "HTC battery core driver"
+
+config RESET_REASON
+    bool "Enable reset reason for Quattro / Blue"
+    depends on MACH_ENDEAVORU || MACH_ENDEAVORTD || MACH_BLUE || MACH_VERTEXF || MACH_QUATTRO_U
+    default n
+
 config TEGRA_PLLM_RESTRICTED
 	bool "Restrict PLLM usage as module clock source"
 	depends on !ARCH_TEGRA_2x_SOC
@@ -443,11 +578,31 @@ config TEGRA_PLLM_RESTRICTED
 	  disabled, PLLM is used as a clock source with no restrictions (which
 	  may effectively increase lower limit for core voltage).
 
+config DEBUG_LL_DYNAMIC
+	bool "Dynamically enable low Level debug"
+	depends on DEBUG_LL
+	default n
+
+config USB_CDROM
+	bool "Enable USB CD-ROM"
+	depends on USB_STORAGE
+
+config USB_DRV
+	bool "Enable USB Drive Strength"
+	depends on USB
+
 config TEGRA_WDT_RECOVERY
 	bool "Enable suspend/resume watchdog recovery mechanism"
 	default n
 	help
 	  Enables watchdog recovery mechanism to protect against
 	  suspend/resume hangs.
+
+config ANDROID_RAM_CONSOLE_APPEND_PMIC_STATUS_BITS
+	bool "Append PMIC status bits to end of /proc/last_kmsg"
+	default n
+	help
+	  Append PMIC status bits to end of /proc/last_kmsg for
+	  checking the boot / reset reason in detail
 endif
 

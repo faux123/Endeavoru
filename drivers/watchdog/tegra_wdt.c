@@ -34,6 +34,8 @@
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
 #include <linux/watchdog.h>
+#include <mach/restart.h>
+#include <mach/board_htc.h>
 
 /* minimum and maximum watchdog trigger periods, in seconds */
 #define MIN_WDT_PERIOD	5
@@ -112,6 +114,7 @@ static irqreturn_t tegra_wdt_interrupt(int irq, void *dev_id)
  #define WDT_CMD_DISABLE_COUNTER	(1 << 1)
 #define WDT_UNLOCK			(0xC)
  #define WDT_UNLOCK_PATTERN		(0xC45A << 0)
+#define WRITE_CONFIG_TO_DISABLE_WDT	(1 << 0)
 
 static void tegra_wdt_set_timeout(struct tegra_wdt *wdt, int sec)
 {
@@ -155,7 +158,7 @@ static void tegra_wdt_disable(struct tegra_wdt *wdt)
 static irqreturn_t tegra_wdt_interrupt(int irq, void *dev_id)
 {
 	struct tegra_wdt *wdt = dev_id;
-
+	pr_info("touch watchdog\n");
 	writel(WDT_CMD_START_COUNTER, wdt->wdt_source + WDT_CMD);
 	return IRQ_HANDLED;
 }
@@ -256,6 +259,10 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 	struct tegra_wdt *wdt;
 	u32 src;
 	int ret = 0;
+	pr_info("watchdog probe\n");
+
+	//set default reset reason for hardware reset.
+	set_hardware_reason("WatchDog");
 
 	if (pdev->id != -1) {
 		dev_err(&pdev->dev, "only id -1 supported\n");
@@ -416,6 +423,11 @@ static struct platform_driver tegra_wdt_driver = {
 
 static int __init tegra_wdt_init(void)
 {
+	if( !!(get_kernel_flag() & WRITE_CONFIG_TO_DISABLE_WDT) )
+	{
+		printk(KERN_INFO "Tegra Watchdog Not Initialized \n");
+		return 0;
+	}	
 	return platform_driver_register(&tegra_wdt_driver);
 }
 

@@ -7,7 +7,7 @@
  *	Colin Cross <ccross@google.com>
  *	Based on arch/arm/plat-omap/cpu-omap.c, (C) 2005 Nokia Corporation
  *
- * Copyright (C) 2010-2011 NVIDIA Corporation
+ * Copyright (C) 2010-2012 NVIDIA Corporation
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -33,6 +33,9 @@
 #include <linux/suspend.h>
 #include <linux/debugfs.h>
 #include <linux/cpu.h>
+#include <linux/pm_qos_params.h>
+#include <linux/earlysuspend.h>
+#include <linux/spinlock.h>
 
 #include <asm/system.h>
 
@@ -40,14 +43,22 @@
 #include <mach/clk.h>
 #include <mach/edp.h>
 
+#include "board.h"
 #include "clock.h"
 #include "cpu-tegra.h"
+#include "pm.h"
+
+/* Symbol to store resume resume */
+extern unsigned long long wake_reason_resume;
+static spinlock_t user_cap_lock;
+
 
 /* tegra throttling and edp governors require frequencies in the table
    to be in ascending order */
 static struct cpufreq_frequency_table *freq_table;
 
 static struct clk *cpu_clk;
+static struct clk *cpu_g_clk;
 static struct clk *emc_clk;
 
 static unsigned long policy_max_speed[CONFIG_NR_CPUS];
@@ -86,6 +97,22 @@ module_param_cb(force_policy_max, &policy_ops, &force_policy_max, 0644);
 
 
 static unsigned int cpu_user_cap;
+
+void htc_set_cpu_user_cap(const unsigned int value)
+{
+	int flags = 0;
+	spin_lock_irqsave(&user_cap_lock, flags);
+	cpu_user_cap = value;
+	spin_unlock_irqrestore(&user_cap_lock, flags);
+}
+
+void htc_get_cpu_user_cap(unsigned int *value)
+{
+	int flags = 0;
+	spin_lock_irqsave(&user_cap_lock, flags);
+	*value = cpu_user_cap;
+	spin_unlock_irqrestore(&user_cap_lock, flags);
+}
 
 static int cpu_user_cap_set(const char *arg, const struct kernel_param *kp)
 {
@@ -133,6 +160,43 @@ static unsigned int user_cap_speed(unsigned int requested_speed)
 }
 
 #ifdef CONFIG_TEGRA_THERMAL_THROTTLE
+
+#define MS_NUMBER	15
+#define OUTPUT_TIME	10000
+#define MAX_LOCAL_BUFFER	60
+#define CPU_NUMBER	4
+
+#ifdef PWR_DEVICE_TAG
+
+#undef PWR_DEVICE_TAG
+
+#endif
+#define PWR_DEVICE_TAG "DVFS"
+
+static u64 rtc_before = 0;
+static u64 rtc_after = 0;
+static u64 rtc_output = 0;
+static u32 ms_array[MS_NUMBER] = {0};
+static u32 ms_array_pm[CPU_NUMBER][MS_NUMBER];
+
+/*for DVFS Profile*/
+void cpu_dvfs_debug_show(void)
+{
+	int i;
+	int j;
+	char buffer[MAX_LOCAL_BUFFER];
+	char *bptr = NULL;
+
+	for (j = 0; j < CPU_NUMBER; j++) {
+		bptr = buffer;
+
+		for (i = 0; (freq_table[i].frequency != CPUFREQ_TABLE_END); i++)
+			bptr += sprintf(bptr, "%u,", ms_array_pm[j][i]);
+
+		*(bptr-1) = '\0';
+		pr_pwr_story(" CPU%u: Each freq runs (ms): %s", j, buffer);
+	}
+}
 
 static ssize_t show_throttle(struct cpufreq_policy *policy, char *buf)
 {
@@ -456,6 +520,16 @@ static int tegra_update_cpu_speed(unsigned long rate)
 	int ret = 0;
 	struct cpufreq_freqs freqs;
 
+	u32 ms;
+	u32 output_time;
+	int index = 0;
+	int i;
+	int cpu_online[CPU_NUMBER];
+	char buffer[MAX_LOCAL_BUFFER];
+	char *bptr = buffer;
+	unsigned long rate_save = rate;
+	int orig_nice = 0;
+
 	freqs.old = tegra_getspeed(0);
 	freqs.new = rate;
 
@@ -466,12 +540,48 @@ static int tegra_update_cpu_speed(unsigned long rate)
 	if (freqs.old == freqs.new)
 		return ret;
 
+	if (freqs.new < rate_save && rate_save >= 880000) {
+		if (is_lp_cluster()) {
+			orig_nice = task_nice(current);
+
+			if(can_nice(current, -20)) {
+				set_user_nice(current, -20);
+			} else {
+				pr_err("[cpufreq] can not nice(-20)!!");
+			}
+
+			/* set rate to max of LP mode */
+			ret = clk_set_rate(cpu_clk, 475000 * 1000);
+
+			/* change to g mode */
+			clk_set_parent(cpu_clk, cpu_g_clk);
+
+			/* restore the target frequency, and
+			 * let the rest of the function handle
+			 * the frequency scale up
+			 */
+			freqs.new = rate_save;
+		}
+	}
+
 	/*
 	 * Vote on memory bus frequency based on cpu frequency
 	 * This sets the minimum frequency, display or avp may request higher
 	 */
-	if (freqs.old < freqs.new)
-		clk_set_rate(emc_clk, tegra_emc_to_cpu_ratio(freqs.new));
+	if (freqs.old < freqs.new) {
+		ret = tegra_update_mselect_rate(freqs.new);
+		if (ret) {
+			pr_err("cpu-tegra: Failed to scale mselect for cpu"
+			       " frequency %u kHz\n", freqs.new);
+			goto error;
+		}
+		ret = clk_set_rate(emc_clk, tegra_emc_to_cpu_ratio(freqs.new));
+		if (ret) {
+			pr_err("cpu-tegra: Failed to scale emc for cpu"
+			       " frequency %u kHz\n", freqs.new);
+			goto error;
+		}
+	}
 
 	for_each_online_cpu(freqs.cpu)
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
@@ -481,20 +591,66 @@ static int tegra_update_cpu_speed(unsigned long rate)
 	       freqs.old, freqs.new);
 #endif
 
+	for (i = 0; i < CPU_NUMBER; i++) {
+		if (cpu_online(i) == 1)
+			cpu_online[i] = 1;
+		else
+			cpu_online[i] = 0;
+	}
+
+
 	ret = clk_set_rate(cpu_clk, freqs.new * 1000);
 	if (ret) {
 		pr_err("cpu-tegra: Failed to set cpu frequency to %d kHz\n",
 			freqs.new);
-		return ret;
+		goto error;
 	}
+
+	rtc_after = tegra_rtc_read_ms();
+	ms = rtc_after - rtc_before;
+
+	for (i = 0; (freq_table[i].frequency != CPUFREQ_TABLE_END); i++) {
+		if (freq_table[i].frequency == freqs.old)
+			index = i;
+	}
+	ms_array[index] += ms;
+
+	for (i = 0; i < CPU_NUMBER; i++) {
+		if (cpu_online[i] == 1)
+			ms_array_pm[i][index] += ms;
+	}
+
+	output_time = rtc_after - rtc_output;
+
+	if (output_time >= OUTPUT_TIME) {
+		for (i = 0; (freq_table[i].frequency != CPUFREQ_TABLE_END); i++) {
+			bptr += sprintf(bptr, "%u,", ms_array[i]);
+			ms_array[i] = 0;
+		}
+		*(bptr-1) = '\0';
+		pr_info("[DVFS] each freq runs (ms): %s\n", buffer);
+		rtc_output = rtc_after;
+	}
+	rtc_before = rtc_after;
 
 	for_each_online_cpu(freqs.cpu)
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 
-	if (freqs.old > freqs.new)
+	if (freqs.old > freqs.new) {
 		clk_set_rate(emc_clk, tegra_emc_to_cpu_ratio(freqs.new));
+		tegra_update_mselect_rate(freqs.new);
+	}
+error:
+	if (orig_nice != task_nice(current)) {
+		if (can_nice(current, orig_nice)) {
+			set_user_nice(current, orig_nice);
+		} else {
+			pr_err("[cpufreq] can not restore nice(%d)!!",
+					orig_nice);
+		}
+	}
 
-	return 0;
+	return ret;
 }
 
 unsigned int tegra_count_slow_cpus(unsigned long speed_limit)
@@ -564,6 +720,41 @@ int tegra_cpu_set_speed_cap(unsigned int *speed_cap)
 	return ret;
 }
 
+/* Dedicated case for resume time improvement */
+int tegra_cpu_resume_boost(unsigned int *speed_cap)
+{
+	int ret = 0;
+	unsigned int new_speed = 1500000;
+
+	if (is_suspended)
+		return -EBUSY;
+
+	new_speed = tegra_throttle_governor_speed(new_speed);
+	new_speed = edp_governor_speed(new_speed);
+	new_speed = user_cap_speed(new_speed);
+	if (speed_cap)
+		*speed_cap = new_speed;
+
+	ret = tegra_update_cpu_speed(new_speed);
+	if (ret == 0)
+		tegra_auto_hotplug_governor(new_speed, false);
+	return ret;
+}
+
+int tegra_suspended_target(unsigned int target_freq)
+{
+	unsigned int new_speed = target_freq;
+
+	if (!is_suspended)
+		return -EBUSY;
+
+	/* apply only "hard" caps */
+	new_speed = tegra_throttle_governor_speed(new_speed);
+	new_speed = edp_governor_speed(new_speed);
+
+	return tegra_update_cpu_speed(new_speed);
+}
+
 static int tegra_target(struct cpufreq_policy *policy,
 		       unsigned int target_freq,
 		       unsigned int relation)
@@ -575,40 +766,69 @@ static int tegra_target(struct cpufreq_policy *policy,
 
 	mutex_lock(&tegra_cpu_lock);
 
-	cpufreq_frequency_table_target(policy, freq_table, target_freq,
+	ret = cpufreq_frequency_table_target(policy, freq_table, target_freq,
 		relation, &idx);
+	if (ret)
+		goto _out;
 
 	freq = freq_table[idx].frequency;
 
 	target_cpu_speed[policy->cpu] = freq;
 	ret = tegra_cpu_set_speed_cap(&new_speed);
-
+_out:
 	mutex_unlock(&tegra_cpu_lock);
 
 	return ret;
 }
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+/* put early_suspend/late_resume handlers here for the display in order
+ * to keep the code out of the display driver, keeping it closer to upstream
+ */
+struct early_suspend tegra_cpufreq_powersave_early_suspender;
+struct early_suspend tegra_cpufreq_performance_early_suspender;
+static struct pm_qos_request_list boost_cpu_freq_req;
+static struct pm_qos_request_list cap_cpu_freq_req;
+#define BOOST_CPU_FREQ_MIN 1500000
+#define CAP_CPU_FREQ_MAX 475000
+#endif
+
 
 static int tegra_pm_notify(struct notifier_block *nb, unsigned long event,
 	void *dummy)
 {
-	mutex_lock(&tegra_cpu_lock);
+	int cpu;
 	if (event == PM_SUSPEND_PREPARE) {
+		mutex_lock(&tegra_cpu_lock);
 		is_suspended = true;
 		pr_info("Tegra cpufreq suspend: setting frequency to %d kHz\n",
 			freq_table[suspend_index].frequency);
 		tegra_update_cpu_speed(freq_table[suspend_index].frequency);
 		tegra_auto_hotplug_governor(
 			freq_table[suspend_index].frequency, true);
+		mutex_unlock(&tegra_cpu_lock);
+		for_each_online_cpu(cpu) {
+			if(cpu==0)
+				continue;
+			cpu_down(cpu);
+		}
 	} else if (event == PM_POST_SUSPEND) {
+		mutex_lock(&tegra_cpu_lock);
 		unsigned int freq;
 		is_suspended = false;
 		tegra_cpu_edp_init(true);
-		tegra_cpu_set_speed_cap(&freq);
+		if (wake_reason_resume == 0x80) {
+			tegra_update_cpu_speed(BOOST_CPU_FREQ_MIN);
+			tegra_auto_hotplug_governor(
+				BOOST_CPU_FREQ_MIN, false);
+		} else {
+			tegra_cpu_set_speed_cap(&freq);
+		}
+
 		pr_info("Tegra cpufreq resume: restoring frequency to %d kHz\n",
 			freq);
+		mutex_unlock(&tegra_cpu_lock);
 	}
-	mutex_unlock(&tegra_cpu_lock);
 
 	return NOTIFY_OK;
 }
@@ -623,6 +843,7 @@ static int tegra_cpu_init(struct cpufreq_policy *policy)
 		return -EINVAL;
 
 	cpu_clk = clk_get_sys(NULL, "cpu");
+	cpu_g_clk = clk_get_sys(NULL, "cpu_g");
 	if (IS_ERR(cpu_clk))
 		return PTR_ERR(cpu_clk);
 
@@ -689,6 +910,18 @@ static struct freq_attr *tegra_cpufreq_attr[] = {
 	NULL,
 };
 
+static int tegra_cpufreq_suspend(struct cpufreq_policy *policy)
+{
+	return 0;
+}
+static int tegra_cpufreq_resume(struct cpufreq_policy *policy)
+{
+	/*if it's a power key wakeup, uncap the cpu powersave mode for future boost*/
+	if (wake_reason_resume == 0x80)
+		policy->max = 1500000;
+	return 0;
+}
+
 static struct cpufreq_driver tegra_cpufreq_driver = {
 	.verify		= tegra_verify_speed,
 	.target		= tegra_target,
@@ -697,7 +930,64 @@ static struct cpufreq_driver tegra_cpufreq_driver = {
 	.exit		= tegra_cpu_exit,
 	.name		= "tegra",
 	.attr		= tegra_cpufreq_attr,
+	.suspend	= tegra_cpufreq_suspend,
+	.resume	= tegra_cpufreq_resume,
 };
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+
+static void tegra_cpufreq_powersave_early_suspend(struct early_suspend *h)
+{
+	pr_info("tegra_cpufreq_powersave_early_suspend: cap cpu freq to 475MHz\n");
+	pm_qos_update_request(&cap_cpu_freq_req, (s32)CAP_CPU_FREQ_MAX);
+
+#ifdef CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
+	cpufreq_save_governor();
+	cpufreq_set_governor(CONSERVATIVE_GOVERNOR);
+	cpufreq_set_governor_param(CONSERVATIVE_GOVERNOR, UP_THRESHOLD,
+					UP_THRESHOLD_VALUE);
+	cpufreq_set_governor_param(CONSERVATIVE_GOVERNOR, DOWN_THRESHOLD,
+					DOWN_THRESHOLD_VALUE);
+	cpufreq_set_governor_param(CONSERVATIVE_GOVERNOR, FREQ_STEP,
+					FREQ_STEP_VALUE);
+#elif defined CONFIG_TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND
+	cpufreq_save_governor();
+	cpufreq_set_governor(INTERACTIVE_GOVERNOR);
+	cpufreq_set_governor_param(INTERACTIVE_GOVERNOR, BOOST_FACTOR,
+					BOOST_FACTOR_VALUE);
+	cpufreq_set_governor_param(INTERACTIVE_GOVERNOR, GO_MAXSPEED_LOAD,
+					GO_MAXSPEED_LOAD_VALUE);
+	cpufreq_set_governor_param(INTERACTIVE_GOVERNOR, MAX_BOOST,
+					MAX_BOOST_VALUE);
+	cpufreq_set_governor_param(INTERACTIVE_GOVERNOR, SUSTAIN_LOAD,
+					SUSTAIN_LOAD_VALUE);
+#endif
+
+}
+static void tegra_cpufreq_powersave_late_resume(struct early_suspend *h)
+{
+	pr_info("tegra_cpufreq_powersave_late_resume: clean cpu freq cap\n");
+	pm_qos_update_request(&cap_cpu_freq_req, (s32)PM_QOS_CPU_FREQ_MAX_DEFAULT_VALUE);
+	pr_info("tegra_cpufreq_powersave_late_resume: boost cpu freq to 1.5GHz\n");
+	pm_qos_update_request(&boost_cpu_freq_req, (s32)BOOST_CPU_FREQ_MIN);
+	tegra_update_cpu_speed(BOOST_CPU_FREQ_MIN);
+}
+static void tegra_cpufreq_performance_early_suspend(struct early_suspend *h)
+{
+	pr_info("tegra_cpufreq_performance_early_suspend: Do nothing\n");
+}
+static void tegra_cpufreq_performance_late_resume(struct early_suspend *h)
+{
+	pr_info("tegra_cpufreq_performance_late_resume: clean cpu freq boost\n");
+	pm_qos_update_request(&boost_cpu_freq_req, (s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
+
+#if defined CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND \
+	|| defined CONFIG_TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND
+	cpufreq_restore_governor();
+#endif
+}
+
+#endif
 
 static int __init tegra_cpufreq_init(void)
 {
@@ -710,6 +1000,10 @@ static int __init tegra_cpufreq_init(void)
 
 	suspend_index = table_data->suspend_index;
 
+	/* for DVFS profile*/
+	pm_debug_dvfs = cpu_dvfs_debug_show;
+	memset(ms_array_pm, 0, sizeof(ms_array_pm));
+
 	ret = tegra_throttle_init(&tegra_cpu_lock);
 	if (ret)
 		return ret;
@@ -720,6 +1014,22 @@ static int __init tegra_cpufreq_init(void)
 
 	freq_table = table_data->freq_table;
 	tegra_cpu_edp_init(false);
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	pm_qos_add_request(&boost_cpu_freq_req, PM_QOS_CPU_FREQ_MIN, (s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
+	pm_qos_add_request(&cap_cpu_freq_req, PM_QOS_CPU_FREQ_MAX, (s32)PM_QOS_CPU_FREQ_MAX_DEFAULT_VALUE);
+
+	tegra_cpufreq_powersave_early_suspender.suspend = tegra_cpufreq_powersave_early_suspend;
+	tegra_cpufreq_powersave_early_suspender.resume = tegra_cpufreq_powersave_late_resume;
+	tegra_cpufreq_powersave_early_suspender.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 100;
+	register_early_suspend(&tegra_cpufreq_powersave_early_suspender);
+
+	tegra_cpufreq_performance_early_suspender.suspend = tegra_cpufreq_performance_early_suspend;
+	tegra_cpufreq_performance_early_suspender.resume = tegra_cpufreq_performance_late_resume;
+	tegra_cpufreq_performance_early_suspender.level = 0;
+	register_early_suspend(&tegra_cpufreq_performance_early_suspender);
+#endif
+
 
 	ret = cpufreq_register_notifier(
 		&tegra_cpufreq_policy_nb, CPUFREQ_POLICY_NOTIFIER);
@@ -734,6 +1044,12 @@ static void __exit tegra_cpufreq_exit(void)
 	tegra_throttle_exit();
 	tegra_cpu_edp_exit();
 	tegra_auto_hotplug_exit();
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	pm_qos_remove_request(&boost_cpu_freq_req);
+	pm_qos_remove_request(&cap_cpu_freq_req);
+	unregister_early_suspend(&tegra_cpufreq_performance_early_suspender);
+	unregister_early_suspend(&tegra_cpufreq_powersave_early_suspender);
+#endif
 	cpufreq_unregister_driver(&tegra_cpufreq_driver);
 	cpufreq_unregister_notifier(
 		&tegra_cpufreq_policy_nb, CPUFREQ_POLICY_NOTIFIER);

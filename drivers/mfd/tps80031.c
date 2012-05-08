@@ -76,6 +76,10 @@
 #define TPS80031_PHOENIX_DEV_ON	0x25
 #define DEVOFF	1
 
+/* VRTC control register */
+#define TPS80031_BBSPOR_CFG	0xE6
+#define VRTC_EN_OFF_STS		0x20
+
 #define CLK32KAO_BASE_ADD	0xBA
 #define CLK32KG_BASE_ADD	0xBD
 #define CLK32KAUDIO_BASE_ADD	0xC0
@@ -99,6 +103,8 @@
 #define TPS80031_PREQ3_RES_ASS_A	0xDD
 #define TPS80031_PHOENIX_MSK_TRANSITION 0x20
 
+#define CONTROLLER_STAT1	0xE3
+#define VBUS_DET		(1U << 2)
 
 static u8 pmc_ext_control_base[] = {
 	REGEN1_BASE_ADD,
@@ -217,6 +223,11 @@ struct tps80031 {
 	u8			cont_int_en;
 	u8			prev_cont_stat1;
 	struct tps80031_client	tps_clients[TPS_NUM_SLAVES];
+
+#ifdef CONFIG_PM
+	void (*suspend_work)(void);
+	void (*resume_work)(void);
+#endif
 };
 
 static inline int __tps80031_read(struct i2c_client *client,
@@ -490,6 +501,39 @@ unsigned long tps80031_get_chip_info(struct device *dev)
 }
 EXPORT_SYMBOL_GPL(tps80031_get_chip_info);
 
+#if 1	/* workaround: to reboot device for offmode charging
+	 * if power off with cable in
+	 */
+#include <mach/restart.h>
+int (*tps80031_is_cable_in)(void) = NULL;
+EXPORT_SYMBOL_GPL(tps80031_is_cable_in);
+
+static struct tps80031 *tps80031_dev;
+int tps80031_power_off_or_reboot(void)
+{
+	uint8_t ctrl0;
+	struct tps80031_client *tps = &tps80031_dev->tps_clients[SLAVE_ID2];
+	int ret = 0;
+	ret = __tps80031_read(tps->client, CONTROLLER_STAT1, &ctrl0);
+	if (ret < 0) {
+		pr_err("%s:read register CONTROLLER_STAT1 fail\n",__func__);
+		return ret;
+	}
+
+	if (!(ctrl0 & VBUS_DET)) {
+		printk("VBUS not detected, shutdown");
+		ret = tps80031_power_off();
+	} else {
+		printk("VBUS detected, do offmode charging");
+		arm_pm_restart('h', "offmode");
+	}
+
+	return ret;
+}
+#endif
+int tps80031_vbus_on = 0;
+EXPORT_SYMBOL_GPL(tps80031_vbus_on);
+
 int tps80031_get_pmu_version(struct device *dev)
 {
 	struct tps80031 *tps80031 = dev_get_drvdata(dev);
@@ -497,15 +541,29 @@ int tps80031_get_pmu_version(struct device *dev)
 }
 EXPORT_SYMBOL_GPL(tps80031_get_pmu_version);
 
-static struct tps80031 *tps80031_dev;
 int tps80031_power_off(void)
 {
 	struct tps80031_client *tps = &tps80031_dev->tps_clients[SLAVE_ID1];
+	int ret = 0;
+	u8 reg_value;
 
 	if (!tps->client)
 		return -EINVAL;
+	ret = __tps80031_read(tps->client, TPS80031_BBSPOR_CFG, &reg_value);
+	if (ret)
+		goto out;
+
+	/* Turn off VRTC to save about 0.030mA */
+	ret = __tps80031_write(tps->client, TPS80031_BBSPOR_CFG,
+				0x12);
+	if (ret)
+		goto out;
+
 	dev_info(&tps->client->dev, "switching off PMU\n");
+
 	return __tps80031_write(tps->client, TPS80031_PHOENIX_DEV_ON, DEVOFF);
+out:
+	return ret;
 }
 
 static void tps80031_init_ext_control(struct tps80031 *tps80031,
@@ -775,6 +833,10 @@ static irqreturn_t tps80031_charge_control_irq(int irq, void *data)
 				"status %d\n", __func__, ret);
 		return IRQ_NONE;
 	}
+	if (org_sts & BIT(2))
+		tps80031_vbus_on = 1;
+	else
+		tps80031_vbus_on = 0;
 
 	/* Get change from last interrupt and mask for interested interrupt
 	 * for charge control interrupt */
@@ -814,8 +876,8 @@ static irqreturn_t tps80031_irq(int irq, void *data)
 	acks = (tmp[2] << 16) | (tmp[1] << 8) | tmp[0];
 
 	if (acks) {
-		ret = tps80031_writes(tps80031->dev, SLAVE_ID2,
-				      TPS80031_INT_STS_A, 3, tmp);
+		ret = tps80031_write(tps80031->dev, SLAVE_ID2,
+				      TPS80031_INT_STS_A, 0);
 		if (ret < 0) {
 			dev_err(tps80031->dev, "failed to write "
 						"interrupt status\n");
@@ -1077,6 +1139,74 @@ static int dbg_tps_show(struct seq_file *s, void *unused)
 	return 0;
 }
 
+static void printk_regs(const char *header, int sid, int start_offset, int end_offset)
+{
+	struct tps80031 *tps80031 = tps80031_dev;
+	struct tps80031_client *tps;
+	uint8_t reg_val;
+	int i;
+	int ret;
+
+	if (tps80031 == NULL)
+		return;
+	tps = &tps80031->tps_clients[sid];
+
+	pr_info("%s\n", header);
+	pr_info("Addr = 0x%02X Reg 0x%02X ~ 0x%02X\n", tps->client->addr, start_offset, end_offset);
+	for (i = start_offset; i <= end_offset; ++i) {
+		ret = __tps80031_read(tps->client, i, &reg_val);
+		if (ret >= 0)
+			pr_info("%02X", reg_val);
+	}
+	pr_info("\n------------------\n");
+}
+
+int dbg_tps_showk(void)
+{
+	pr_info("TPS80031 Registers\n");
+	pr_info("------------------\n");
+	printk_regs("RTC TIME",       SLAVE_ID1, 0x0, 0x6);
+	printk_regs("RTC ALARM",      SLAVE_ID1, 0x8, 0xD);
+	printk_regs("RTC STATUS",     SLAVE_ID1, 0x10, 0x16);
+	printk_regs("VIO Regs",       SLAVE_ID1, 0x47, 0x49);
+	printk_regs("VIO Regs",       SLAVE_ID0, 0x49, 0x4A);
+	printk_regs("SMPS1 Regs",     SLAVE_ID1, 0x53, 0x54);
+	printk_regs("SMPS1 Regs",     SLAVE_ID0, 0x55, 0x56);
+	printk_regs("SMPS1 Regs",     SLAVE_ID1, 0x57, 0x57);
+	printk_regs("SMPS2 Regs",     SLAVE_ID1, 0x59, 0x5B);
+	printk_regs("SMPS2 Regs",     SLAVE_ID0, 0x5B, 0x5C);
+	printk_regs("SMPS2 Regs",     SLAVE_ID1, 0x5C, 0x5D);
+	printk_regs("SMPS3 Regs",     SLAVE_ID1, 0x65, 0x68);
+	printk_regs("SMPS4 Regs",     SLAVE_ID1, 0x41, 0x44);
+	printk_regs("VANA Regs",      SLAVE_ID1, 0x81, 0x83);
+	printk_regs("VRTC Regs",      SLAVE_ID1, 0xC3, 0xC4);
+	printk_regs("LDO1 Regs",      SLAVE_ID1, 0x9D, 0x9F);
+	printk_regs("LDO2 Regs",      SLAVE_ID1, 0x85, 0x87);
+	printk_regs("LDO3 Regs",      SLAVE_ID1, 0x8D, 0x8F);
+	printk_regs("LDO4 Regs",      SLAVE_ID1, 0x89, 0x8B);
+	printk_regs("LDO5 Regs",      SLAVE_ID1, 0x99, 0x9B);
+	printk_regs("LDO6 Regs",      SLAVE_ID1, 0x91, 0x93);
+	printk_regs("LDO7 Regs",      SLAVE_ID1, 0xA5, 0xA7);
+	printk_regs("LDOUSB Regs",    SLAVE_ID1, 0xA1, 0xA3);
+	printk_regs("LDOLN Regs",     SLAVE_ID1, 0x95, 0x97);
+	printk_regs("REGEN1 Regs",    SLAVE_ID1, 0xAE, 0xAF);
+	printk_regs("REGEN2 Regs",    SLAVE_ID1, 0xB1, 0xB2);
+	printk_regs("SYSEN Regs",     SLAVE_ID1, 0xB4, 0xB5);
+	printk_regs("CLK32KAO Regs",  SLAVE_ID1, 0xBA, 0xBB);
+	printk_regs("CLK32KG Regs",   SLAVE_ID1, 0xBD, 0xBE);
+	printk_regs("CLK32KAUD Regs", SLAVE_ID1, 0xC0, 0xC1);
+	printk_regs("INT Regs",       SLAVE_ID2, 0xD0, 0xD8);
+	printk_regs("PREQ Regs",      SLAVE_ID1, 0xD7, 0xDF);
+	printk_regs("MASK_PH Regs",   SLAVE_ID1, 0x20, 0x21);
+	printk_regs("PMC MISC Regs",  SLAVE_ID1, 0xE0, 0xEF);
+	printk_regs("CONT_STATE",     SLAVE_ID2, 0xE0, 0xE4);
+	printk_regs("VERNUM Regs",    SLAVE_ID3, 0x87, 0x87);
+	printk_regs("EEPROM Regs",    SLAVE_ID3, 0xDF, 0xDF);
+	printk_regs("CHARGE Regs",    SLAVE_ID2, 0xDA, 0xF5);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dbg_tps_showk);
+
 static int dbg_tps_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, dbg_tps_show, inode->i_private);
@@ -1125,6 +1255,17 @@ static int __devexit tps80031_i2c_remove(struct i2c_client *client)
 	return 0;
 }
 
+static void tps80031_shutdown(struct i2c_client *client)
+{
+	struct tps80031 *tps80031 = i2c_get_clientdata(client);
+	struct tps80031_client *tps = &tps80031->tps_clients[SLAVE_ID1];
+
+	if (!tps->client)
+		return;
+	dev_info(&tps->client->dev, "reset PMU\n");
+	__tps80031_write(tps->client, 0x20, 0xa0);
+}
+
 static int __devinit tps80031_i2c_probe(struct i2c_client *client,
 					const struct i2c_device_id *id)
 {
@@ -1135,6 +1276,8 @@ static int __devinit tps80031_i2c_probe(struct i2c_client *client,
 	int jtag_ver;
 	int ep_ver;
 	int i;
+	u8 reg_value;
+	u8 org_sts;
 
 	if (!pdata) {
 		dev_err(&client->dev, "tps80031 requires platform data\n");
@@ -1166,6 +1309,10 @@ static int __devinit tps80031_i2c_probe(struct i2c_client *client,
 	tps80031->dev = &client->dev;
 	i2c_set_clientdata(client, tps80031);
 	tps80031->chip_info = id->driver_data;
+#ifdef CONFIG_PM
+	tps80031->suspend_work = pdata->suspend_work;
+	tps80031->resume_work = pdata->resume_work;
+#endif
 
 	/* Set up slaves */
 	tps80031->tps_clients[SLAVE_ID0].addr = I2C_ID0_ADDR;
@@ -1212,6 +1359,29 @@ static int __devinit tps80031_i2c_probe(struct i2c_client *client,
 
 	tps80031_dev = tps80031;
 
+	tps = &tps80031_dev->tps_clients[SLAVE_ID1];
+	ret = __tps80031_read(tps->client, TPS80031_BBSPOR_CFG, &reg_value);
+	if (ret)
+		goto fail;
+
+	/* Turn on VRTC since it will be turn off when power off */
+	ret = __tps80031_write(tps->client, TPS80031_BBSPOR_CFG,
+				0x12);
+	if (ret)
+		goto fail;
+
+	ret = tps80031_read(tps80031->dev, SLAVE_ID2,
+			TPS80031_CONTROLLER_STAT1, &org_sts);
+	if (ret < 0) {
+		dev_err(tps80031->dev, "%s(): failed to read controller state1 "
+				"status %d\n", __func__, ret);
+		goto fail;
+	}
+	if (org_sts & BIT(2))
+		tps80031_vbus_on = 1;
+	else
+		tps80031_vbus_on = 0;
+
 	return 0;
 
 fail:
@@ -1222,6 +1392,11 @@ fail:
 #ifdef CONFIG_PM
 static int tps80031_i2c_suspend(struct i2c_client *client, pm_message_t state)
 {
+	struct tps80031 *tps80031 = i2c_get_clientdata(client);
+
+	if (tps80031->suspend_work)
+		tps80031->suspend_work();
+
 	if (client->irq)
 		disable_irq(client->irq);
 	return 0;
@@ -1229,6 +1404,11 @@ static int tps80031_i2c_suspend(struct i2c_client *client, pm_message_t state)
 
 static int tps80031_i2c_resume(struct i2c_client *client)
 {
+	struct tps80031 *tps80031 = i2c_get_clientdata(client);
+
+	if (tps80031->resume_work)
+		tps80031->resume_work();
+
 	if (client->irq)
 		enable_irq(client->irq);
 	return 0;
@@ -1249,6 +1429,7 @@ static struct i2c_driver tps80031_driver = {
 	},
 	.probe		= tps80031_i2c_probe,
 	.remove		= __devexit_p(tps80031_i2c_remove),
+	.shutdown	= tps80031_shutdown,
 #ifdef CONFIG_PM
 	.suspend	= tps80031_i2c_suspend,
 	.resume		= tps80031_i2c_resume,

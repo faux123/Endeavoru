@@ -1817,6 +1817,19 @@ static int itd_submit (struct ehci_hcd *ehci, struct urb *urb,
 		stream);
 #endif
 
+#ifdef CONFIG_MACH_ENDEARVORU
+	/* HTC: log for urb trace */
+	if (host_dbg_flag & DBG_EHCI_URB)
+		ehci_info (ehci,
+			"%s %s urb %p ep%d%s len %d, %d pkts %d uframes [%p]\n",
+			__func__, urb->dev->devpath, urb,
+			usb_pipeendpoint (urb->pipe),
+			usb_pipein (urb->pipe) ? "in" : "out",
+			urb->transfer_buffer_length,
+			urb->number_of_packets, urb->interval,
+			stream);
+#endif
+
 	/* allocate ITDs w/o locking anything */
 	status = itd_urb_transaction (stream, ehci, urb, mem_flags);
 	if (unlikely (status < 0)) {
@@ -2208,6 +2221,17 @@ static int sitd_submit (struct ehci_hcd *ehci, struct urb *urb,
 		usb_pipeendpoint (urb->pipe),
 		usb_pipein (urb->pipe) ? "in" : "out",
 		urb->transfer_buffer_length);
+#endif
+
+#ifdef CONFIG_MACH_ENDEARVORU
+	/* HTC: log for urb trace */
+	if (host_dbg_flag & DBG_EHCI_URB)
+		ehci_info (ehci,
+			"submit %p dev%s ep%d%s-iso len %d\n",
+			urb, urb->dev->devpath,
+			usb_pipeendpoint (urb->pipe),
+			usb_pipein (urb->pipe) ? "in" : "out",
+			urb->transfer_buffer_length);
 #endif
 
 	/* allocate SITDs */

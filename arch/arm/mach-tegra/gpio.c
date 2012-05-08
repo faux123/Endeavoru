@@ -35,6 +35,10 @@
 #include "pm-irq.h"
 #include <mach/pinmux.h>
 
+#include "gpio-names.h"
+#include "htc-gpio.h"
+#include <mach/board_htc.h>
+
 #define GPIO_BANK(x)		((x) >> 5)
 #define GPIO_PORT(x)		(((x) >> 3) & 0x3)
 #define GPIO_BIT(x)		((x) & 0x7)
@@ -78,6 +82,16 @@
 #define GPIO_INT_LVL_EDGE_BOTH		0x010100
 #define GPIO_INT_LVL_LEVEL_HIGH		0x000001
 #define GPIO_INT_LVL_LEVEL_LOW		0x000000
+#define GPIO_DUMP_ENABLE_BIT 0x01
+
+extern const char* enr_td_suspend_gpio_config_xc[TEGRA_NR_GPIOS];
+
+extern const char* quo_suspend_gpio_config_xa[TEGRA_NR_GPIOS];
+extern const char* quo_suspend_gpio_config_xb[TEGRA_NR_GPIOS];
+extern const char* quo_suspend_gpio_config_xc[TEGRA_NR_GPIOS];
+extern const char* quo_suspend_gpio_config_xd[TEGRA_NR_GPIOS];
+
+static int gpio_dump_enable = 0;
 
 struct tegra_gpio_bank {
 	int bank;
@@ -348,8 +362,118 @@ static void tegra_gpio_resume(void)
 			__raw_writel(bank->int_enb[p], GPIO_INT_ENB(gpio));
 		}
 	}
-
+#if defined(CONFIG_MACH_ENDEAVORTD)
+	int projectPhase = htc_get_pcbid_info();
+	if (projectPhase == PROJECT_PHASE_XC){
+		enr_xc_no_owner_gpio_resume();
+	}
+#endif
 	local_irq_restore(flags);
+}
+
+static char GPIO_STATE[7][10] =
+{
+	"A",
+	"O(H)",
+	"O(L)",
+	"I(NP)",
+	"I(PD)",
+	"I(PU)",
+	"A(PU)"
+};
+
+static int gpio_config_state(int cnf, int oe, int out, int pupd)
+{
+	if ((cnf & 0x01) ==  1 && ( oe & 0x01) == 1) {
+		if ((out & 0x01) == 1)
+			return 1;
+		else
+			return 2;
+	} else if ((cnf & 0x01) ==  1 && (oe & 0x01) == 0) {
+		if (pupd == TEGRA_PUPD_NORMAL)
+			return 3;
+		else if (pupd == TEGRA_PUPD_PULL_DOWN)
+			return 4;
+		else if ( pupd == TEGRA_PUPD_PULL_UP)
+			return 5;
+	} else {
+		if ( pupd == TEGRA_PUPD_PULL_UP)
+			return 6;
+	}
+	return 0;
+}
+
+void gpio_dump(void)
+{
+    int b, p, i;
+    unsigned long flags;
+
+    for (b = 0; b < ARRAY_SIZE(tegra_gpio_banks); b++) {
+	struct tegra_gpio_bank *bank = &tegra_gpio_banks[b];
+
+		const char** expected_gpio = enr_td_suspend_gpio_config_xc;
+
+#if defined(CONFIG_MACH_VERTEXF)
+			int projectPhase = htc_get_pcbid_info();
+
+			if (projectPhase == PROJECT_PHASE_XA) /* EVT XA */
+				expected_gpio = quo_suspend_gpio_config_xa;
+			else if (projectPhase == PROJECT_PHASE_XB)
+				expected_gpio = quo_suspend_gpio_config_xb;
+			else if (projectPhase == PROJECT_PHASE_XC)
+				expected_gpio = quo_suspend_gpio_config_xc;
+			else if (projectPhase >= PROJECT_PHASE_XD)
+				expected_gpio = quo_suspend_gpio_config_xd;
+
+#endif
+
+		for (p = 0; p < ARRAY_SIZE(bank->oe); p++) {
+			unsigned int gpio = (b<<5) | (p<<3);
+			char port[2];
+			if((b*4+p) < 26)
+				sprintf(port, "%c", (b*4+p)+'A');
+			else
+				sprintf(port, "%c%c", ((b*4+p)%26)+'A', ((b*4+p)%26)+'A');
+
+			int gpio_cnf = __raw_readl(GPIO_CNF(gpio));
+			int gpio_out = __raw_readl(GPIO_OUT(gpio));
+			int gpio_oe = __raw_readl(GPIO_OE(gpio));
+
+			int i;
+
+			for (i = 0; i < 8; i++) {
+				enum tegra_pingroup ball = gpio_to_pingroup[gpio+i];
+				int reg = tegra_pinmux_get_pullupdown(ball);
+				int tristate = tegra_pinmux_get_tristate(ball);
+				int io_enable = tegra_pinmux_get_io(ball);
+
+				char* reg_gpio_config = GPIO_STATE[gpio_config_state(gpio_cnf, gpio_oe, gpio_out, reg %3)];
+				printk("%s%d %s", port, i, reg_gpio_config);
+
+				if(gpio+i < TEGRA_GPIO_INVALID){
+					if (strcmp(reg_gpio_config, expected_gpio[gpio+i]) != 0){
+						printk(" *%s %s", expected_gpio[gpio+i], tegra_soc_pingroups[ball].name);
+					}
+				}
+
+				if(gpio_oe==1&&tristate==1)
+					printk(" !tristate");
+				if(reg_gpio_config[0]!='I' && reg == 1)
+					printk(" pd");
+				if(reg_gpio_config[0]!='I' && reg == 2)
+					printk(" pu");
+
+				if(reg_gpio_config[0]=='I' && io_enable==0)
+					printk(" !inputDisable");
+
+				printk("\n");
+				gpio_cnf = gpio_cnf >> 1;
+				gpio_out = gpio_out >> 1;
+				gpio_oe = gpio_oe >> 1;
+			}
+		}
+
+	}
 }
 
 static int tegra_gpio_suspend(void)
@@ -371,7 +495,16 @@ static int tegra_gpio_suspend(void)
 			bank->int_lvl[p] = __raw_readl(GPIO_INT_LVL(gpio));
 		}
 	}
+
+
 	local_irq_restore(flags);
+   /*local_gpio_config_test(quo_suspend_gpio_config_xb);*/
+
+	// TODO gpio_basic_during_suspend
+	gpio_basic_during_suspend();
+
+	if (gpio_dump_enable)
+		gpio_dump();
 
 	return 0;
 }
@@ -464,6 +597,9 @@ static int __init tegra_gpio_init(void)
 
 	}
 
+	if (get_extra_kernel_flag() & GPIO_DUMP_ENABLE_BIT)
+		gpio_dump_enable = 1;
+
 	return 0;
 }
 
@@ -512,10 +648,111 @@ static int dbg_gpio_show(struct seq_file *s, void *unused)
 	return 0;
 }
 
+static int htc_dbg_gpio_show(struct seq_file *s, void *unused)
+{
+#define MSG_DEL "\t"
+	extern const int gpio_to_pingroup[TEGRA_MAX_GPIO];
+	int i;
+	int j;
+	int b;
+
+	for (i = 0; i < ARRAY_SIZE(tegra_gpio_banks); i++) {
+		for (j = 0; j < 4; j++) {
+			int gpio, gpio_cnf, gpio_out, gpio_oe;
+			char port[2];
+			if ((i*4+j) < 26)
+				sprintf(port, "%c", (i*4+j)+'A');
+			else
+				sprintf(port, "%c%c", ((i*4+j)%26)+'A', ((i*4+j)%26)+'A');
+
+			gpio     = tegra_gpio_compose(i, j, 0);
+			gpio_cnf = __raw_readl(GPIO_CNF(gpio));
+			gpio_out = __raw_readl(GPIO_OUT(gpio));
+			gpio_oe  = __raw_readl(GPIO_OE(gpio));
+			for (b = 0; b < 8; b++) {
+				char msg[100];
+				enum tegra_pingroup pin = gpio_to_pingroup[gpio+b];
+				int mux = tegra_pinmux_get_func(pin);
+				int reg = tegra_pinmux_get_pullupdown(pin);
+				int tristate = tegra_pinmux_get_tristate(pin);
+				int io_enable = tegra_pinmux_get_io(pin);
+
+				sprintf(msg, "%s%d", port, b);
+
+				if ((gpio_cnf & 0x01) == 1)
+				{
+					if ((gpio_oe & 0x01) == 1)
+					{
+						if ((gpio_out & 0x01) == 1)
+							strcat(msg, MSG_DEL "O(H)");
+						else
+							strcat(msg, MSG_DEL "O(L)");
+
+						if (tristate)
+							strcat(msg, MSG_DEL "tristate!");
+
+						if (reg == TEGRA_PUPD_PULL_DOWN)
+							strcat(msg, MSG_DEL "pull-down!");
+						else if (reg == TEGRA_PUPD_PULL_UP)
+							strcat(msg, MSG_DEL "pull-up!");
+					}
+					else
+					{
+						if (reg % 3 == TEGRA_PUPD_NORMAL)
+							strcat(msg, MSG_DEL "I(NP)");
+						else if (reg % 3 == TEGRA_PUPD_PULL_DOWN)
+							strcat(msg, MSG_DEL "I(PD)");
+						else if (reg % 3 == TEGRA_PUPD_PULL_UP)
+							strcat(msg, MSG_DEL "I(PU)");
+
+						if (io_enable == 0)
+							strcat(msg, MSG_DEL "input-disabled!");
+					}
+				} else if((gpio_cnf & 0x01) ==  0) {
+
+					char buf[10];
+					sprintf(buf, MSG_DEL "A" MSG_DEL "SFIO%d", mux);
+					strcat(msg, buf);
+					// TODO display function name
+
+					if ((!tristate) & (!io_enable))
+						strcat(msg, MSG_DEL "output");
+					else if (tristate & io_enable)
+						strcat(msg, MSG_DEL "input");
+					else if ((!tristate) & io_enable)
+						strcat(msg, MSG_DEL "bi-direction");
+					else if (tristate & (!io_enable))
+						strcat(msg, MSG_DEL "disabled");
+
+					if (reg == TEGRA_PUPD_PULL_DOWN)
+						strcat(msg, MSG_DEL "pull-down");
+					else if (reg == TEGRA_PUPD_PULL_UP)
+						strcat(msg, MSG_DEL "pull-up");
+				}
+
+				seq_printf(s, "%s\n", msg);
+
+				gpio_cnf = gpio_cnf >> 1;
+				gpio_out = gpio_out >> 1;
+				gpio_oe = gpio_oe >> 1;
+			}
+			seq_printf(s, "\n");
+		}
+	}
+	return 0;
+}
+
+
 static int dbg_gpio_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, dbg_gpio_show, &inode->i_private);
 }
+
+static int htc_dbg_gpio_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, htc_dbg_gpio_show, &inode->i_private);
+}
+
 
 static const struct file_operations debug_fops = {
 	.open		= dbg_gpio_open,
@@ -523,11 +760,20 @@ static const struct file_operations debug_fops = {
 	.llseek		= seq_lseek,
 	.release	= single_release,
 };
+static const struct file_operations htc_debug_fops = {
+	.open		= htc_dbg_gpio_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
 
 static int __init tegra_gpio_debuginit(void)
 {
 	(void) debugfs_create_file("tegra_gpio", S_IRUGO,
 					NULL, NULL, &debug_fops);
+	(void) debugfs_create_file("htc_tegra_gpio", S_IRUGO,
+					NULL, NULL, &htc_debug_fops);
 	return 0;
 }
 late_initcall(tegra_gpio_debuginit);

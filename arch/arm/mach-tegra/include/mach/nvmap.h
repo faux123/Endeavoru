@@ -57,7 +57,12 @@ struct nvmap_handle;
 struct nvmap_client;
 struct nvmap_device;
 
-#define nvmap_ref_to_handle(_ref) (*(struct nvmap_handle **)(_ref))
+#define USE_NVMAP_MAGIC	/* Workaround for 929993 */
+#ifdef USE_NVMAP_MAGIC
+#define nvmap_ref_to_handle(_ref) (_ref->handle)
+#else
+//#define nvmap_ref_to_handle(_ref) (*(struct nvmap_handle **)(_ref))
+#endif
 #define nvmap_id_to_handle(_id) ((struct nvmap_handle *)(_id))
 
 struct nvmap_pinarray_elem {
@@ -68,11 +73,23 @@ struct nvmap_pinarray_elem {
 	__u32 reloc_shift;
 };
 
+#ifdef USE_NVMAP_MAGIC
+#define NVMAP_MAGIC 0xabab4321
+#define NVMAP_MAGIC_ALLOC(p) do{(*(u32*)p)=NVMAP_MAGIC;}while(0)
+#define NVMAP_MAGIC_FREE(p) do{(*(u32*)p)=0;}while(0)
+#else
+#define NVMAP_MAGIC_ALLOC(p) while(0)
+#define NVMAP_MAGIC_FREE(p) while(0)
+#endif
+
 /* handle_ref objects are client-local references to an nvmap_handle;
  * they are distinct objects so that handles can be unpinned and
  * unreferenced the correct number of times when a client abnormally
  * terminates */
 struct nvmap_handle_ref {
+#ifdef USE_NVMAP_MAGIC
+	__u32 magic;
+#endif
 	struct nvmap_handle *handle;
 	struct rb_node	node;
 	atomic_t	dupes;	/* number of times to free on file close */

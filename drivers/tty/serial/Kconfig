@@ -552,6 +552,18 @@ config SERIAL_TEGRA
 	  /dev/ttyHSx, where x is determined by the number of UARTs on the
 	  platform
 
+config SERIAL_TEGRA_BRCM
+       bool "Broadcom UART support"
+       depends on SERIAL_TEGRA=y
+       help
+         Enable a Broadcom UART port
+
+config SERIAL_SC8800G
+       tristate "Spreadtrum SC8800G support"
+       depends on SPI
+       help
+       Spreadtrum SC8800G modem support, providing /dev/ttySCx
+
 config SERIAL_MAX3100
 	tristate "MAX3100 support"
 	depends on SPI

@@ -46,6 +46,7 @@
 /* Pad pitch to 16-byte boundary. */
 #define TEGRA_LINEAR_PITCH_ALIGNMENT 16
 
+struct tegra_usb_projector_info usb_pjt_info;
 struct tegra_fb_info {
 	struct tegra_dc_win	*win;
 	struct nvhost_device	*ndev;
@@ -221,7 +222,16 @@ static int tegra_fb_pan_display(struct fb_var_screeninfo *var,
 
 		tegra_fb->win->phys_addr = addr;
 		/* TODO: update virt_addr */
-
+		tegra_fb->win->x.full = dfixed_const(0);
+		tegra_fb->win->y.full = dfixed_const(0);
+		tegra_fb->win->w.full = dfixed_const(var->xres);
+		tegra_fb->win->h.full = dfixed_const(var->yres);
+		tegra_fb->win->out_x = 0;
+		tegra_fb->win->out_y = 0;
+		tegra_fb->win->out_w = var->xres;
+		tegra_fb->win->out_h = var->yres;
+		tegra_fb->win->z = 0;
+		tegra_fb->win->stride = info->fix.line_length;
 		tegra_dc_update_windows(&tegra_fb->win, 1);
 		tegra_dc_sync_windows(&tegra_fb->win, 1);
 	}
@@ -250,9 +260,12 @@ static void tegra_fb_imageblit(struct fb_info *info,
 static int tegra_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 {
 	struct tegra_fb_modedb modedb;
+	void __user *argp = (void __user *)arg;
 	struct fb_modelist *modelist;
 	int i;
 
+	int ret = 0;
+	struct tegra_usb_projector_info tmp_info;
 	switch (cmd) {
 	case FBIO_TEGRA_GET_MODEDB:
 		if (copy_from_user(&modedb, (void __user *)arg, sizeof(modedb)))
@@ -292,7 +305,17 @@ static int tegra_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long 
 		if (copy_to_user((void __user *)arg, &modedb, sizeof(modedb)))
 			return -EFAULT;
 		break;
-
+       case FBIO_TEGRA_GET_USB_PROJECTOR_INFO:
+               ret = copy_to_user(argp, &usb_pjt_info, sizeof(usb_pjt_info));
+               if (ret)
+                       return ret;
+               break;
+       case FBIO_TEGRA_SET_USB_PROJECTOR_INFO:
+               ret = copy_from_user(&tmp_info, argp, sizeof(tmp_info));
+               usb_pjt_info.latest_offset = tmp_info.latest_offset;
+               if (ret)
+                       return ret;
+               break;
 	default:
 		return -ENOTTY;
 	}

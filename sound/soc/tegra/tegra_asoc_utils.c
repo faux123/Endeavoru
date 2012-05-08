@@ -61,6 +61,7 @@ int tegra_asoc_utils_set_rate(struct tegra_asoc_utils_data *data, int srate,
 		return -EINVAL;
 	}
 
+	new_baseclock = 552960000;
 	clk_change = ((new_baseclock != data->set_baseclock) ||
 			(mclk != data->set_mclk));
 	if (!clk_change)

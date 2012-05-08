@@ -1201,6 +1201,10 @@ struct ext4_sb_info {
 	struct ext4_li_request *s_li_request;
 	/* Wait multiplier for lazy initialization thread */
 	unsigned int s_li_wait_mult;
+
+	/* workqueue for rebooting oem-22 to run e2fsck */
+	struct work_struct reboot_work;
+	struct workqueue_struct *recover_wq;
 };
 
 static inline struct ext4_sb_info *EXT4_SB(struct super_block *sb)
@@ -2074,6 +2078,8 @@ extern int ext4_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
 extern int ext4_move_extents(struct file *o_filp, struct file *d_filp,
 			     __u64 start_orig, __u64 start_donor,
 			     __u64 len, __u64 *moved_len);
+
+extern void ext4_e2fsck(struct super_block *sb);
 
 /* page-io.c */
 extern int __init ext4_init_pageio(void);

@@ -405,6 +405,11 @@ static int nvmap_reloc_pin_array(struct nvmap_client *client,
 			last_patch = patch;
 		}
 
+                if (!patch) {
+                        nvmap_free_pte(client->dev, pte);
+                        return -EPERM;
+                }
+
 		if (patch->heap_pgalloc) {
 			unsigned int page = arr[i].patch_offset >> PAGE_SHIFT;
 			phys = page_to_phys(patch->pgalloc.pages[page]);

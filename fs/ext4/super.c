@@ -42,6 +42,7 @@
 
 #include <linux/kthread.h>
 #include <linux/freezer.h>
+#include <linux/reboot.h>
 
 #include "ext4.h"
 #include "ext4_jbd2.h"
@@ -402,6 +403,9 @@ static void ext4_handle_error(struct super_block *sb)
 	if (test_opt(sb, ERRORS_PANIC))
 		panic("EXT4-fs (device %s): panic forced after error\n",
 			sb->s_id);
+
+	if (test_opt(sb, ERRORS_RO))
+		ext4_e2fsck(sb);
 }
 
 void __ext4_error(struct super_block *sb, const char *function,
@@ -418,6 +422,42 @@ void __ext4_error(struct super_block *sb, const char *function,
 	va_end(args);
 
 	ext4_handle_error(sb);
+}
+
+static void ext4_reboot(struct work_struct *work)
+{
+	printk(KERN_ERR "%s: reboot to run e2fsck\n", __func__);
+	kernel_restart("oem-22");
+}
+
+void ext4_e2fsck(struct super_block *sb)
+{
+	static int reboot;
+	struct workqueue_struct *wq;
+	struct ext4_sb_info *sb_info;
+
+	if (reboot)
+		return;
+
+	printk(KERN_ERR "%s\n", __func__);
+	reboot = 1;
+	sb_info = EXT4_SB(sb);
+	if (!sb_info) {
+		printk(KERN_ERR "%s: no sb_info\n", __func__);
+		reboot = 0;
+		return;
+	}
+	sb_info->recover_wq = create_workqueue("ext4-recover");
+	if (!sb_info->recover_wq) {
+		printk(KERN_ERR "EXT4-fs: failed to create recover workqueue\n");
+		reboot = 0;
+		return;
+	}
+
+	INIT_WORK(&sb_info->reboot_work, ext4_reboot);
+	wq = sb_info->recover_wq;
+	/* queue the work to reboot */
+	queue_work(wq, &sb_info->reboot_work);
 }
 
 void ext4_error_inode(struct inode *inode, const char *function,

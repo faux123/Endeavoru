@@ -689,6 +689,7 @@ static void destroy_client(struct nvmap_client *client)
 		while (dupes--)
 			nvmap_handle_put(ref->handle);
 
+		NVMAP_MAGIC_FREE(ref);
 		kfree(ref);
 	}
 
@@ -894,7 +895,7 @@ static void nvmap_vma_close(struct vm_area_struct *vma)
 	if (priv) {
 		if (priv->handle) {
 			nvmap_usecount_dec(priv->handle);
-			BUG_ON(priv->handle->usecount < 0);
+			/* BUG_ON(priv->handle->usecount < 0); */
 		}
 		if (!atomic_dec_return(&priv->count)) {
 			if (priv->handle)

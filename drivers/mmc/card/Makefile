@@ -8,3 +8,6 @@ obj-$(CONFIG_MMC_TEST)		+= mmc_test.o
 
 obj-$(CONFIG_SDIO_UART)		+= sdio_uart.o
 
+ifdef CONFIG_WL12XX
+obj-y	+= SdioDrv.o sdio_emapi.o
+endif

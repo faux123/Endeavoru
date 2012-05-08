@@ -513,8 +513,19 @@ tegra3_tear_down_core:
  * r7 = TEGRA_TMRUS_BASE
  */
 tegra3_cpu_clk32k:
+	ldr	r0, [r4, #PMC_CTRL]
+	tst	r0, #PMC_CTRL_SIDE_EFFECT_LP0
+	beq	lp1_clocks_prepare
+
+	/* enable PLLM via PMC in LP0 */
+	ldr	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
+	orr	r0, r0, #((1<<12) | (1 << 11))
+	str	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
+	mov	pc, lr
+
 	/* start by jumping to clkm to safely disable PLLs, then jump
 	 * to clks */
+lp1_clocks_prepare:
 	mov	r0, #(1 << 28)
 	str	r0, [r5, #CLK_RESET_SCLK_BURST]
 	str	r0, [r5, #CLK_RESET_CCLK_BURST]
@@ -526,10 +537,11 @@ tegra3_cpu_clk32k:
 	ldr	r0, [r5, #CLK_RESET_CLK_SOURCE_MSELECT]
 	orr	r0, r0, #MSELECT_CLKM
 	str	r0, [r5, #CLK_RESET_CLK_SOURCE_MSELECT]
+	ldr	r0, [r5, #CLK_RESET_CLK_SOURCE_MSELECT]
 
 	/* 2 us delay between changing sclk and disabling PLLs */
 	wait_for_us r1, r7, r9
-	add	r1, r1, #2
+	add	r1, r1, #50
 	wait_until r1, r7, r9
 
 #if 1
@@ -539,19 +551,10 @@ tegra3_cpu_clk32k:
 #endif
 
 	/* disable PLLM via PMC in LP1 */
-	ldr	r0, [r4, #PMC_CTRL]
-	tst	r0, #PMC_CTRL_SIDE_EFFECT_LP0
-	bne	enable_pllm_lp0
 	ldr	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
 	bic	r0, r0, #(1<<12)
 	str	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
 	b	powerdown_pll_pcx
-
-enable_pllm_lp0:
-	/* enable PLLM via PMC in LP0 */
-	ldr	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
-	orr	r0, r0, #((1<<12) | (1 << 11))
-	str	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
 
 powerdown_pll_pcx:
 	/* disable PLLP, PLLA, PLLC, and PLLX in LP0 and LP1 states */
@@ -571,6 +574,7 @@ powerdown_pll_cx:
 	ldr	r0, [r5, #CLK_RESET_PLLX_BASE]
 	bic	r0, r0, #(1<<30)
 	str	r0, [r5, #CLK_RESET_PLLX_BASE]
+	ldr	r0, [r5, #CLK_RESET_PLLX_BASE]
 
 	mov	pc, lr
 

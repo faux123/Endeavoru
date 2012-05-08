@@ -247,6 +247,12 @@ int tty_insert_flip_string_fixed_flag(struct tty_struct *tty,
 		const unsigned char *chars, char flag, size_t size)
 {
 	int copied = 0;
+
+	if (tty == NULL || chars == NULL) {
+		pr_info("%s: error tty is null\n", __func__);
+		return -EINVAL;
+	}
+
 	do {
 		int goal = min_t(size_t, size - copied, TTY_BUFFER_PAGE);
 		int space = tty_buffer_request_room(tty, goal);
@@ -254,6 +260,20 @@ int tty_insert_flip_string_fixed_flag(struct tty_struct *tty,
 		/* If there is no space then tb may be NULL */
 		if (unlikely(space == 0))
 			break;
+
+		if (tb == NULL) {
+			pr_err("%s: Error - tty->buf.tail is null\n", __func__);
+			break;
+		}
+		if (tb->char_buf_ptr == NULL) {
+			pr_err("%s: Error - tb->char_buf_ptr is null\n", __func__);
+			break;
+		}
+		if (tb->flag_buf_ptr == NULL) {
+			pr_err("%s: Error - tb->flag_buf_ptr is null\n", __func__);
+			break;
+		}
+
 		memcpy(tb->char_buf_ptr + tb->used, chars, space);
 		memset(tb->flag_buf_ptr + tb->used, flag, space);
 		tb->used += space;

@@ -719,6 +719,8 @@ static void hdmi_intrinsic_event(struct hda_codec *codec, unsigned int res)
 
 	spec->sink_eld[index].monitor_present = pind;
 	spec->sink_eld[index].eld_valid = eldv;
+	if (!eldv)
+		spec->sink_eld[index].lpcm_sad_ready = eldv;
 
 	if (pind && eldv) {
 		hdmi_get_show_eld(codec, spec->pin[index],
@@ -845,7 +847,24 @@ static int hdmi_pcm_open(struct hda_pcm_stream *hinfo,
 
 	eld = &spec->sink_eld[idx];
 
+       if(eld==0)
+       {
+				snd_printk(KERN_WARNING
+					   "hdmi_pcm_open(): eld is null\n");
+       }
+
+       if(codec==0 )
+       {
+				snd_printk(KERN_WARNING
+					   "hdmi_pcm_open(): codec is null\n");
+       }
+       if(codec->preset==0)
+       {
+				snd_printk(KERN_WARNING
+					   "hdmi_pcm_open(): codec preset is null\n");
+       }
 #ifdef CONFIG_SND_HDA_PLATFORM_NVIDIA_TEGRA
+#if 0 //Remove Audio delay for ELD
 	if ((codec->preset->id == 0x10de0020) &&
 	    (!eld->eld_valid || !eld->sad_count)) {
 		int err = 0;
@@ -868,9 +887,28 @@ static int hdmi_pcm_open(struct hda_pcm_stream *hinfo,
 			if (time_after(jiffies, timeout))
 				break;
 
+		snd_printk(KERN_WARNING
+			   "hdmi_pcm_open(): jiffies waiting...\n");
 			mdelay(10);
 		}
 	}
+#else
+	if ((codec->preset->id == 0x10de0020) &&
+	    (!eld->eld_valid || !eld->sad_count || !eld->lpcm_sad_ready)) {
+
+		if (!eld->eld_valid) {
+			if (tegra_hdmi_setup_hda_presence() < 0) {
+				snd_printk(KERN_WARNING
+					   "HDMI: No HDMI device connected\n");
+				return -ENODEV;
+			}
+		}
+
+		if (!eld->lpcm_sad_ready)
+			return -EAGAIN;
+	}
+
+#endif
 #endif
 
 	if (!static_hdmi_pcm && eld->eld_valid && eld->sad_count > 0) {

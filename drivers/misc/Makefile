@@ -3,6 +3,8 @@
 #
 GCOV_PROFILE_tegra-cryptodev.o := y
 
+obj-$(CONFIG_MOT_FEAT_TS27010MUX_USB) += ts27010mux_usb/
+obj-$(CONFIG_MOT_FEAT_TS27010MUX_UART) += ts27010mux_uart/
 obj-$(CONFIG_IBM_ASM)		+= ibmasm/
 obj-$(CONFIG_AD525X_DPOT)	+= ad525x_dpot.o
 obj-$(CONFIG_AD525X_DPOT_I2C)	+= ad525x_dpot-i2c.o
@@ -45,7 +47,7 @@ obj-$(CONFIG_SPEAR13XX_PCIE_GADGET)	+= spear13xx_pcie_gadget.o
 obj-$(CONFIG_VMWARE_BALLOON)	+= vmw_balloon.o
 obj-$(CONFIG_ARM_CHARLCD)	+= arm-charlcd.o
 obj-$(CONFIG_PCH_PHUB)		+= pch_phub.o
-obj-y				+= ti-st/
+obj-$(CONFIG_TI_ST)             += ti-st/
 obj-$(CONFIG_AB8500_PWM)	+= ab8500-pwm.o
 obj-y				+= lis3lv02d/
 obj-$(CONFIG_WL127X_RFKILL)	+= wl127x-rfkill.o
@@ -53,7 +55,15 @@ obj-$(CONFIG_APANIC)		+= apanic.o
 obj-$(CONFIG_SENSORS_AK8975)	+= akm8975.o
 obj-$(CONFIG_SENSORS_NCT1008)	+= nct1008.o
 obj-$(CONFIG_BCM4329_RFKILL)	+= bcm4329_rfkill.o
+obj-$(CONFIG_BCM4330_RFKILL)	+= bcm4330_rfkill.o
 obj-$(CONFIG_MPU_SENSORS_MPU3050)	+= inv_mpu/
+obj-$(CONFIG_MPU_SENSORS_MPU3050_HTC)	+= mpu3050_htc/
 obj-$(CONFIG_TEGRA_CRYPTO_DEV)	+= tegra-cryptodev.o
 obj-$(CONFIG_TEGRA_BB_SUPPORT)	+= tegra-baseband/
 obj-$(CONFIG_MAX1749_VIBRATOR)	+= max1749.o
+obj-$(CONFIG_TI_ST_GPS)         += ti_gps.o
+obj-$(CONFIG_TEGRA_HAPTIC2)	+= pm8xxx-haptic2.o
+obj-$(CONFIG_QUATTRO_TEGRA_HAPTIC2)     += vertex-haptic2.o
+obj-$(CONFIG_TEGRA_VIBRATOR)	+= tegra_vibrator.o
+obj-$(CONFIG_TEGRA_VIBRATOR_ENR)+= tegra_vibrator_enr.o
+obj-$(CONFIG_CABLE_DETECT_ACCESSORY)+= cable_detect.o

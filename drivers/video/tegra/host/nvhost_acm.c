@@ -350,7 +350,7 @@ void nvhost_module_preinit(const char *name,
 	int i = 0;
 
 	/* initialize clocks to known state */
-	while (desc->clocks[i].name && i < NVHOST_MODULE_MAX_CLOCKS) {
+	while (i < NVHOST_MODULE_MAX_CLOCKS && desc->clocks[i].name) {
 		char devname[MAX_DEVID_LENGTH];
 		long rate = desc->clocks[i].default_rate;
 		struct clk *c;

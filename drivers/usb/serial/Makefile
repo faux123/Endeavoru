@@ -11,9 +11,12 @@ usbserial-y := usb-serial.o generic.o bus.o
 usbserial-$(CONFIG_USB_SERIAL_CONSOLE)	+= console.o
 usbserial-$(CONFIG_USB_EZUSB)		+= ezusb.o
 
+obj-$(CONFIG_USB_STE6718_MODEM)			+= pnx6718.o
 obj-$(CONFIG_USB_SERIAL_AIRCABLE)		+= aircable.o
 obj-$(CONFIG_USB_SERIAL_ARK3116)		+= ark3116.o
+ifeq (${CONFIG_MACH_ENDEAVORU},y)
 obj-$(CONFIG_USB_SERIAL_BASEBAND)		+= baseband_usb_chr.o
+endif
 obj-$(CONFIG_USB_SERIAL_BELKIN)			+= belkin_sa.o
 obj-$(CONFIG_USB_SERIAL_CH341)			+= ch341.o
 obj-$(CONFIG_USB_SERIAL_CP210X)			+= cp210x.o

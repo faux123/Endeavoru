@@ -964,22 +964,22 @@ static int azx_reset(struct azx *chip, int full_reset)
 
 	count = 50;
 	while (azx_readb(chip, GCTL) && --count)
-		msleep(1);
+		mdelay(1);
 
 	/* delay for >= 100us for codec PLL to settle per spec
 	 * Rev 0.9 section 5.5.1
 	 */
-	msleep(1);
+	mdelay(1);
 
 	/* Bring controller out of reset */
 	azx_writeb(chip, GCTL, azx_readb(chip, GCTL) | ICH6_GCTL_RESET);
 
 	count = 50;
 	while (!azx_readb(chip, GCTL) && --count)
-		msleep(1);
+		mdelay(1);
 
 	/* Brent Chartrand said to wait >= 540us for codecs to initialize */
-	msleep(1);
+	mdelay(1);
 
       __skip:
 	/* check to see if controller is ready */
@@ -2428,18 +2428,6 @@ static int azx_resume(struct azx *chip)
 
 	if (snd_hda_codecs_inuse(chip->bus))
 		azx_init_chip(chip, 1);
-#if defined(CONFIG_SND_HDA_PLATFORM_DRIVER) && \
-	defined(CONFIG_SND_HDA_POWER_SAVE)
-	else if (chip->driver_type == AZX_DRIVER_NVIDIA_TEGRA) {
-		struct hda_bus *bus = chip->bus;
-		struct hda_codec *c;
-
-		list_for_each_entry(c, &bus->codec_list, list) {
-			snd_hda_power_up(c);
-			snd_hda_power_down(c);
-		}
-	}
-#endif
 
 	snd_hda_resume(chip->bus);
 	snd_power_change_state(card, SNDRV_CTL_POWER_D0);

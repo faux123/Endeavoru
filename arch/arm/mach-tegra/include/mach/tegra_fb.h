@@ -25,3 +25,15 @@ struct tegra_fb_lcd_data {
 	int	lcd_yres;
 	int	bits_per_pixel;
 };
+#if (defined(CONFIG_USB_FUNCTION_PROJECTOR) || defined(CONFIG_USB_ANDROID_PROJECTOR))
+/* For USB Projector to quick access the frame buffer info */
+struct tegra_fb_info {
+	unsigned char *fb_addr;
+	int msmfb_area;
+	int xres;
+	int yres;
+};
+extern int tegrafb_get_var(struct tegra_fb_info *tmp);
+extern int tegrafb_get_fb_area(void);
+#endif
+

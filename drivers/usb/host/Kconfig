@@ -59,6 +59,12 @@ config USB_EHCI_HCD
 	  To compile this driver as a module, choose M here: the
 	  module will be called ehci-hcd.
 
+config USB_EHCI_ONOFF_FEATURE
+	bool "EHCI onoff"
+	depends on USB_EHCI_HCD && IMC_FLASHLESS
+	default y
+
+
 config USB_EHCI_ROOT_HUB_TT
 	bool "Root Hub Transaction Translators"
 	depends on USB_EHCI_HCD
@@ -530,8 +536,3 @@ config USB_OCTEON2_COMMON
 	bool
 	default y if USB_OCTEON_EHCI || USB_OCTEON_OHCI
 
-config USB_EHCI_ONOFF_FEATURE
-        boolean "EHCI ON/OFF Feature"
-        depends on USB && USB_EHCI_HCD
-        help
-          Enable support for turning EHCI Off and On

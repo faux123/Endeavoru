@@ -87,5 +87,5 @@ struct tegra_nvhdcp_packet {
 #define TEGRAIO_NVHDCP_READ_M		_IOWR('F', 0x73, struct tegra_nvhdcp_packet)
 #define TEGRAIO_NVHDCP_READ_S		_IOWR('F', 0x74, struct tegra_nvhdcp_packet)
 #define TEGRAIO_NVHDCP_RENEGOTIATE	_IO('F', 0x75)
-
+#define TEGRAIO_HDCP_STATUE		_IOW('F', 0x76, __u32)
 #endif

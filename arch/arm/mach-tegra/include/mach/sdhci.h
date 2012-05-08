@@ -28,6 +28,46 @@ struct tegra_sdhci_platform_data {
 	unsigned int max_clk_limit;
 	unsigned int tap_delay;
 	struct mmc_platform_data mmc_data;
+	int (*suspend_gpiocfg)(void);
+	void (*resume_gpiocfg)(void);
 };
 
+#define ENABLE_GPIO(_pg, _pin, _name, _direction, _state, _pupd) \
+    enable_gpio_config(TEGRA_PINGROUP_##_pg, TEGRA_GPIO_P##_pin, _name, _direction, _state, TEGRA_PUPD_##_pupd);
+
+#define DISABLE_GPIO(_pg, _pin, _pupd) \
+    disable_gpio_config(TEGRA_PINGROUP_##_pg, TEGRA_GPIO_P##_pin, TEGRA_PUPD_##_pupd);
+
+static int inline enable_gpio_config(enum tegra_pingroup pg, int pin, const char *name,
+    int direction, int state, enum tegra_pullupdown pupd)
+{
+	int ret;
+
+	ret = gpio_request(pin, name);
+	if(ret < 0) {
+		pr_err("%s: gpio (%s) request failed (return=%d) \r\n", __func__, name, ret);
+		return -1;
+	}
+
+	if (direction)
+		ret = gpio_direction_input(pin);
+	else
+		ret = gpio_direction_output(pin, state);
+
+	if(ret < 0) {
+		pr_err("%s: gpio (%s) direction  failed (return=%d) \r\n", __func__, name, ret);
+		gpio_free(pin);
+		return -1;
+	}
+	tegra_pinmux_set_pullupdown(pg, pupd);
+	tegra_gpio_enable(pin);
+	return 0;
+}
+
+static void inline disable_gpio_config(enum tegra_pingroup pg, int pin, enum tegra_pullupdown pupd)
+{
+	tegra_pinmux_set_pullupdown(pg, pupd);
+	tegra_gpio_disable(pin);
+	gpio_free(pin);
+}
 #endif

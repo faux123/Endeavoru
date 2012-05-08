@@ -594,8 +594,10 @@ static void thermal_zone_device_set_polling(struct thermal_zone_device *tz,
 {
 	cancel_delayed_work(&(tz->poll_queue));
 
-	if (!delay)
+	if (!delay) {
+		printk(KERN_INFO "[TMS] throttle end");
 		return;
+	}
 
 	if (delay > 1000)
 		schedule_delayed_work(&(tz->poll_queue),
@@ -612,6 +614,7 @@ static void thermal_zone_device_passive(struct thermal_zone_device *tz,
 	struct thermal_cooling_device_instance *instance;
 	struct thermal_cooling_device *cdev;
 	long state, max_state;
+	long cur_temp;
 
 	/*
 	 * Above Trip?
@@ -637,6 +640,7 @@ static void thermal_zone_device_passive(struct thermal_zone_device *tz,
 				cdev->ops->get_max_state(cdev, &max_state);
 				if (state++ < max_state)
 					cdev->ops->set_cur_state(cdev, state);
+				printk(KERN_INFO "[TMS] throttling, state=%d", state);
 			}
 		} else if (trend < 0) { /* Cooling off? */
 			list_for_each_entry(instance, &tz->cooling_devices,
@@ -648,6 +652,7 @@ static void thermal_zone_device_passive(struct thermal_zone_device *tz,
 				cdev->ops->get_max_state(cdev, &max_state);
 				if (state > 0)
 					cdev->ops->set_cur_state(cdev, --state);
+				printk(KERN_INFO "[TMS] throttling, state=%d", state);
 			}
 		}
 		return;
@@ -668,8 +673,16 @@ static void thermal_zone_device_passive(struct thermal_zone_device *tz,
 		cdev->ops->get_max_state(cdev, &max_state);
 		if (state > 0)
 			cdev->ops->set_cur_state(cdev, --state);
-		if (state == 0)
+		printk(KERN_INFO "[TMS] throttling, state=%d", state);
+		if (state == 0) {
 			tz->passive = false;
+			if (tz->ops->get_temp(tz, &cur_temp)) {
+				tz->passive = true;
+			}
+			if (cur_temp >= trip_temp) {
+				tz->passive = true;
+			}
+		}
 	}
 }
 

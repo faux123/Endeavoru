@@ -32,13 +32,39 @@
 #include <linux/sched.h>
 #include <linux/tty.h>
 
+#include <linux/serial_core.h>
+
 #include <linux/skbuff.h>
 #include <linux/ti_wilink_st.h>
-
+#include <linux/rfkill.h>
+#include <linux/suspend.h>
 
 #define MAX_ST_DEVICES	3	/* Imagine 1 on each UART for now */
-static struct platform_device *st_kim_devices[MAX_ST_DEVICES];
+#define nSHUTDOWN 160
 
+extern void blue_pincfg_uartc_suspend(void);
+extern void blue_pincfg_uartc_resume(void);
+extern void blue_pincfg_uartc_gpio_request(void);
+
+/* rfkill define*/
+struct rfkill *rfkillBT;
+static const char bt_name[] = "wl127x";
+static int pre_state;
+int rfkill_counter;
+/*bool after_suspend = false;*/
+bool after_BT_GPS_on = false;
+
+static int wl127x_set_power(void *data, bool blocked);
+static void wl127x_config_bt_on(void);
+static void wl127x_config_bt_off(void);
+
+static struct rfkill_ops wl127x_rfkill_ops = {
+	.set_block = wl127x_set_power,
+};
+/* rfkill define end */
+
+static struct platform_device *st_kim_devices[MAX_ST_DEVICES];
+static int rfkilltool_on = 0;
 /**********************************************************************/
 /* internal functions */
 
@@ -168,7 +194,7 @@ void kim_int_recv(struct kim_data_s *kim_gdata,
 			type = *ptr;
 			break;
 		default:
-			pr_info("unknown packet");
+			pr_info("unknown packet\n");
 			ptr++;
 			count--;
 			continue;
@@ -210,6 +236,8 @@ static long read_local_version(struct kim_data_s *kim_gdata, char *bts_scr_name)
 		return -ETIMEDOUT;
 	}
 
+	INIT_COMPLETION(kim_gdata->kim_rcvd);
+
 	version =
 		MAKEWORD(kim_gdata->resp_buffer[13],
 				kim_gdata->resp_buffer[14]);
@@ -228,7 +256,7 @@ static long read_local_version(struct kim_data_s *kim_gdata, char *bts_scr_name)
 	kim_gdata->version.maj_ver = maj_ver;
 	kim_gdata->version.min_ver = min_ver;
 
-	pr_info("%s", bts_scr_name);
+	pr_info("%s\n", bts_scr_name);
 	return 0;
 }
 
@@ -242,11 +270,11 @@ void skip_change_remote_baud(unsigned char **ptr, long *len)
 
 	if (((struct bts_action *) nxt_action)->type != ACTION_WAIT_EVENT) {
 		pr_err("invalid action after change remote baud command");
-	} else {
+	} else {    /*vic fix*/
 		*ptr = *ptr + sizeof(struct bts_action) +
-			((struct bts_action *)nxt_action)->size;
+			((struct bts_action *)cur_action)->size;
 		*len = *len - (sizeof(struct bts_action) +
-				((struct bts_action *)nxt_action)->size);
+				((struct bts_action *)cur_action)->size);
 		/* warn user on not commenting these in firmware */
 		pr_warn("skipping the wait event of change remote baud");
 	}
@@ -335,6 +363,11 @@ static long download_firmware(struct kim_data_s *kim_gdata)
 				return -ETIMEDOUT;
 			}
 
+			/* reinit completion before sending for the
+			 * relevant wait
+			 */
+			INIT_COMPLETION(kim_gdata->kim_rcvd);
+
 			/*
 			 * Free space found in uart buffer, call st_int_write
 			 * to send current firmware command to the uart tx
@@ -371,7 +404,7 @@ static long download_firmware(struct kim_data_s *kim_gdata)
 			INIT_COMPLETION(kim_gdata->kim_rcvd);
 			break;
 		case ACTION_DELAY:	/* sleep */
-			pr_info("sleep command in scr");
+			pr_info("sleep command in scr\n");
 			action_ptr = &(((struct bts_action *)ptr)->data[0]);
 			mdelay(((struct bts_action_delay *)action_ptr)->msec);
 			break;
@@ -385,6 +418,9 @@ static long download_firmware(struct kim_data_s *kim_gdata)
 	}
 	/* fw download complete */
 	release_firmware(kim_gdata->fw_entry);
+	if (len != 0)
+		pr_err("download_firmware(): ERR, len != 0");
+
 	return 0;
 }
 
@@ -434,49 +470,80 @@ long st_kim_start(void *kim_data)
 	long err = 0;
 	long retry = POR_RETRY_COUNT;
 	struct kim_data_s	*kim_gdata = (struct kim_data_s *)kim_data;
+	struct ti_st_plat_data	*pdata = kim_gdata->kim_pdev->dev.platform_data;
 
-	pr_info(" %s", __func__);
+	printk("st_kim_start_entering 1222 v3\n");
+	pr_info(" %s\n", __func__);
+
+	blue_pincfg_uartc_resume();
 
 	do {
+
+		printk("\n[BT_GPS] nshutdown gpio new: %d\n", kim_gdata->nshutdown);
+
+		if (pdata->chip_enable)
+			pdata->chip_enable();
+
 		/* Configure BT nShutdown to HIGH state */
 		gpio_set_value(kim_gdata->nshutdown, GPIO_LOW);
 		mdelay(5);	/* FIXME: a proper toggle */
 		gpio_set_value(kim_gdata->nshutdown, GPIO_HIGH);
 		mdelay(100);
+
+		//after_BT_GPS_on = true;
 		/* re-initialize the completion */
 		INIT_COMPLETION(kim_gdata->ldisc_installed);
+
 		/* send notification to UIM */
 		kim_gdata->ldisc_install = 1;
-		pr_info("ldisc_install = 1");
+		pr_info("ldisc_install = 1\n");
 		sysfs_notify(&kim_gdata->kim_pdev->dev.kobj,
 				NULL, "install");
 		/* wait for ldisc to be installed */
 		err = wait_for_completion_timeout(&kim_gdata->ldisc_installed,
 				msecs_to_jiffies(LDISC_TIME));
+
 		if (!err) {	/* timeout */
 			pr_err("line disc installation timed out ");
 			kim_gdata->ldisc_install = 0;
-			pr_info("ldisc_install = 0");
-			sysfs_notify(&kim_gdata->kim_pdev->dev.kobj,
-					NULL, "install");
+			pr_info("ldisc_install = 0\n");
+			pr_info("Close UART and retry\n");
+			sysfs_notify(&kim_gdata->kim_pdev->dev.kobj, NULL,
+						 "install");
+			err = wait_for_completion_timeout(&kim_gdata->ldisc_installed,
+					msecs_to_jiffies(1000));
+			if (!err) {		/* timeout */
+				pr_err("uart close  timeout");
+			}
 			err = -ETIMEDOUT;
 			continue;
 		} else {
 			/* ldisc installed now */
-			pr_info(" line discipline installed ");
+			pr_info(" line discipline installed \n");
 			err = download_firmware(kim_gdata);
 			if (err != 0) {
 				pr_err("download firmware failed");
 				kim_gdata->ldisc_install = 0;
-				pr_info("ldisc_install = 0");
+				pr_info("ldisc_install = 0\n");
 				sysfs_notify(&kim_gdata->kim_pdev->dev.kobj,
-						NULL, "install");
+							 NULL, "install");
+				err = wait_for_completion_timeout(&kim_gdata->ldisc_installed,
+						msecs_to_jiffies(1000));
+				if (!err) {		/* timeout */
+					pr_err("uninstall ldisc timeout");
+					err = -ETIMEDOUT;
+				}
 				continue;
 			} else {	/* on success don't retry */
 				break;
 			}
 		}
 	} while (retry--);
+
+	if (err){	//only on error allow retry & hence gpio request 
+		gpio_direction_output(kim_gdata->nshutdown, 0);
+	}
+
 	return err;
 }
 
@@ -489,6 +556,10 @@ long st_kim_stop(void *kim_data)
 	long err = 0;
 	struct kim_data_s	*kim_gdata = (struct kim_data_s *)kim_data;
 
+	struct ti_st_plat_data	*pdata =
+		kim_gdata->kim_pdev->dev.platform_data;
+
+
 	INIT_COMPLETION(kim_gdata->ldisc_installed);
 
 	/* Flush any pending characters in the driver and discipline. */
@@ -496,7 +567,7 @@ long st_kim_stop(void *kim_data)
 	tty_driver_flush_buffer(kim_gdata->core_data->tty);
 
 	/* send uninstall notification to UIM */
-	pr_info("ldisc_install = 0");
+	pr_info("ldisc_install = 0\n");
 	kim_gdata->ldisc_install = 0;
 	sysfs_notify(&kim_gdata->kim_pdev->dev.kobj, NULL, "install");
 
@@ -514,6 +585,13 @@ long st_kim_stop(void *kim_data)
 	gpio_set_value(kim_gdata->nshutdown, GPIO_HIGH);
 	mdelay(1);
 	gpio_set_value(kim_gdata->nshutdown, GPIO_LOW);
+
+	/* platform specific disable */
+	if (pdata->chip_disable)
+		pdata->chip_disable();
+
+	blue_pincfg_uartc_suspend();
+
 	return err;
 }
 
@@ -542,6 +620,23 @@ static ssize_t show_install(struct device *dev,
 {
 	struct kim_data_s *kim_data = dev_get_drvdata(dev);
 	return sprintf(buf, "%d\n", kim_data->ldisc_install);
+}
+
+static ssize_t show_rfkilltool(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct kim_data_s *kim_data = dev_get_drvdata(dev);
+	return sprintf(buf, "%d\n", rfkilltool_on);
+}
+
+static ssize_t store_rfkilltool(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct kim_data_s *kim_data = dev_get_drvdata(dev);
+	kim_data->rfkilltool = 1;
+	rfkilltool_on = 1;
+	pr_info("set store_rfkilltool on\n");
+	return kim_data->rfkilltool;
 }
 
 static ssize_t show_dev_name(struct device *dev,
@@ -578,11 +673,15 @@ __ATTR(baud_rate, 0444, (void *)show_baud_rate, NULL);
 static struct kobj_attribute uart_flow_cntrl =
 __ATTR(flow_cntrl, 0444, (void *)show_flow_cntrl, NULL);
 
+static struct kobj_attribute rfkilltool =
+__ATTR(rfkilltool, 0644, (void *)show_rfkilltool, (void *)store_rfkilltool);
+
 static struct attribute *uim_attrs[] = {
 	&ldisc_install.attr,
 	&uart_dev_name.attr,
 	&uart_baud_rate.attr,
 	&uart_flow_cntrl.attr,
+	&rfkilltool.attr,
 	NULL,
 };
 
@@ -644,12 +743,12 @@ static int kim_probe(struct platform_device *pdev)
 	long status;
 	struct kim_data_s	*kim_gdata;
 	struct ti_st_plat_data	*pdata = pdev->dev.platform_data;
-
+	rfkill_counter = 0;
 	if ((pdev->id != -1) && (pdev->id < MAX_ST_DEVICES)) {
 		/* multiple devices could exist */
 		st_kim_devices[pdev->id] = pdev;
 	} else {
-		/* platform's sure about existence of 1 device */
+		/* platform's sure about existance of 1 device */
 		st_kim_devices[0] = pdev;
 	}
 
@@ -670,6 +769,7 @@ static int kim_probe(struct platform_device *pdev)
 
 	/* Claim the chip enable nShutdown gpio from the system */
 	kim_gdata->nshutdown = pdata->nshutdown_gpio;
+
 	status = gpio_request(kim_gdata->nshutdown, "kim");
 	if (unlikely(status)) {
 		pr_err(" gpio %ld request failed ", kim_gdata->nshutdown);
@@ -682,6 +782,8 @@ static int kim_probe(struct platform_device *pdev)
 		pr_err(" unable to configure gpio %ld", kim_gdata->nshutdown);
 		return status;
 	}
+
+
 	/* get reference of pdev for request_firmware
 	 */
 	kim_gdata->kim_pdev = pdev;
@@ -711,17 +813,40 @@ static int kim_probe(struct platform_device *pdev)
 				kim_gdata, &version_debugfs_fops);
 	debugfs_create_file("protocols", S_IRUGO, kim_debugfs_dir,
 				kim_gdata, &list_debugfs_fops);
-	pr_info(" debugfs entries created ");
+	pr_info(" debugfs entries created \n");
+
+
+/* rfkill prob */
+
+		/* TODO: should all types be rfkill_type_bt ? */
+		/* rfill alloc */
+		rfkillBT = rfkill_alloc(bt_name, &pdev->dev, RFKILL_TYPE_BLUETOOTH, &wl127x_rfkill_ops, NULL);
+		status = rfkill_register(rfkillBT);
+		pr_info("rfkill prob for Bluetooth ==> status: %d\n", status);
+
+		/* pydtd_pincfg_uart0_suspend(); */
+		blue_pincfg_uartc_gpio_request();
+		blue_pincfg_uartc_suspend();
+
 	return 0;
 }
 
 static int kim_remove(struct platform_device *pdev)
 {
+
 	/* free the GPIOs requested */
 	struct ti_st_plat_data	*pdata = pdev->dev.platform_data;
+
 	struct kim_data_s	*kim_gdata;
 
 	kim_gdata = dev_get_drvdata(&pdev->dev);
+
+
+	rfkill_unregister(rfkillBT);
+	rfkillBT = NULL;
+	/* destory lock */
+	wake_lock_destroy(&kim_gdata->ST_wakelock);
+
 
 	/* Free the Bluetooth/FM/GPIO
 	 * nShutdown gpio from the system
@@ -729,9 +854,10 @@ static int kim_remove(struct platform_device *pdev)
 	gpio_free(pdata->nshutdown_gpio);
 	pr_info("nshutdown GPIO Freed");
 
+
 	debugfs_remove_recursive(kim_debugfs_dir);
 	sysfs_remove_group(&pdev->dev.kobj, &uim_attr_grp);
-	pr_info("sysfs entries removed");
+	pr_info("sysfs entries removed\n");
 
 	kim_gdata->kim_pdev = NULL;
 	st_core_exit(kim_gdata->core_data);
@@ -741,9 +867,34 @@ static int kim_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static unsigned long retry_suspend;
+
+
 int kim_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct ti_st_plat_data	*pdata = pdev->dev.platform_data;
+	struct kim_data_s	*kim_gdata;
+
+	struct st_data_s *core_data;
+	struct uart_state *uart_state;
+	struct uart_port *uport;
+
+	kim_gdata = dev_get_drvdata(&pdev->dev);
+
+	core_data = kim_gdata->core_data;
+
+	/* after_suspend = true; */
+	dev_info(&pdev->dev, "[BT] %s, st_data->ll_state=%d\n", __func__,
+		kim_gdata->core_data->ll_state);
+/*
+	if ((kim_gdata->core_data->ll_state < 4) && (kim_gdata->core_data->ll_state > 0))
+		return -EBUSY;
+*/
+
+	if (st_ll_getstate(core_data) != ST_LL_INVALID) {
+	    uart_state = core_data->tty->driver_data;
+            uport = uart_state->uart_port;
+	}
 
 	if (pdata->suspend)
 		return pdata->suspend(pdev, state);
@@ -784,6 +935,68 @@ static void __exit st_kim_deinit(void)
 	platform_driver_unregister(&kim_platform_driver);
 }
 
+static int wl127x_set_power(void *data, bool blocked)
+{
+	pr_info("change to new rfkill state: %d\n", blocked);
+
+	if (!blocked)
+		wl127x_config_bt_on();
+	else
+		wl127x_config_bt_off();
+
+	return 0;
+}
+
+static void wl127x_config_bt_off()
+{
+	pr_info("wl127x_config_bt_off: Entering\n");
+        if (rfkilltool_on == 0) {
+                pr_info("wl127x_config_bt_off, rfkilltool_on off\n");
+                return;
+        }
+
+        blue_pincfg_uartc_suspend();
+	mdelay(1);
+	if ((rfkill_counter != 0) && (get_suspend_state() == PM_SUSPEND_ON) && (!after_BT_GPS_on)) {
+		// By default configure BT nShutdown to LOW state 
+		gpio_set_value(nSHUTDOWN, GPIO_LOW);
+		mdelay(1);
+		gpio_set_value(nSHUTDOWN, GPIO_HIGH);
+		mdelay(1);
+		gpio_set_value(nSHUTDOWN, GPIO_LOW);
+
+	}
+
+}
+
+static void wl127x_config_bt_on()
+{
+	pr_info("wl127x_config_bt_on: Entering\n");
+	if (rfkilltool_on == 0) {
+		pr_info("wl127x_config_bt_on, rfkilltool_on off\n");
+		return;
+	}
+	//Avoid change rfkill state after boot up 
+	if ((rfkill_counter != 0) && (get_suspend_state() == PM_SUSPEND_ON) && (!after_BT_GPS_on)) {
+		long err = 0;
+                blue_pincfg_uartc_resume();
+
+		pr_info("wl127x_config_bt_on()\n");
+		gpio_set_value(nSHUTDOWN, GPIO_HIGH);
+		mdelay(15);
+		/// Configure BT nShutdown to HIGH state 
+		gpio_set_value(nSHUTDOWN, GPIO_LOW);
+		mdelay(15);	// FIXME: a proper toggle 
+		gpio_set_value(nSHUTDOWN, GPIO_HIGH);
+		pr_info("delay 100ms for chip stable\n");
+		mdelay(100);
+	}
+	if (rfkill_counter == 0) {
+		pr_info("[BT_rfkill] Do not toggle BT enable after boot up...\n");
+		rfkill_counter++;
+	}
+
+}
 
 module_init(st_kim_init);
 module_exit(st_kim_deinit);

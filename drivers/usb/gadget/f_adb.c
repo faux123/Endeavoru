@@ -27,6 +27,11 @@
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 
+#include <mach/board_htc.h>
+
+#define ADB_IOCTL_MAGIC 's'
+#define ADB_ERR_PAYLOAD_STUCK       _IOW(ADB_IOCTL_MAGIC, 0, unsigned)
+
 #define ADB_BULK_BUFFER_SIZE           4096
 
 /* number of tx requests to allocate */
@@ -42,8 +47,8 @@ struct adb_dev {
 	struct usb_ep *ep_in;
 	struct usb_ep *ep_out;
 
-	int online;
-	int error;
+	atomic_t online;
+	atomic_t error;
 
 	atomic_t read_excl;
 	atomic_t write_excl;
@@ -111,6 +116,13 @@ static struct usb_descriptor_header *hs_adb_descs[] = {
 	NULL,
 };
 
+/* HTC >>>*/
+#define ADB_PRINT_LIMIT  15
+static int adb_count = 0;
+void adb_count_add(void);
+int adb_count_get(void);
+void adb_count_set(int);
+/* HTC <<<*/
 
 /* temporary variable used between adb_open() and adb_gadget_bind() */
 static struct adb_dev *_adb_dev;
@@ -147,16 +159,12 @@ static void adb_request_free(struct usb_request *req, struct usb_ep *ep)
 
 static inline int adb_lock(atomic_t *excl)
 {
-	int ret = -1;
-
-	preempt_disable();
 	if (atomic_inc_return(excl) == 1) {
-		ret = 0;
-	} else
+		return 0;
+	} else {
 		atomic_dec(excl);
-
-	preempt_enable();
-	return ret;
+		return -1;
+	}
 }
 
 static inline void adb_unlock(atomic_t *excl)
@@ -196,11 +204,11 @@ static void adb_complete_in(struct usb_ep *ep, struct usb_request *req)
 {
 	struct adb_dev *dev = _adb_dev;
 
-	if (req->status != 0)
-		dev->error = 1;
-
+	if (req->status != 0) {
+		printk(KERN_INFO "[USB] %s: err (%d)\n", __func__, req->status);
+		atomic_set(&dev->error, 1);
+	}
 	adb_req_put(dev, &dev->tx_idle, req);
-
 	wake_up(&dev->write_wq);
 }
 
@@ -209,9 +217,10 @@ static void adb_complete_out(struct usb_ep *ep, struct usb_request *req)
 	struct adb_dev *dev = _adb_dev;
 
 	dev->rx_done = 1;
-	if (req->status != 0)
-		dev->error = 1;
-
+	if (req->status != 0) {
+		printk(KERN_INFO "[USB] %s: err (%d)\n", __func__, req->status);
+		atomic_set(&dev->error, 1);
+	}
 	wake_up(&dev->read_wq);
 }
 
@@ -262,7 +271,7 @@ static int adb_create_bulk_endpoints(struct adb_dev *dev,
 	return 0;
 
 fail:
-	printk(KERN_ERR "adb_bind() could not allocate requests\n");
+	printk(KERN_ERR "[USBF] adb_bind() could not allocate requests\n");
 	return -1;
 }
 
@@ -285,16 +294,17 @@ static ssize_t adb_read(struct file *fp, char __user *buf,
 		return -EBUSY;
 
 	/* we will block until we're online */
-	while (!(dev->online || dev->error)) {
+	while (!(atomic_read(&dev->online) || atomic_read(&dev->error))) {
 		pr_debug("adb_read: waiting for online state\n");
 		ret = wait_event_interruptible(dev->read_wq,
-				(dev->online || dev->error));
+			(atomic_read(&dev->online) ||
+			atomic_read(&dev->error)));
 		if (ret < 0) {
 			adb_unlock(&dev->read_excl);
 			return ret;
 		}
 	}
-	if (dev->error) {
+	if (atomic_read(&dev->error)) {
 		r = -EIO;
 		goto done;
 	}
@@ -308,7 +318,7 @@ requeue_req:
 	if (ret < 0) {
 		pr_debug("adb_read: failed to queue req %p (%d)\n", req, ret);
 		r = -EIO;
-		dev->error = 1;
+		atomic_set(&dev->error, 1);
 		goto done;
 	} else {
 		pr_debug("rx %p queue\n", req);
@@ -317,12 +327,12 @@ requeue_req:
 	/* wait for a request to complete */
 	ret = wait_event_interruptible(dev->read_wq, dev->rx_done);
 	if (ret < 0) {
-		dev->error = 1;
+		atomic_set(&dev->error, 1);
 		r = ret;
 		usb_ep_dequeue(dev->ep_out, req);
 		goto done;
 	}
-	if (!dev->error) {
+	if (!atomic_read(&dev->error)) {
 		/* If we got a 0-len packet, throw it back and try again. */
 		if (req->actual == 0)
 			goto requeue_req;
@@ -357,7 +367,7 @@ static ssize_t adb_write(struct file *fp, const char __user *buf,
 		return -EBUSY;
 
 	while (count > 0) {
-		if (dev->error) {
+		if (atomic_read(&dev->error)) {
 			pr_debug("adb_write dev->error\n");
 			r = -EIO;
 			break;
@@ -366,7 +376,8 @@ static ssize_t adb_write(struct file *fp, const char __user *buf,
 		/* get an idle tx request to use */
 		req = 0;
 		ret = wait_event_interruptible(dev->write_wq,
-			(req = adb_req_get(dev, &dev->tx_idle)) || dev->error);
+			((req = adb_req_get(dev, &dev->tx_idle)) ||
+			 atomic_read(&dev->error)));
 
 		if (ret < 0) {
 			r = ret;
@@ -387,7 +398,7 @@ static ssize_t adb_write(struct file *fp, const char __user *buf,
 			ret = usb_ep_queue(dev->ep_in, req, GFP_ATOMIC);
 			if (ret < 0) {
 				pr_debug("adb_write: xfer error %d\n", ret);
-				dev->error = 1;
+				atomic_set(&dev->error, 1);
 				r = -EIO;
 				break;
 			}
@@ -410,52 +421,35 @@ static ssize_t adb_write(struct file *fp, const char __user *buf,
 
 static int adb_open(struct inode *ip, struct file *fp)
 {
-	static unsigned long last_print;
-	static unsigned long count = 0;
+	if (adb_count_get() < ADB_PRINT_LIMIT) { /* htc */
+		printk(KERN_INFO "[USB] %s: %s(parent:%s): tgid=%d (%d)\n",
+			__func__, current->comm, current->parent->comm, current->tgid, adb_count_get());
+	}
 
 	if (!_adb_dev)
 		return -ENODEV;
 
-	if (++count == 1)
-		last_print = jiffies;
-	else {
-		if (!time_before(jiffies, last_print + HZ/2))
-			count = 0;
-		last_print = jiffies;
-	}
-
 	if (adb_lock(&_adb_dev->open_excl)) {
-		cpu_relax();
+		printk(KERN_INFO "[USB] %s: busy\n", __func__);  /* htc */
 		return -EBUSY;
 	}
-
-	if (count < 5)
-		printk(KERN_INFO "adb_open(%s)\n", current->comm);
-
 
 	fp->private_data = _adb_dev;
 
 	/* clear the error latch */
-	_adb_dev->error = 0;
+	atomic_set(&_adb_dev->error, 0);
 
 	return 0;
 }
 
 static int adb_release(struct inode *ip, struct file *fp)
 {
-	static unsigned long last_print;
-	static unsigned long count = 0;
-
-	if (++count == 1)
-		last_print = jiffies;
-	else {
-		if (!time_before(jiffies, last_print + HZ/2))
-			count = 0;
-		last_print = jiffies;
+	if (adb_count_get() < ADB_PRINT_LIMIT) { /* htc */
+		printk(KERN_INFO "[USB] %s: %s(parent:%s): tgid=%d (%d)\n",
+			__func__, current->comm, current->parent->comm, current->tgid, adb_count_get());
 	}
 
-	if (count < 5)
-		printk(KERN_INFO "adb_release\n");
+	adb_count_add(); /* htc */
 	adb_unlock(&_adb_dev->open_excl);
 	return 0;
 }
@@ -474,9 +468,72 @@ static struct miscdevice adb_device = {
 	.name = adb_shortname,
 	.fops = &adb_fops,
 };
+//++ htc ++
+int htc_usb_enable_function(char *name, int ebl);
+static int adb_enable_open(struct inode *ip, struct file *fp)
+{
+	printk(KERN_INFO "[USB] %s: %s(parent:%s): tgid=%d\n", /* htc */
+			__func__, current->comm, current->parent->comm, current->tgid);
+	htc_usb_enable_function("adb", 1);
+	return 0;
+}
 
+static int adb_enable_release(struct inode *ip, struct file *fp)
+{
+	printk(KERN_INFO "[USB] %s: %s(parent:%s): tgid=%d\n", /* htc */
+			__func__, current->comm, current->parent->comm, current->tgid);
+	htc_usb_enable_function("adb", 0);
+	return 0;
+}
 
+static long adb_enable_ioctl(struct file *file,
+				unsigned int cmd, unsigned long arg)
+{
+	int rc = 0;
 
+	switch (cmd) {
+	case ADB_ERR_PAYLOAD_STUCK: {
+		printk(KERN_INFO "[USB] adbd read payload stuck (reset ADB)\n");
+		break;
+	}
+	default:
+		rc = -EINVAL;
+	}
+	return rc;
+}
+
+void adb_count_add(void)
+{
+	adb_count++;
+}
+EXPORT_SYMBOL(adb_count_add);
+
+int adb_count_get(void)
+{
+	return adb_count;
+}
+EXPORT_SYMBOL(adb_count_get);
+
+void adb_count_set(int val)
+{
+	printk(KERN_INFO "[USB] %s: count(%d) -> %d\n", __func__, adb_count, val);
+	adb_count = val;
+}
+EXPORT_SYMBOL(adb_count_set);
+
+static const struct file_operations adb_enable_fops = {
+	.owner =   THIS_MODULE,
+	.open =    adb_enable_open,
+	.release = adb_enable_release,
+	.unlocked_ioctl	= adb_enable_ioctl,
+};
+
+static struct miscdevice adb_enable_device = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "android_adb_enable",
+	.fops = &adb_enable_fops,
+};
+//-- htc --
 
 static int
 adb_function_bind(struct usb_configuration *c, struct usb_function *f)
@@ -512,6 +569,9 @@ adb_function_bind(struct usb_configuration *c, struct usb_function *f)
 	DBG(cdev, "%s speed %s: IN/%s, OUT/%s\n",
 			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
 			f->name, dev->ep_in->name, dev->ep_out->name);
+
+	adb_count_set(0);  /* htc */
+	printk("[USB] %s: done\n", __func__);
 	return 0;
 }
 
@@ -522,14 +582,17 @@ adb_function_unbind(struct usb_configuration *c, struct usb_function *f)
 	struct usb_request *req;
 
 
-	dev->online = 0;
-	dev->error = 1;
+	atomic_set(&dev->online, 0);
+	atomic_set(&dev->error, 1);
 
 	wake_up(&dev->read_wq);
 
 	adb_request_free(dev->rx_req, dev->ep_out);
 	while ((req = adb_req_get(dev, &dev->tx_idle)))
 		adb_request_free(req, dev->ep_in);
+
+	adb_count_set(0);  /* htc */
+	printk("[USB] %s: done\n", __func__);
 }
 
 static int adb_function_set_alt(struct usb_function *f,
@@ -554,7 +617,7 @@ static int adb_function_set_alt(struct usb_function *f,
 		usb_ep_disable(dev->ep_in);
 		return ret;
 	}
-	dev->online = 1;
+	atomic_set(&dev->online, 1);
 
 	/* readers may be blocked waiting for us to go online */
 	wake_up(&dev->read_wq);
@@ -567,8 +630,8 @@ static void adb_function_disable(struct usb_function *f)
 	struct usb_composite_dev	*cdev = dev->cdev;
 
 	DBG(cdev, "adb_function_disable cdev %p\n", cdev);
-	dev->online = 0;
-	dev->error = 1;
+	atomic_set(&dev->online, 0);
+	atomic_set(&dev->error, 1);
 	usb_ep_disable(dev->ep_in);
 	usb_ep_disable(dev->ep_out);
 
@@ -582,7 +645,7 @@ static int adb_bind_config(struct usb_configuration *c)
 {
 	struct adb_dev *dev = _adb_dev;
 
-	printk(KERN_INFO "adb_bind_config\n");
+	printk(KERN_INFO "[USBF] adb_bind_config\n");
 
 	dev->cdev = c->cdev;
 	dev->function.name = "adb";
@@ -621,18 +684,30 @@ static int adb_setup(void)
 	ret = misc_register(&adb_device);
 	if (ret)
 		goto err;
-
+//++ htc ++
+	/* mfgkernel mode need this device node
+	 */
+	if ((board_mfg_mode() != 0) /*|| (board_get_usb_ats() == 1)*/) {
+		ret = misc_register(&adb_enable_device);
+		if (ret)
+			goto err;
+	}
+// --htc --
 	return 0;
 
 err:
 	kfree(dev);
-	printk(KERN_ERR "adb gadget driver failed to initialize\n");
+	printk(KERN_ERR "[USBF] adb gadget driver failed to initialize\n");
 	return ret;
 }
 
 static void adb_cleanup(void)
 {
 	misc_deregister(&adb_device);
+	/* mfgkernel mode need this device node
+	 */
+	if ((board_mfg_mode() != 0) /*|| (board_get_usb_ats() == 1)*/)
+		misc_deregister(&adb_enable_device);
 
 	kfree(_adb_dev);
 	_adb_dev = NULL;

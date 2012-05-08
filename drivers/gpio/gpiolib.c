@@ -11,7 +11,7 @@
 #include <linux/of_gpio.h>
 #include <linux/idr.h>
 #include <linux/slab.h>
-
+#include <htc/log.h>
 
 /* Optional implementation infrastructure for GPIO interfaces.
  *
@@ -179,7 +179,7 @@ int __init gpiochip_reserve(int start, int ngpio)
 		set_bit(FLAG_RESERVED, &desc->flags);
 	}
 
-	pr_debug("%s: reserved gpios from %d to %d\n",
+	sp_pr_debug("%s: reserved gpios from %d to %d\n",
 		 __func__, start, start + ngpio - 1);
 err:
 	spin_unlock_irqrestore(&gpio_lock, flags);
@@ -1217,7 +1217,7 @@ int gpio_request(unsigned gpio, const char *label)
 
 done:
 	if (status)
-		pr_debug("gpio_request: gpio-%d (%s) status %d\n",
+		sp_pr_debug("gpio_request: gpio-%d (%s) status %d\n",
 			gpio, label ? : "?", status);
 	spin_unlock_irqrestore(&gpio_lock, flags);
 	return status;

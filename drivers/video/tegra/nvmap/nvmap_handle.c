@@ -152,18 +152,12 @@ static int handle_page_alloc(struct nvmap_client *client,
 	pgprot_t prot;
 	unsigned int i = 0;
 	struct page **pages;
-	unsigned long base;
 
 	pages = altalloc(nr_page * sizeof(*pages));
 	if (!pages)
 		return -ENOMEM;
 
 	prot = nvmap_pgprot(h, pgprot_kernel);
-
-#ifdef CONFIG_NVMAP_ALLOW_SYSMEM
-	if (nr_page == 1)
-		contiguous = true;
-#endif
 
 	h->pgalloc.area = NULL;
 	if (contiguous) {
@@ -201,19 +195,7 @@ static int handle_page_alloc(struct nvmap_client *client,
 		set_pages_array_uc(pages, nr_page);
 	else if (h->flags == NVMAP_HANDLE_INNER_CACHEABLE)
 		set_pages_array_iwb(pages, nr_page);
-	else
-		goto skip_cache_flush;
 
-	/* Flush the cache for allocated high mem pages only */
-	for (i = 0; i < nr_page; i++) {
-		if (PageHighMem(pages[i])) {
-			__flush_dcache_page(page_mapping(pages[i]), pages[i]);
-			base = page_to_phys(pages[i]);
-			outer_flush_range(base, base + PAGE_SIZE);
-		}
-	}
-
-skip_cache_flush:
 	h->size = size;
 	h->pgalloc.pages = pages;
 	h->pgalloc.contig = contiguous;
@@ -484,6 +466,7 @@ void nvmap_free_handle_id(struct nvmap_client *client, unsigned long id)
 	if (h->owner == client)
 		h->owner = NULL;
 
+	NVMAP_MAGIC_FREE(ref);
 	kfree(ref);
 
 out:
@@ -549,6 +532,7 @@ struct nvmap_handle_ref *nvmap_create_handle(struct nvmap_client *client,
 	ref->handle = h;
 	atomic_set(&ref->pin, 0);
 	add_handle_ref(client, ref);
+	NVMAP_MAGIC_ALLOC(ref);
 	return ref;
 }
 
@@ -622,5 +606,6 @@ struct nvmap_handle_ref *nvmap_duplicate_handle_id(struct nvmap_client *client,
 	ref->handle = h;
 	atomic_set(&ref->pin, 0);
 	add_handle_ref(client, ref);
+	NVMAP_MAGIC_ALLOC(ref);
 	return ref;
 }

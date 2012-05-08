@@ -33,8 +33,14 @@
 #define ANDROID_ALARM_PRINT_FLOW (1U << 6)
 
 static int debug_mask = ANDROID_ALARM_PRINT_ERROR | \
-			ANDROID_ALARM_PRINT_INIT_STATUS;
+			ANDROID_ALARM_PRINT_INIT_STATUS | ANDROID_ALARM_PRINT_SUSPEND;
 module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
+#define OFFALARM_SIZE	(10)
+
+static int offalarm_size = OFFALARM_SIZE;
+static int offalarm[OFFALARM_SIZE];
+module_param_array_named(offalarm, offalarm, uint, &offalarm_size,
+	S_IRUGO | S_IWUSR);
 
 #define pr_alarm(debug_level_mask, args...) \
 	do { \
@@ -61,12 +67,15 @@ struct alarm_queue {
 };
 
 static struct rtc_device *alarm_rtc_dev;
+struct rtc_device *extern_alarm_rtc_dev;
+
 static DEFINE_SPINLOCK(alarm_slock);
 static DEFINE_MUTEX(alarm_setrtc_mutex);
 static struct wake_lock alarm_rtc_wake_lock;
 static struct platform_device *alarm_platform_dev;
 struct alarm_queue alarms[ANDROID_ALARM_TYPE_COUNT];
 static bool suspended;
+int htc_is_offalarm_enabled(void);
 
 static void update_timer_locked(struct alarm_queue *base, bool head_removed)
 {
@@ -299,6 +308,30 @@ err:
 	return ret;
 }
 
+
+void
+alarm_update_timedelta(struct timespec tmp_time, struct timespec new_time)
+{
+	int i;
+	unsigned long flags;
+
+	spin_lock_irqsave(&alarm_slock, flags);
+	for (i = 0; i < ANDROID_ALARM_SYSTEMTIME; i++) {
+		hrtimer_try_to_cancel(&alarms[i].timer);
+		alarms[i].stopped = true;
+		alarms[i].stopped_time = timespec_to_ktime(tmp_time);
+	}
+	alarms[ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP].delta =
+		alarms[ANDROID_ALARM_ELAPSED_REALTIME].delta =
+		ktime_sub(alarms[ANDROID_ALARM_ELAPSED_REALTIME].delta,
+			timespec_to_ktime(timespec_sub(tmp_time, new_time)));
+	for (i = 0; i < ANDROID_ALARM_SYSTEMTIME; i++) {
+		alarms[i].stopped = false;
+		update_timer_locked(&alarms[i], false);
+	}
+	spin_unlock_irqrestore(&alarm_slock, flags);
+}
+
 /**
  * alarm_get_elapsed_realtime - get the elapsed real time in ktime_t format
  *
@@ -460,6 +493,42 @@ static int alarm_resume(struct platform_device *pdev)
 
 	return 0;
 }
+/* return the nearest alarm tiem */
+static int find_offmode_alarm(void)
+{
+	struct timespec rtc_now;
+	int i;
+	int nearest_alarm = 0;
+
+	getnstimeofday(&rtc_now);
+	for (i = 0; i < offalarm_size; i++) {
+		if (offalarm[i] > rtc_now.tv_sec) {
+			if (nearest_alarm == 0)
+				nearest_alarm = offalarm[i];
+			else if (offalarm[i] < nearest_alarm)
+				nearest_alarm = offalarm[i];
+		}
+	}
+
+	return nearest_alarm;
+}
+
+static void alarm_shutdown(struct platform_device *pdev)
+{
+	int offmode_alarm;
+	struct rtc_wkalrm rtc_alarm;
+
+	if (!htc_is_offalarm_enabled())
+		return;
+
+	offmode_alarm = find_offmode_alarm();
+	if (offmode_alarm > 0) {
+		pr_alarm(FLOW, "set offmode alarm(%u)", offmode_alarm);
+		rtc_time_to_tm(offmode_alarm, &rtc_alarm.time);
+		rtc_alarm.enabled = 1;
+		rtc_set_alarm(alarm_rtc_dev, &rtc_alarm);
+	}
+}
 
 static struct rtc_task alarm_rtc_task = {
 	.func = alarm_triggered_func
@@ -488,6 +557,7 @@ static int rtc_alarm_add_device(struct device *dev,
 	if (err)
 		goto err3;
 	alarm_rtc_dev = rtc;
+	extern_alarm_rtc_dev = rtc;
 	pr_alarm(INIT_STATUS, "using rtc device, %s, for alarms", rtc->name);
 	mutex_unlock(&alarm_setrtc_mutex);
 
@@ -509,6 +579,7 @@ static void rtc_alarm_remove_device(struct device *dev,
 		rtc_irq_unregister(alarm_rtc_dev, &alarm_rtc_task);
 		platform_device_unregister(alarm_platform_dev);
 		alarm_rtc_dev = NULL;
+		extern_alarm_rtc_dev = NULL;
 	}
 }
 
@@ -520,6 +591,7 @@ static struct class_interface rtc_alarm_interface = {
 static struct platform_driver alarm_driver = {
 	.suspend = alarm_suspend,
 	.resume = alarm_resume,
+	.shutdown = alarm_shutdown,
 	.driver = {
 		.name = "alarm"
 	}

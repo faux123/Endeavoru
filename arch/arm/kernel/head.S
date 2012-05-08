@@ -389,6 +389,8 @@ __turn_mmu_on:
 	mrc	p15, 0, r3, c0, c0, 0		@ read id reg
 	mov	r3, r3
 	mov	r3, r13
+	isb
+	dsb
 	mov	pc, r3
 __enable_mmu_end:
 ENDPROC(__turn_mmu_on)

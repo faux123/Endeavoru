@@ -81,6 +81,9 @@
 # define SET_TSC_CTL(a)		(-EINVAL)
 #endif
 
+#define BOOT_DEBUG_LOG_ENTER(fn) \
+	printk(KERN_NOTICE "Entering %s\n", fn);
+
 /*
  * this is where the system-wide overflow UID and GID are defined, for
  * architectures that now have 32-bit UID/GID but didn't in the past
@@ -305,17 +308,24 @@ out_unlock:
  */
 void emergency_restart(void)
 {
+	BOOT_DEBUG_LOG_ENTER("emergency_restart");
+
 	kmsg_dump(KMSG_DUMP_EMERG);
+	BOOT_DEBUG_LOG_ENTER("machine_emergency_restart");
 	machine_emergency_restart();
 }
 EXPORT_SYMBOL_GPL(emergency_restart);
 
 void kernel_restart_prepare(char *cmd)
 {
+	BOOT_DEBUG_LOG_ENTER("blocking_notifier_call_chain");
 	blocking_notifier_call_chain(&reboot_notifier_list, SYS_RESTART, cmd);
 	system_state = SYSTEM_RESTART;
+	BOOT_DEBUG_LOG_ENTER("device_shutdown");
 	device_shutdown();
+	BOOT_DEBUG_LOG_ENTER("sysdev_shutdown");
 	sysdev_shutdown();
+	BOOT_DEBUG_LOG_ENTER("syscore_shutdown");
 	syscore_shutdown();
 }
 
@@ -329,21 +339,27 @@ void kernel_restart_prepare(char *cmd)
  */
 void kernel_restart(char *cmd)
 {
+	BOOT_DEBUG_LOG_ENTER("kernel_restart");
+
+	BOOT_DEBUG_LOG_ENTER("kernel_restart_prepare");
 	kernel_restart_prepare(cmd);
 	if (!cmd)
 		printk(KERN_EMERG "Restarting system.\n");
 	else
 		printk(KERN_EMERG "Restarting system with command '%s'.\n", cmd);
 	kmsg_dump(KMSG_DUMP_RESTART);
+	BOOT_DEBUG_LOG_ENTER("machine_restart");
 	machine_restart(cmd);
 }
 EXPORT_SYMBOL_GPL(kernel_restart);
 
 static void kernel_shutdown_prepare(enum system_states state)
 {
+	BOOT_DEBUG_LOG_ENTER("blocking_notifier_call_chain");
 	blocking_notifier_call_chain(&reboot_notifier_list,
 		(state == SYSTEM_HALT)?SYS_HALT:SYS_POWER_OFF, NULL);
 	system_state = state;
+	BOOT_DEBUG_LOG_ENTER("device_shutdown");
 	device_shutdown();
 }
 /**
@@ -353,11 +369,16 @@ static void kernel_shutdown_prepare(enum system_states state)
  */
 void kernel_halt(void)
 {
+	BOOT_DEBUG_LOG_ENTER("kernel_halt");
+	BOOT_DEBUG_LOG_ENTER("kernel_shutdown_prepare");
 	kernel_shutdown_prepare(SYSTEM_HALT);
+	BOOT_DEBUG_LOG_ENTER("sysdev_shutdown");
 	sysdev_shutdown();
+	BOOT_DEBUG_LOG_ENTER("syscore_shutdown");
 	syscore_shutdown();
 	printk(KERN_EMERG "System halted.\n");
 	kmsg_dump(KMSG_DUMP_HALT);
+	BOOT_DEBUG_LOG_ENTER("machine_halt");
 	machine_halt();
 }
 
@@ -370,14 +391,24 @@ EXPORT_SYMBOL_GPL(kernel_halt);
  */
 void kernel_power_off(void)
 {
+	BOOT_DEBUG_LOG_ENTER("kernel_power_off");
+
+	BOOT_DEBUG_LOG_ENTER("kernel_shutdown_prepare");
 	kernel_shutdown_prepare(SYSTEM_POWER_OFF);
 	if (pm_power_off_prepare)
+	{
+		BOOT_DEBUG_LOG_ENTER("pm_power_off_prepare");
 		pm_power_off_prepare();
+	}
+	BOOT_DEBUG_LOG_ENTER("disable_nonboot_cpus");
 	disable_nonboot_cpus();
+	BOOT_DEBUG_LOG_ENTER("sysdev_shutdown");
 	sysdev_shutdown();
+	BOOT_DEBUG_LOG_ENTER("syscore_shutdown");
 	syscore_shutdown();
 	printk(KERN_EMERG "Power down.\n");
 	kmsg_dump(KMSG_DUMP_POWEROFF);
+	BOOT_DEBUG_LOG_ENTER("machine_power_off");
 	machine_power_off();
 }
 EXPORT_SYMBOL_GPL(kernel_power_off);

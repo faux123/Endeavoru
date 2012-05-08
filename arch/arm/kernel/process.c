@@ -39,6 +39,10 @@
 #include <asm/stacktrace.h>
 #include <asm/mach/time.h>
 
+#include <mach/restart.h>
+extern struct htc_reboot_params *reboot_params;
+void set_dirty_state(int dirty);
+
 #ifdef CONFIG_CC_STACKPROTECTOR
 #include <linux/stackprotector.h>
 unsigned long __stack_chk_guard __read_mostly;
@@ -166,10 +170,37 @@ static void default_idle(void)
 		arch_idle();
 	local_irq_enable();
 }
+EXPORT_SYMBOL(default_idle);
+
+void default_debug_idle(void)
+{
+	//printk("[CPUIDLE] print debug message here\n");
+}
+
+void default_cpu_hotplug(void)
+{
+	//printk("[CPUHP] print debug message here\n");
+}
+
+void default_debug_dvfs(void)
+{
+     //   printk("[DVFS] print debug message here\n");
+}
 
 void (*pm_idle)(void) = default_idle;
 EXPORT_SYMBOL(pm_idle);
+void (*pm_debug_idle)(void) = default_debug_idle;
+EXPORT_SYMBOL(pm_debug_idle);
+void (*pm_debug_cpu_hotplug)(void) = default_cpu_hotplug;
+EXPORT_SYMBOL(pm_debug_cpu_hotplug);
+void (*pm_debug_dvfs)(void) = default_debug_dvfs;
+EXPORT_SYMBOL(pm_debug_dvfs);
 
+#include <linux/wakelock.h>
+#include <linux/time.h>
+#include <linux/rtc.h>
+#include <mach/board_htc.h>
+extern void htc_print_active_wake_locks();
 /*
  * The idle thread, has rather strange semantics for calling pm_idle,
  * but this is what x86 does and we need to do the same, so that
@@ -178,10 +209,33 @@ EXPORT_SYMBOL(pm_idle);
  */
 void cpu_idle(void)
 {
-	local_fiq_enable();
 
+    static bool bPrint_wake_lock = true;
+    struct timespec ts;
+    struct rtc_time tm;
+
+	local_fiq_enable();
+	u64 cur_time, last_time;
+	last_time = cpu_clock(UINT_MAX);
 	/* endless idle loop with no priority at all */
 	while (1) {
+		cur_time = cpu_clock(UINT_MAX);
+		if (((cur_time - last_time) >= 5000000000) && (smp_processor_id()==0))
+		{
+			pm_debug_idle();
+			pm_debug_cpu_hotplug();
+			//pm_debug_dvfs();
+			last_time = cpu_clock(UINT_MAX);
+			if (get_kernel_flag() & KERNEL_FLAG_PM_MONITOR && bPrint_wake_lock)
+			{
+				getnstimeofday(&ts);
+				rtc_time_to_tm(ts.tv_sec - (sys_tz.tz_minuteswest * 60), &tm);
+				printk(KERN_INFO "[PM] hTC PM Statistic  %02d-%02d %02d:%02d:%02d \n",
+					tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+				htc_print_active_wake_locks();
+			}
+			bPrint_wake_lock = !bPrint_wake_lock;
+		}
 		tick_nohz_stop_sched_tick(1);
 		leds_event(led_idle_start);
 		while (!need_resched()) {
@@ -240,6 +294,10 @@ void machine_halt(void)
 
 void machine_power_off(void)
 {
+	printk("[PWR] clear reboot reason to RESTART_REASON_POWEROFF\n");
+	reboot_params->reboot_reason = RESTART_REASON_POWEROFF;
+	printk("[PWR] clear dirty\n");
+	set_dirty_state(0);
 	machine_shutdown();
 	if (pm_power_off)
 		pm_power_off();

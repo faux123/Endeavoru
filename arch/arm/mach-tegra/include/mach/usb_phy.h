@@ -33,6 +33,9 @@ struct tegra_utmip_config {
 	u8 xcvr_use_fuses;
 	u8 xcvr_lsfslew;
 	u8 xcvr_lsrslew;
+	int (*presuspend)(void);
+	int (*postsuspend)(void);
+	int (*preresume)(void);
 };
 
 struct tegra_ulpi_trimmer {
@@ -89,6 +92,8 @@ struct usb_phy_plat_data {
 	int vbus_irq;
 	int vbus_gpio;
 	char * vbus_reg_supply;
+	int drive_strength;
+	int drive_slew;
 };
 
 struct tegra_xtal_freq;
@@ -131,6 +136,7 @@ void tegra_usb_phy_clk_disable(struct tegra_usb_phy *phy);
 void tegra_usb_phy_clk_enable(struct tegra_usb_phy *phy);
 
 void tegra_usb_phy_power_off(struct tegra_usb_phy *phy, bool is_dpd);
+void tegra_usb_phy_presuspend(struct tegra_usb_phy *phy, bool is_dpd);
 
 void tegra_usb_phy_postsuspend(struct tegra_usb_phy *phy, bool is_dpd);
 
@@ -162,5 +168,7 @@ bool tegra_usb_phy_charger_detect(struct tegra_usb_phy *phy);
 int __init tegra_usb_phy_init(struct usb_phy_plat_data *pdata, int size);
 
 bool tegra_usb_phy_is_remotewake_detected(struct tegra_usb_phy *phy);
+
+int tegra_usb_set_vbus_wakeup(int irq);//htc
 
 #endif /* __MACH_USB_PHY_H */

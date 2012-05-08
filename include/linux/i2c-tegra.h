@@ -22,7 +22,7 @@
 
 #include <mach/pinmux.h>
 
-#define TEGRA_I2C_MAX_BUS 3
+#define TEGRA_I2C_MAX_BUS 1 // originally = 3, we used only 1
 
 struct tegra_i2c_platform_data {
 	int adapter_nr;

@@ -57,7 +57,7 @@ static DEFINE_MUTEX(block_mutex);
 #define INAND_CMD38_ARG_SECTRIM1 0x81
 #define INAND_CMD38_ARG_SECTRIM2 0x88
 
-#define MMC_CMD_RETRIES 3
+#define MMC_CMD_RETRIES 10
 /*
  * The defaults come from config options but can be overriden by module
  * or bootarg options.
@@ -283,7 +283,9 @@ static int mmc_blk_issue_discard_rq(struct mmc_queue *mq, struct request *req)
 	from = blk_rq_pos(req);
 	nr = blk_rq_sectors(req);
 
-	if (mmc_can_trim(card))
+	if (mmc_can_discard(card))
+		arg = MMC_DISCARD_ARG;
+	else if (mmc_can_trim(card))
 		arg = MMC_TRIM_ARG;
 	else
 		arg = MMC_ERASE_ARG;

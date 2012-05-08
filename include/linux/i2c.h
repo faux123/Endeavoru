@@ -66,6 +66,8 @@ extern int i2c_master_recv(const struct i2c_client *client, char *buf,
 extern int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs,
 			int num);
 
+extern  bool tegra_i2c_is_ready(struct i2c_adapter *adap);
+
 /* This is the very generalized SMBus access routine. You probably do not
    want to use this, though; one of the functions below may be much easier,
    and probably just as fast.

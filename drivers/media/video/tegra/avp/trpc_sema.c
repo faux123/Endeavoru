@@ -91,7 +91,10 @@ int tegra_sema_wait(struct tegra_sema_info *info, long *timeout)
 	unsigned long flags;
 	int ret = 0;
 	unsigned long endtime;
-	long timeleft = *timeout;
+	long timeleft = 0;
+
+	if (timeout != NULL)
+		timeleft = *timeout;
 
 	*timeout = 0;
 	if (timeleft < 0)

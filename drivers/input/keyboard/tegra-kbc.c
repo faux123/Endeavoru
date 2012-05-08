@@ -269,6 +269,8 @@ static void tegra_kbc_report_keys(struct tegra_kbc *kbc)
 
 	spin_lock_irqsave(&kbc->lock, flags);
 	for (i = 0; i < KBC_MAX_KPENT; i++) {
+		keycodes[i] = 0;
+
 		if ((i % 4) == 0)
 			val = readl(kbc->mmio + KBC_KP_ENT0_0 + i);
 
@@ -718,6 +720,12 @@ err_free_input_dev:
 	input_free_device(kbc->idev);
 err_free_kbc:
 	kfree(kbc);
+err_free_mem:
+	if (kbc) {
+		input_free_device(kbc->idev);
+		kfree(kbc);
+	}
+
 	return err;
 }
 
@@ -732,6 +740,11 @@ static int __devexit tegra_kbc_remove(struct platform_device *pdev)
 	input_unregister_device(kbc->idev);
 	iounmap(kbc->mmio);
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (NULL == res) {
+		printk(KERN_ERR "%s: Failed to get resource from platform structure\n",
+				__func__);
+		return 0;
+	}
 	release_mem_region(res->start, resource_size(res));
 
 	kfree(kbc);

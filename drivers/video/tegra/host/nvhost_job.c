@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 #include <linux/kref.h>
 #include <linux/err.h>
+#include <linux/vmalloc.h>
 #include <mach/nvmap.h>
 #include "nvhost_channel.h"
 #include "nvhost_job.h"
@@ -175,7 +176,7 @@ struct nvhost_job *nvhost_job_alloc(struct nvhost_channel *ch,
 	int num_cmdbufs = hdr ? hdr->num_cmdbufs : 0;
 	int err = 0;
 
-	job = kzalloc(job_size(hdr), GFP_KERNEL);
+	job = vzalloc(job_size(hdr));
 	if (!job)
 		goto error;
 
@@ -208,7 +209,13 @@ struct nvhost_job *nvhost_job_realloc(
 	int num_cmdbufs = hdr ? hdr->num_cmdbufs : 0;
 	int err = 0;
 
-	newjob = kzalloc(job_size(hdr), GFP_KERNEL);
+	if (!oldjob) {
+		pr_err("%s(%d) Found NULL oldjob, id %d size %d pid %d\n",
+			__func__, __LINE__, clientid, job_size(hdr), current->pid);
+		goto error;
+	}
+
+	newjob = vzalloc(job_size(hdr));
 	if (!newjob)
 		goto error;
 	kref_init(&newjob->ref);
@@ -250,7 +257,8 @@ static void job_free(struct kref *ref)
 		nvmap_free(job->nvmap, job->gather_mem);
 	if (job->nvmap)
 		nvmap_client_put(job->nvmap);
-	kfree(job);
+	vfree(job);
+	job = NULL;
 }
 
 void nvhost_job_put(struct nvhost_job *job)

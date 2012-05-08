@@ -60,6 +60,8 @@ module_param(debug_lp0, bool, S_IRUGO | S_IWUSR);
 static bool warn_prevent_lp0;
 module_param(warn_prevent_lp0, bool, S_IRUGO | S_IWUSR);
 
+int global_wakeup_state;
+
 bool tegra_pm_irq_lp0_allowed(void)
 {
 	return (tegra_prevent_lp0 == 0);
@@ -168,7 +170,6 @@ int tegra_pm_irq_set_wake(int irq, int enable)
 		tegra_lp0_wake_enb &= ~(1ull << wake);
 		pr_info("Disabling wake%d\n", wake);
 	}
-
 	return 0;
 }
 
@@ -178,7 +179,15 @@ int tegra_pm_irq_set_wake_type(int irq, int flow_type)
 
 	if (wake < 0)
 		return 0;
-
+#ifdef CONFIG_MACH_ENDEAVORU
+/*Workaround for Power key wakeup*/
+if(wake == 7)
+{
+		tegra_lp0_wake_level &= ~(1ull << wake);
+		tegra_lp0_wake_level_any &= ~(1ull << wake);
+		return 0;
+}
+#endif
 	switch (flow_type) {
 	case IRQF_TRIGGER_FALLING:
 	case IRQF_TRIGGER_LOW:
@@ -200,6 +209,7 @@ int tegra_pm_irq_set_wake_type(int irq, int flow_type)
 
 	return 0;
 }
+
 
 /* translate lp0 wake sources back into irqs to catch edge triggered wakeups */
 static void tegra_pm_irq_syscore_resume_helper(
@@ -227,12 +237,14 @@ static void tegra_pm_irq_syscore_resume_helper(
 
 		pr_info("Resume caused by WAKE%d, %s\n", (wake + 32 * index),
 			desc->action->name);
-
+		global_wakeup_state = (wake + 32 * index);
 		tegra_wake_irq_count[wake + 32 * index]++;
 
 		generic_handle_irq(irq);
 	}
 }
+
+
 
 static void tegra_pm_irq_syscore_resume(void)
 {

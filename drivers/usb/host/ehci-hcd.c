@@ -44,6 +44,9 @@
 #include <asm/system.h>
 #include <asm/unaligned.h>
 
+/* HTC include file */
+#include <mach/htc_hostdbg.h>
+
 /*-------------------------------------------------------------------------*/
 
 /*
@@ -65,6 +68,11 @@
 
 static const char	hcd_name [] = "ehci_hcd";
 
+
+/* HTC */
+#ifdef CONFIG_MACH_ENDEARVORU
+extern unsigned int host_dbg_flag;
+#endif
 
 #undef VERBOSE_DEBUG
 #undef EHCI_URB_TRACE
@@ -867,6 +875,7 @@ static irqreturn_t ehci_irq (struct usb_hcd *hcd)
 			 */
 			ehci->reset_done[i] = jiffies + msecs_to_jiffies(25);
 			ehci_dbg (ehci, "port %d remote wakeup\n", i + 1);
+			printk(KERN_INFO"port %d remote wakeup\n", i + 1);
 			mod_timer(&hcd->rh_timer, ehci->reset_done[i]);
 		}
 	}

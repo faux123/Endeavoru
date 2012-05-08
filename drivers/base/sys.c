@@ -22,7 +22,7 @@
 #include <linux/device.h>
 #include <linux/mutex.h>
 #include <linux/interrupt.h>
-
+#include <htc/log.h>
 #include "base.h"
 
 #define to_sysdev(k) container_of(k, struct sys_device, kobj)
@@ -387,8 +387,11 @@ static void __sysdev_resume(struct sys_device *dev)
 
 	/* Call auxiliary drivers next. */
 	list_for_each_entry(drv, &cls->drivers, entry) {
-		if (drv->resume)
+		if (drv->resume) {
+			pmr_pr_info("[R]+%s\n", kobject_name(&dev->kobj));
 			drv->resume(dev);
+			pmr_pr_info("[R]-\n");
+		}
 		WARN_ONCE(!irqs_disabled(),
 			"Interrupts enabled after %pF\n", drv->resume);
 	}
@@ -412,9 +415,11 @@ int sysdev_suspend(pm_message_t state)
 	struct sys_device *sysdev, *err_dev;
 	struct sysdev_driver *drv, *err_drv;
 	int ret;
+	const char *sysdev_name;
 
 	pr_debug("Checking wake-up interrupts\n");
-
+	pmr_pr_info("[R]+sysdev:\n");
+					
 	/* Return error code if there are any wake-up interrupts pending */
 	ret = check_wakeup_irqs();
 	if (ret)
@@ -430,14 +435,19 @@ int sysdev_suspend(pm_message_t state)
 			 kobject_name(&cls->kset.kobj));
 
 		list_for_each_entry(sysdev, &cls->kset.list, kobj.entry) {
+			sysdev_name = kobject_name(&sysdev->kobj);
 			pr_debug(" %s\n", kobject_name(&sysdev->kobj));
 
 			/* Call auxiliary drivers first */
 			list_for_each_entry(drv, &cls->drivers, entry) {
 				if (drv->suspend) {
+					pmr_pr_info("[R]+%s:a\n", sysdev_name);
 					ret = drv->suspend(sysdev, state);
-					if (ret)
+					pmr_pr_info("[R]-\n");
+					if (ret) {
+						pmr_pr_info("[R] sysdev_suspend: abort (auxillary)\n");
 						goto aux_driver;
+					}
 				}
 				WARN_ONCE(!irqs_disabled(),
 					"Interrupts enabled after %pF\n",
@@ -446,15 +456,20 @@ int sysdev_suspend(pm_message_t state)
 
 			/* Now call the generic one */
 			if (cls->suspend) {
+				pmr_pr_info("[R]+%s:g\n", sysdev_name);
 				ret = cls->suspend(sysdev, state);
-				if (ret)
+				pmr_pr_info("[R]-\n");
+				if (ret) {
+					pmr_pr_info("[R] sysdev_suspend: abort (generic)\n");
 					goto cls_driver;
+				}
 				WARN_ONCE(!irqs_disabled(),
 					"Interrupts enabled after %pF\n",
 					cls->suspend);
 			}
 		}
 	}
+	pmr_pr_info("[R]-sysdev:\n");
 	return 0;
 	/* resume current sysdev */
 cls_driver:
@@ -488,6 +503,8 @@ aux_driver:
 			__sysdev_resume(err_dev);
 		}
 	}
+
+	pmr_pr_info("[R] sysdev_suspend: end recovered\n");
 	return ret;
 }
 EXPORT_SYMBOL_GPL(sysdev_suspend);
@@ -503,6 +520,8 @@ EXPORT_SYMBOL_GPL(sysdev_suspend);
 int sysdev_resume(void)
 {
 	struct sysdev_class *cls;
+
+	pmr_pr_info("[R]+sysdev:\n");
 
 	WARN_ONCE(!irqs_disabled(),
 		"Interrupts enabled while resuming system devices\n");
@@ -521,6 +540,7 @@ int sysdev_resume(void)
 			__sysdev_resume(sysdev);
 		}
 	}
+	pmr_pr_info("[R]-sysdev:\n");
 	return 0;
 }
 EXPORT_SYMBOL_GPL(sysdev_resume);

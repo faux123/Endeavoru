@@ -718,17 +718,17 @@ static struct ar0832_reg mode_1920X1080_8140[] = {
 	/* mode end */
 	{0x0300, 0x0004},	/* VT_PIX_CLK_DIV */
 	{0x0302, 0x0001},	/* VT_SYS_CLK_DIV */
-	{0x0304, 0x0002},	/* PRE_PLL_CLK_DIV */
-	{0x0306, 0x0040},	/* PLL_MULTIPLIER */
+	{0x0304, 0x0001},	/* PRE_PLL_CLK_DIV */
+	{0x0306, 0x0014},	/* PLL_MULTIPLIER */
 	{0x0308, 0x000A},	/* OP_PIX_CLK_DIV */
 	{0x030A, 0x0001},	/* OP_SYS_CLK_DIV */
 	{ar0832_TABLE_WAIT_MS, 0x0001},
 	{0x3064, 0x7400},	/* RESERVED_MFR_3064 */
 	{0x0104, 0x0100},	/* GROUPED_PARAMETER_HOLD */
-	{0x0344, 0x028C},	/* X_ADDR_START */
-	{0x0348, 0x0A0B},	/* X_ADDR_END */
-	{0x0346, 0x006E},	/* Y_ADDR_START */
-	{0x034A, 0x04A5},	/* Y_ADDR_END */
+	{0x0344, 0x0000},	/* X_ADDR_START */
+	{0x0348, 0x077F},	/* X_ADDR_END */
+	{0x0346, 0x0000},	/* Y_ADDR_START */
+	{0x034A, 0x0437},	/* Y_ADDR_END */
 	{0x034C, 0x0780},	/* X_OUTPUT_SIZE */
 	{0x034E, 0x0438},	/* Y_OUTPUT_SIZE */
 	{0x3040, 0xC041},	/* READ_MODE */
@@ -737,10 +737,11 @@ static struct ar0832_reg mode_1920X1080_8140[] = {
 	{0x0404, 0x0010},	/* SCALE_M */
 	{0x3178, 0x0000},	/* RESERVED_MFR_3178 */
 	{0x3ED0, 0x1E24},	/* RESERVED_MFR_3ED0 */
+	{0x1148, 0x0588},	/* min_line_blanking_pck */
 
-	{0x0342, 0x103B},	/* LINE_LENGTH_PCK */
-	{0x0340, 0x05C4},	/* FRAME_LENGTH_LINES */
-	{0x0202, 0x05C4},	/* COARSE_INTEGRATION_TIME */
+	{0x0342, 0x0D08},	/* LINE_LENGTH_PCK */
+	{0x0340, 0x04C8},	/* FRAME_LENGTH_LINES */
+	{0x0202, 0x04C4},	/* COARSE_INTEGRATION_TIME */
 	{0x3014, 0x0702},	/* FINE_INTEGRATION_TIME */
 	{0x3010, 0x0078},	/* FINE_CORRECTION */
 	{0x301A, 0x8250},	/* RESET_REGISTER */
@@ -843,17 +844,17 @@ static struct ar0832_reg mode_1920X1080_8141[] = {
 	/* mode end */
 	{0x0300, 0x0004},	/* VT_PIX_CLK_DIV */
 	{0x0302, 0x0001},	/* VT_SYS_CLK_DIV */
-	{0x0304, 0x0002},	/* PRE_PLL_CLK_DIV */
-	{0x0306, 0x0040},	/* PLL_MULTIPLIER */
+	{0x0304, 0x0001},	/* PRE_PLL_CLK_DIV */
+	{0x0306, 0x0014},	/* PLL_MULTIPLIER */
 	{0x0308, 0x000A},	/* OP_PIX_CLK_DIV */
 	{0x030A, 0x0001},	/* OP_SYS_CLK_DIV */
 	{ar0832_TABLE_WAIT_MS, 0x0001},
 	{0x3064, 0x7400},	/* RESERVED_MFR_3064 */
 	{0x0104, 0x0100},	/* GROUPED_PARAMETER_HOLD */
-	{0x0344, 0x028C},	/* X_ADDR_START */
-	{0x0348, 0x0A0B},	/* X_ADDR_END */
-	{0x0346, 0x006E},	/* Y_ADDR_START */
-	{0x034A, 0x04A5},	/* Y_ADDR_END */
+	{0x0344, 0x0000},	/* X_ADDR_START */
+	{0x0348, 0x077F},	/* X_ADDR_END */
+	{0x0346, 0x0000},	/* Y_ADDR_START */
+	{0x034A, 0x0437},	/* Y_ADDR_END */
 	{0x034C, 0x0780},	/* X_OUTPUT_SIZE */
 	{0x034E, 0x0438},	/* Y_OUTPUT_SIZE */
 	{0x3040, 0xC041},	/* READ_MODE */
@@ -863,9 +864,9 @@ static struct ar0832_reg mode_1920X1080_8141[] = {
 	{0x3178, 0x0000},	/* RESERVED_MFR_3178 */
 	{0x3ED0, 0x1E24},	/* RESERVED_MFR_3ED0 */
 
-	{0x0342, 0x103B},	/* LINE_LENGTH_PCK */
-	{0x0340, 0x05C4},	/* FRAME_LENGTH_LINES */
-	{0x0202, 0x05C4},	/* COARSE_INTEGRATION_TIME */
+	{0x0342, 0x0D08},	/* LINE_LENGTH_PCK */
+	{0x0340, 0x04C8},	/* FRAME_LENGTH_LINES */
+	{0x0202, 0x04C4},	/* COARSE_INTEGRATION_TIME */
 	{0x3014, 0x0702},	/* FINE_INTEGRATION_TIME */
 	{0x3010, 0x0078},	/* FINE_CORRECTION */
 	{0x301A, 0x8250},	/* RESET_REGISTER */
@@ -981,9 +982,7 @@ static struct ar0832_reg mode_1632X1224_8140[] = {
 	{0x0300, 0x0004},	/* VT_PIX_CLK_DIV */
 	{0x0302, 0x0001},	/* VT_SYS_CLK_DIV */
 	{0x0304, 0x0002},	/* PRE_PLL_CLK_DIV */
-
 	{0x0306, 0x0040},	/* PLL_MULTIPLIER */
-
 	{0x0308, 0x000A},	/* OP_PIX_CLK_DIV */
 	{0x030A, 0x0001},	/* OP_SYS_CLK_DIV */
 	{ar0832_TABLE_WAIT_MS, 0x0001}, /* waitmsec 1 */
@@ -1125,9 +1124,7 @@ static struct ar0832_reg mode_1632X1224_8141[] = {
 	{0x0300, 0x0004},	/* VT_PIX_CLK_DIV */
 	{0x0302, 0x0001},	/* VT_SYS_CLK_DIV */
 	{0x0304, 0x0002},	/* PRE_PLL_CLK_DIV */
-
 	{0x0306, 0x0040},	/* PLL_MULTIPLIER */
-
 	{0x0308, 0x000A},	/* OP_PIX_CLK_DIV */
 	{0x030A, 0x0001},	/* OP_SYS_CLK_DIV */
 	{ar0832_TABLE_WAIT_MS, 0x0001}, /* waitmsec 1 */
@@ -1410,9 +1407,7 @@ static struct ar0832_reg mode_800X600_8141[] = {
 	{0x0300, 0x0004},	/* VT_PIX_CLK_DIV */
 	{0x0302, 0x0001},	/* VT_SYS_CLK_DIV */
 	{0x0304, 0x0002},	/* PRE_PLL_CLK_DIV */
-
 	{0x0306, 0x0042},	/* PLL_MULTIPLIER */
-
 	{0x0308, 0x000A},	/* OP_PIX_CLK_DIV */
 	{0x030A, 0x0001},	/* OP_SYS_CLK_DIV */
 	{ar0832_TABLE_WAIT_MS, 0x0001}, /* waitmsec 1 */
@@ -2148,7 +2143,6 @@ static long ar0832_ioctl(struct file *file,
 	}
 	case AR0832_IOCTL_SET_SENSOR_REGION:
 	{
-		struct ar0832_stereo_region region;
 		dev_dbg(&i2c_client->dev, "AR0832_IOCTL_SET_SENSOR_REGION\n");
 		/* Right now, it doesn't do anything */
 

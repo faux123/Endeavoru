@@ -27,6 +27,10 @@
 #include <linux/kthread.h>
 
 #include <asm/cputime.h>
+#include <linux/input.h>
+#include <linux/workqueue.h>
+#include <linux/slab.h>
+
 
 static void (*pm_idle_old)(void);
 static atomic_t active_count = ATOMIC_INIT(0);
@@ -35,6 +39,7 @@ struct cpufreq_interactive_cpuinfo {
 	struct timer_list cpu_timer;
 	int timer_idlecancel;
 	u64 time_in_idle;
+	u64 time_in_iowait;
 	u64 idle_exit_time;
 	u64 timer_run_time;
 	int idling;
@@ -66,6 +71,9 @@ static unsigned long boost_factor;
 
 /* Max frequency boost in Hz; if 0 - no max is enforced */
 static unsigned long max_boost;
+
+/* Consider IO as busy */
+static unsigned long io_is_busy;
 
 /*
  * Targeted sustainable load relatively to current frequency.
@@ -179,6 +187,105 @@ struct cpufreq_governor cpufreq_gov_interactive = {
 	.owner = THIS_MODULE,
 };
 
+static void dbs_refresh_callback(struct work_struct *unused)
+{
+	struct cpufreq_policy *policy;
+	struct cpufreq_interactive_cpuinfo *this_dbs_info;
+
+	if (lock_policy_rwsem_write(0) < 0)
+		return;
+
+	this_dbs_info = &per_cpu(cpuinfo, 0);
+	policy = this_dbs_info->policy;
+
+	if (policy->cur < policy->max) {
+		__cpufreq_driver_target(policy, policy->max,
+				CPUFREQ_RELATION_L);
+		/*
+		this_dbs_info->prev_cpu_idle = get_cpu_idle_time(0,
+				&this_dbs_info->prev_cpu_wall);
+		*/
+	}
+	unlock_policy_rwsem_write(0);
+}
+
+static DECLARE_WORK(dbs_refresh_work, dbs_refresh_callback);
+
+static void dbs_input_event(struct input_handle *handle, unsigned int type,
+					unsigned int code, int value)
+{
+	schedule_work(&dbs_refresh_work);
+}
+
+static int input_dev_filter(const char* input_dev_name)
+{
+	int ret = 0;
+	if (strstr(input_dev_name, "touchscreen") ||
+		strstr(input_dev_name, "-keypad") ||
+		strstr(input_dev_name, "-nav") ||
+		strstr(input_dev_name, "-oj")) {
+	}
+	else {
+		ret = 1;
+	}
+	return ret;
+}
+
+static int dbs_input_connect(struct input_handler *handler,
+		struct input_dev *dev, const struct input_device_id *id)
+{
+	struct input_handle *handle;
+	int error;
+
+	/* filter out those input_dev that we don't care */
+	if (input_dev_filter(dev->name))
+		return 0;
+
+	handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
+	if (!handle)
+		return -ENOMEM;
+
+	handle->dev = dev;
+	handle->handler = handler;
+	handle->name = "cpufreq";
+
+	error = input_register_handle(handle);
+	if (error)
+		goto err2;
+
+	error = input_open_device(handle);
+	if (error)
+		goto err1;
+
+	return 0;
+err1:
+	input_unregister_handle(handle);
+err2:
+	kfree(handle);
+	return error;
+}
+
+static void dbs_input_disconnect(struct input_handle *handle)
+{
+	input_close_device(handle);
+	input_unregister_handle(handle);
+	kfree(handle);
+}
+
+static const struct input_device_id dbs_ids[] = {
+	{ .driver_info = 1 },
+	{ },
+};
+static struct input_handler dbs_input_handler = {
+	.event          = dbs_input_event,
+	.connect        = dbs_input_connect,
+	.disconnect     = dbs_input_disconnect,
+	.name           = "cpufreq_ond",
+	.id_table       = dbs_ids,
+};
+
+
+
 static unsigned int cpufreq_interactive_get_target(
 	int cpu_load, int load_since_change, struct cpufreq_policy *policy)
 {
@@ -212,17 +319,31 @@ static unsigned int cpufreq_interactive_get_target(
 	return target_freq;
 }
 
+static inline cputime64_t get_cpu_iowait_time(
+	unsigned int cpu, cputime64_t *wall)
+{
+	u64 iowait_time = get_cpu_iowait_time_us(cpu, wall);
+
+	if (iowait_time == -1ULL)
+		return 0;
+
+	return iowait_time;
+}
+
 static void cpufreq_interactive_timer(unsigned long data)
 {
 	unsigned int delta_idle;
+	unsigned int delta_iowait;
 	unsigned int delta_time;
 	int cpu_load;
 	int load_since_change;
 	u64 time_in_idle;
+	u64 time_in_iowait;
 	u64 idle_exit_time;
 	struct cpufreq_interactive_cpuinfo *pcpu =
 		&per_cpu(cpuinfo, data);
 	u64 now_idle;
+	u64 now_iowait, wall_time;
 	unsigned int new_freq;
 	unsigned int index;
 	unsigned long flags;
@@ -242,8 +363,10 @@ static void cpufreq_interactive_timer(unsigned long data)
 	 * until more time passes).
 	 */
 	time_in_idle = pcpu->time_in_idle;
+	time_in_iowait = pcpu->time_in_iowait;
 	idle_exit_time = pcpu->idle_exit_time;
 	now_idle = get_cpu_idle_time_us(data, &pcpu->timer_run_time);
+	now_iowait = get_cpu_iowait_time(data, &wall_time);
 	smp_wmb();
 
 	/* If we raced with cancelling a timer, skip. */
@@ -259,6 +382,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 #endif
 
 	delta_idle = (unsigned int) cputime64_sub(now_idle, time_in_idle);
+	delta_iowait = (unsigned int) cputime64_sub(now_iowait, time_in_iowait);
 	delta_time = (unsigned int) cputime64_sub(pcpu->timer_run_time,
 						  idle_exit_time);
 
@@ -273,8 +397,12 @@ static void cpufreq_interactive_timer(unsigned long data)
 
 	if (delta_idle > delta_time)
 		cpu_load = 0;
-	else
+	else {
+		if (io_is_busy && delta_idle >= delta_iowait)
+			delta_idle -= delta_iowait;
+
 		cpu_load = 100 * (delta_time - delta_idle) / delta_time;
+	}
 
 	delta_idle = (unsigned int) cputime64_sub(now_idle,
 						 pcpu->freq_change_time_in_idle);
@@ -369,6 +497,8 @@ rearm:
 
 		pcpu->time_in_idle = get_cpu_idle_time_us(
 			data, &pcpu->idle_exit_time);
+		pcpu->time_in_iowait = get_cpu_iowait_time(
+			data, &wall_time);
 		mod_timer(&pcpu->cpu_timer, jiffies + 2);
 		dbgpr("timer %d: set timer for %lu exit=%llu\n", (int) data, pcpu->cpu_timer.expires, pcpu->idle_exit_time);
 	}
@@ -382,6 +512,7 @@ static void cpufreq_interactive_idle(void)
 	struct cpufreq_interactive_cpuinfo *pcpu =
 		&per_cpu(cpuinfo, smp_processor_id());
 	int pending;
+	u64 wall_time;
 
 	if (!pcpu->governor_enabled) {
 		pm_idle_old();
@@ -405,6 +536,8 @@ static void cpufreq_interactive_idle(void)
 		if (!pending) {
 			pcpu->time_in_idle = get_cpu_idle_time_us(
 				smp_processor_id(), &pcpu->idle_exit_time);
+			pcpu->time_in_iowait = get_cpu_iowait_time(
+				smp_processor_id(), &wall_time);
 			pcpu->timer_idlecancel = 0;
 			mod_timer(&pcpu->cpu_timer, jiffies + 2);
 			dbgpr("idle: enter at %d, set timer for %lu exit=%llu\n",
@@ -453,6 +586,9 @@ static void cpufreq_interactive_idle(void)
 		pcpu->time_in_idle =
 			get_cpu_idle_time_us(smp_processor_id(),
 					     &pcpu->idle_exit_time);
+		pcpu->time_in_iowait =
+			get_cpu_iowait_time(smp_processor_id(),
+						&wall_time);
 		pcpu->timer_idlecancel = 0;
 		mod_timer(&pcpu->cpu_timer, jiffies + 2);
 		dbgpr("idle: exit, set timer for %lu exit=%llu\n", pcpu->cpu_timer.expires, pcpu->idle_exit_time);
@@ -581,7 +717,7 @@ static ssize_t store_go_maxspeed_load(struct kobject *kobj,
 	return -EINVAL;
 }
 
-static struct global_attr go_maxspeed_load_attr = __ATTR(go_maxspeed_load, 0666,
+static struct global_attr go_maxspeed_load_attr = __ATTR(go_maxspeed_load, 0664,
 		show_go_maxspeed_load, store_go_maxspeed_load);
 
 static ssize_t show_boost_factor(struct kobject *kobj,
@@ -601,6 +737,23 @@ static ssize_t store_boost_factor(struct kobject *kobj,
 static struct global_attr boost_factor_attr = __ATTR(boost_factor, 0644,
 		show_boost_factor, store_boost_factor);
 
+static ssize_t show_io_is_busy(struct kobject *kobj,
+				     struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%lu\n", io_is_busy);
+}
+
+static ssize_t store_io_is_busy(struct kobject *kobj,
+			struct attribute *attr, const char *buf, size_t count)
+{
+	if (!strict_strtoul(buf, 0, &io_is_busy))
+		return count;
+	return -EINVAL;
+}
+
+static struct global_attr io_is_busy_attr = __ATTR(io_is_busy, 0644,
+		show_io_is_busy, store_io_is_busy);
+
 static ssize_t show_max_boost(struct kobject *kobj,
 				     struct attribute *attr, char *buf)
 {
@@ -615,7 +768,7 @@ static ssize_t store_max_boost(struct kobject *kobj,
 	return -EINVAL;
 }
 
-static struct global_attr max_boost_attr = __ATTR(max_boost, 0666,
+static struct global_attr max_boost_attr = __ATTR(max_boost, 0664,
 		show_max_boost, store_max_boost);
 
 
@@ -657,6 +810,7 @@ static struct attribute *interactive_attributes[] = {
 	&go_maxspeed_load_attr.attr,
 	&boost_factor_attr.attr,
 	&max_boost_attr.attr,
+	&io_is_busy_attr.attr,
 	&sustain_load_attr.attr,
 	&min_sample_time_attr.attr,
 	NULL,
@@ -671,6 +825,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *new_policy,
 		unsigned int event)
 {
 	int rc;
+	u64 wall_time;
 	struct cpufreq_interactive_cpuinfo *pcpu =
 		&per_cpu(cpuinfo, new_policy->cpu);
 
@@ -686,6 +841,9 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *new_policy,
 			get_cpu_idle_time_us(new_policy->cpu,
 					     &pcpu->freq_change_time);
 		pcpu->time_in_idle = pcpu->freq_change_time_in_idle;
+		pcpu->time_in_iowait =
+			get_cpu_iowait_time(new_policy->cpu,
+						&wall_time);
 		pcpu->idle_exit_time = pcpu->freq_change_time;
 		pcpu->timer_idlecancel = 1;
 		pcpu->governor_enabled = 1;
@@ -706,6 +864,9 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *new_policy,
 		if (rc)
 			return rc;
 
+		if (!new_policy->cpu)
+			rc = input_register_handler(&dbs_input_handler);
+
 		pm_idle_old = pm_idle;
 		pm_idle = cpufreq_interactive_idle;
 		break;
@@ -722,6 +883,9 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *new_policy,
 		 * that is trying to run.
 		 */
 		pcpu->idle_exit_time = 0;
+
+		if (!new_policy->cpu)
+			input_unregister_handler(&dbs_input_handler);
 
 		if (atomic_dec_return(&active_count) > 0)
 			return 0;

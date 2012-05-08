@@ -25,6 +25,8 @@
 #include <linux/types.h>
 #include <linux/power_supply.h>
 
+#define NVDUMPER_RESERVED_LEN 4096
+
 #define NVMAP_HEAP_CARVEOUT_IRAM_INIT	\
 	{	.name		= "iram",					\
 		.usage_mask	= NVMAP_HEAP_CARVEOUT_IRAM,			\
@@ -63,8 +65,10 @@ extern unsigned long tegra_vpr_start;
 extern unsigned long tegra_vpr_size;
 extern unsigned long tegra_lp0_vec_start;
 extern unsigned long tegra_lp0_vec_size;
+extern unsigned long nvdumper_reserved;
 extern bool tegra_lp0_vec_relocate;
 extern unsigned long tegra_grhost_aperture;
+extern unsigned long g_panel_id;
 
 extern struct sys_timer tegra_timer;
 
@@ -97,20 +101,47 @@ void tegra_get_board_info(struct board_info *);
 void tegra_get_pmu_board_info(struct board_info *bi);
 void tegra_get_display_board_info(struct board_info *bi);
 void tegra_get_camera_board_info(struct board_info *bi);
-#ifdef CONFIG_TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
-#define SET_CONSERVATIVE_GOVERNOR_UP_THRESHOLD 95
-#define SET_CONSERVATIVE_GOVERNOR_DOWN_THRESHOLD 50
 
-void cpufreq_save_default_governor(void);
-void cpufreq_restore_default_governor(void);
-void cpufreq_set_conservative_governor(void);
-void cpufreq_set_conservative_governor_param(int up_th, int down_th);
+#if defined CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND \
+	|| defined CONFIG_TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND
+#define CONSERVATIVE_GOVERNOR	"conservative"
+#define UP_THRESHOLD		"up_threshold"
+#define DOWN_THRESHOLD		"down_threshold"
+#define FREQ_STEP		"FREQ_STEP"
+#define UP_THRESHOLD_VALUE	95
+#define DOWN_THRESHOLD_VALUE	50
+#define FREQ_STEP_VALUE		3
+
+#define INTERACTIVE_GOVERNOR	"interactive"
+#define BOOST_FACTOR 		"boost_factor"
+#define GO_MAXSPEED_LOAD 	"go_maxspeed_load"
+#define MAX_BOOST		"max_boost"
+#define MIN_SAMPLE_TIME		"min_sample_time"
+#define SUSTAIN_LOAD 		"sustain_load"
+#define BOOST_FACTOR_VALUE	2
+#define GO_MAXSPEED_LOAD_VALUE 	97
+#define MAX_BOOST_VALUE		180000
+#define MIN_SAMPLE_TIME_VALUE	20000
+#define SUSTAIN_LOAD_VALUE 	95
+
+#define CPUFREQ_SYSFS_PLACE_HOLDER \
+		"/sys/devices/system/cpu/cpu%i/cpufreq/scaling_governor"
+#define CPUFREQ_GOV_PARAM "/sys/devices/system/cpu/cpufreq/%s/%s"
+
+void cpufreq_save_governor(void);
+void cpufreq_restore_governor(void);
+void cpufreq_set_governor(char *governor);
+void cpufreq_set_governor_param(char *governor, char *name, int value);
 #endif
+
 int get_core_edp(void);
 enum panel_type get_panel_type(void);
 int tegra_get_modem_id(void);
 enum power_supply_type get_power_supply_type(void);
 enum audio_codec_type get_audio_codec_type(void);
 int get_maximum_cpu_current_supported(void);
+ 
+extern int dying_processors_read_proc(char *page, char **start, off_t off,
+			   int count, int *eof, void *data);
 
 #endif

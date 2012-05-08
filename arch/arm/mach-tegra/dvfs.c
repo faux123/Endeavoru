@@ -32,6 +32,7 @@
 #include <linux/suspend.h>
 #include <linux/delay.h>
 #include <linux/reboot.h>
+#include <linux/uaccess.h>
 
 #include <mach/clk.h>
 
@@ -739,6 +740,276 @@ static const struct file_operations dvfs_tree_fops = {
 	.release	= single_release,
 };
 
+static int v_mmc_rx_2v85_stats_show(struct seq_file *s, void *data)
+{
+	struct regulator *v_mmc_rx_2v85 = regulator_get(NULL, "v_mmc_rx_2v85");
+	if(v_mmc_rx_2v85)
+	{
+		seq_printf(s, "%d\n", regulator_get_voltage(v_mmc_rx_2v85));
+		regulator_put(v_mmc_rx_2v85);	
+	}
+	return 0;
+}
+
+static ssize_t v_mmc_rx_2v85_stats_write(struct file *file,
+					const char __user * buffer,
+					size_t count, loff_t * ppos)
+{
+	int result = 0;
+	char volts_string[12] = { '\0' };
+	struct regulator *v_mmc_rx_2v85 = regulator_get(NULL, "v_mmc_rx_2v85");
+
+	if (copy_from_user(volts_string, buffer, count)) {
+		result = -EFAULT;
+		goto end;
+	}
+	volts_string[count] = '\0';
+	int new_volts = simple_strtol(volts_string, NULL, 0);
+	if(v_mmc_rx_2v85)
+	{
+		if(new_volts==0)
+			result = regulator_force_disable(v_mmc_rx_2v85);		
+		else
+			result = regulator_force_set_voltage(v_mmc_rx_2v85, new_volts, 1150000);
+		regulator_put(v_mmc_rx_2v85);
+	}
+end:
+	if (!result)
+		return count;
+	return result;
+}
+
+static int v_mmc_rx_2v85_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, v_mmc_rx_2v85_stats_show, inode->i_private);
+}
+
+static const struct file_operations v_mmc_rx_2v85_stats_fops = {
+	.open		= v_mmc_rx_2v85_stats_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+	.write		= v_mmc_rx_2v85_stats_write,
+};
+
+
+
+static int vio_1v8_stats_show(struct seq_file *s, void *data)
+{
+
+	struct regulator *vio_1v8 = regulator_get(NULL, "vio_1v8");
+	if(vio_1v8)
+	{
+		seq_printf(s, "%d\n", regulator_get_voltage(vio_1v8));
+		regulator_put(vio_1v8);	
+	}
+	return 0;
+}
+
+static ssize_t vio_1v8_stats_write(struct file *file,
+					const char __user * buffer,
+					size_t count, loff_t * ppos)
+{
+
+
+	int result = 0;
+	char volts_string[12] = { '\0' };
+	struct regulator *vio_1v8 = regulator_get(NULL, "vio_1v8");
+
+	if (copy_from_user(volts_string, buffer, count)) {
+		result = -EFAULT;
+		goto end;
+	}
+
+	volts_string[count] = '\0';
+	int new_volts = simple_strtol(volts_string, NULL, 0);
+	if(vio_1v8)
+	{	if(new_volts==0)
+			result = regulator_force_disable(vio_1v8);	
+		else
+			result = regulator_force_set_voltage(vio_1v8, new_volts, 2100000);
+		regulator_put(vio_1v8);
+	}
+end:
+	if (!result)
+		return count;
+	return result;
+}
+
+static int vio_1v8_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, vio_1v8_stats_show, inode->i_private);
+}
+
+static const struct file_operations vio_1v8_stats_fops = {
+	.open		= vio_1v8_stats_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+	.write		= vio_1v8_stats_write,
+};
+
+
+static int vddio_ddr_stats_show(struct seq_file *s, void *data)
+{
+
+	struct regulator *vddio_ddr = regulator_get(NULL, "vddio_ddr");
+	if(vddio_ddr)
+	{
+		seq_printf(s, "%d\n", regulator_get_voltage(vddio_ddr));
+		regulator_put(vddio_ddr);
+	}
+	return 0;
+}
+
+static ssize_t vddio_ddr_stats_write(struct file *file,
+					const char __user * buffer,
+					size_t count, loff_t * ppos)
+{
+	int result = 0;
+	char volts_string[12] = { '\0' };
+	struct regulator *vddio_ddr = regulator_get(NULL, "vddio_ddr");
+
+
+	if (copy_from_user(volts_string, buffer, count)) {
+		result = -EFAULT;
+		goto end;
+	}
+
+	volts_string[count] = '\0';
+	int new_volts = simple_strtol(volts_string, NULL, 0);
+	if(vddio_ddr)
+	{
+		if(new_volts==0)
+			result = regulator_force_disable(vddio_ddr);	
+		else
+			result = regulator_force_set_voltage(vddio_ddr, new_volts, 1300000);
+		regulator_put(vddio_ddr);
+	}
+end:
+	if (!result)
+		return count;
+	return result;
+}
+
+static int vddio_ddr_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, vddio_ddr_stats_show, inode->i_private);
+}
+
+static const struct file_operations vddio_ddr_stats_fops = {
+	.open		= vddio_ddr_stats_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+	.write		= vddio_ddr_stats_write,
+};
+
+static int vdd_core_stats_show(struct seq_file *s, void *data)
+{
+	struct regulator *vdd_core = regulator_get(NULL, "vdd_core");
+	if(vdd_core)
+	{
+		seq_printf(s, "%d\n", regulator_get_voltage(vdd_core));
+		regulator_put(vdd_core);
+	}
+	return 0;
+}
+
+static ssize_t vdd_core_stats_write(struct file *file,
+					const char __user * buffer,
+					size_t count, loff_t * ppos)
+{
+	int result = 0;
+	char volts_string[12] = { '\0' };
+	struct regulator *vdd_core = regulator_get(NULL, "vdd_core");
+
+	if (copy_from_user(volts_string, buffer, count)) {
+		result = -EFAULT;
+		goto end;
+	}
+	volts_string[count] = '\0';
+	int new_volts = simple_strtol(volts_string, NULL, 0);
+	if(vdd_core)
+	{
+		if(new_volts==0)
+			result = regulator_force_disable(vdd_core);	
+		else
+			result = regulator_force_set_voltage(vdd_core, new_volts, 1300000);
+		regulator_put(vdd_core);
+	}
+end:
+	if (!result)
+		return count;
+	return result;
+}
+
+static int vdd_core_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, vdd_core_stats_show, inode->i_private);
+}
+
+static const struct file_operations vdd_core_stats_fops = {
+	.open		= vdd_core_stats_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+	.write		= vdd_core_stats_write,
+};
+
+
+static int vdd_cpu_stats_show(struct seq_file *s, void *data)
+{
+	struct regulator *vdd_cpu = regulator_get(NULL, "vdd_cpu");
+	if(vdd_cpu)
+	{
+		seq_printf(s, "%d\n", regulator_get_voltage(vdd_cpu));
+		regulator_put(vdd_cpu);
+	}
+	return 0;
+}
+
+static ssize_t vdd_cpu_stats_write(struct file *file,
+					const char __user * buffer,
+					size_t count, loff_t * ppos)
+{
+	int result = 0;
+	char volts_string[12] = { '\0' };
+	struct regulator *vdd_cpu= regulator_get(NULL, "vdd_cpu");
+
+	if (copy_from_user(volts_string, buffer, count)) {
+		result = -EFAULT;
+		goto end;
+	}
+	volts_string[count] = '\0';
+	int new_volts = simple_strtol(volts_string, NULL, 0);
+	if(vdd_cpu)
+	{
+		if(new_volts==0)
+			result = regulator_force_disable(vdd_cpu);	
+		else
+			result = regulator_force_set_voltage(vdd_cpu, new_volts, 1240000);
+		regulator_put(vdd_cpu);	
+	}
+end:
+	if (!result)
+		return count;
+	return result;
+}
+
+static int vdd_cpu_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, vdd_cpu_stats_show, inode->i_private);
+}
+
+static const struct file_operations vdd_cpu_stats_fops = {
+	.open		= vdd_cpu_stats_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+	.write		= vdd_cpu_stats_write,
+};
+
 static int rail_stats_show(struct seq_file *s, void *data)
 {
 	int i;
@@ -789,9 +1060,38 @@ static const struct file_operations rail_stats_fops = {
 int __init dvfs_debugfs_init(struct dentry *clk_debugfs_root)
 {
 	struct dentry *d;
+	struct dentry *voltage;
 
 	d = debugfs_create_file("dvfs", S_IRUGO, clk_debugfs_root, NULL,
 		&dvfs_tree_fops);
+	if (!d)
+		return -ENOMEM;
+	d = debugfs_create_dir("voltage", clk_debugfs_root);
+	if (!d)
+		return -ENOMEM;
+	voltage = d;
+
+	d = debugfs_create_file("vdd_cpu", S_IRUGO, voltage, NULL,
+		&vdd_cpu_stats_fops);
+	if (!d)
+		return -ENOMEM;
+
+	d = debugfs_create_file("vdd_core", S_IRUGO, voltage, NULL,
+		&vdd_core_stats_fops);
+	if (!d)
+		return -ENOMEM;
+
+	d = debugfs_create_file("vddio_ddr", S_IRUGO, voltage, NULL,
+		&vddio_ddr_stats_fops);
+	if (!d)
+		return -ENOMEM;
+
+	d = debugfs_create_file("vio_1v8", S_IRUGO, voltage, NULL,
+		&vio_1v8_stats_fops);
+	if (!d)
+		return -ENOMEM;
+	d = debugfs_create_file("v_mmc_rx_2v85", S_IRUGO, voltage, NULL,
+		&v_mmc_rx_2v85_stats_fops);
 	if (!d)
 		return -ENOMEM;
 

@@ -39,6 +39,8 @@
 #define SDHCI_USE_LEDS_CLASS
 #endif
 
+#define MAX_TUNING_LOOP 40
+
 static unsigned int debug_quirks = 0;
 
 static void sdhci_prepare_data(struct sdhci_host *, struct mmc_data *);
@@ -956,7 +958,9 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 		flags |= SDHCI_CMD_CRC;
 	if (cmd->flags & MMC_RSP_OPCODE)
 		flags |= SDHCI_CMD_INDEX;
-	if (cmd->data)
+
+	/* CMD19 is special in that the Data Present Select should be set */
+	if (cmd->data || (cmd->opcode == MMC_SEND_TUNING_BLOCK))
 		flags |= SDHCI_CMD_DATA;
 
 	sdhci_writew(host, SDHCI_MAKE_CMD(cmd->opcode, flags), SDHCI_COMMAND);
@@ -1057,12 +1061,27 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 out:
 	host->clock = clock;
 }
-
+// HTC_WIFI_START
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+static int wifi_is_on = 0;
+extern int enterprise_wifi_power(int on);
+void set_wifi_is_on (int on){
+    wifi_is_on = on;
+}
+EXPORT_SYMBOL(set_wifi_is_on);
+#endif
+// HTC_WIFI_END
 static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
 {
 	u8 pwr = 0;
 
 	if (power != (unsigned short)-1) {
+		// HTC_WIFI_START
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+	if(host->mmc->index==1)
+		enterprise_wifi_power(1);
+#endif
+		// HTC_WIFI_END
 		switch (1 << power) {
 		case MMC_VDD_165_195:
 			pwr = SDHCI_POWER_180;
@@ -1078,6 +1097,14 @@ static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
 		default:
 			BUG();
 		}
+	}
+	else {
+		// HTC_WIFI_START
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+		if(host->mmc->index==1)
+			enterprise_wifi_power(0);
+#endif
+		// HTC_WIFI_END
 	}
 
 	if (host->pwr == pwr)
@@ -1155,6 +1182,15 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	if (!present || host->flags & SDHCI_DEVICE_DEAD) {
 		host->mrq->cmd->error = -ENOMEDIUM;
+		/* +++ 2011-10-25 Tommy Chen */
+		if (!present)
+			printk(KERN_INFO "%s: card is not present\n",
+				mmc_hostname(mmc));
+
+		if (host->flags & SDHCI_DEVICE_DEAD)
+			printk(KERN_ERR "%s: host is dead\n",
+				mmc_hostname(mmc));
+		/* --- */
 		tasklet_schedule(&host->finish_tasklet);
 	} else
 		sdhci_send_command(host, mrq->cmd);
@@ -1524,6 +1560,150 @@ static int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
 		return 0;
 }
 
+static int sdhci_execute_tuning(struct mmc_host *mmc)
+{
+	struct sdhci_host *host;
+	u16 ctrl;
+	u32 ier;
+	int tuning_loop_counter = MAX_TUNING_LOOP;
+	unsigned long timeout;
+	int err = 0;
+
+	host = mmc_priv(mmc);
+
+	disable_irq(host->irq);
+	spin_lock(&host->lock);
+
+	ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+
+	/*
+	 * Host Controller needs tuning only in case of SDR104 mode
+	 * and for SDR50 mode when Use Tuning for SDR50 is set in
+	 * Capabilities register.
+	 */
+	if (((ctrl & SDHCI_CTRL_UHS_MASK) == SDHCI_CTRL_UHS_SDR104) ||
+	    (((ctrl & SDHCI_CTRL_UHS_MASK) == SDHCI_CTRL_UHS_SDR50) &&
+	    (host->flags & SDHCI_SDR50_NEEDS_TUNING)))
+		ctrl |= SDHCI_CTRL_EXEC_TUNING;
+	else {
+		spin_unlock(&host->lock);
+		enable_irq(host->irq);
+		return 0;
+	}
+
+	sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
+
+	/*
+	 * As per the Host Controller spec v3.00, tuning command
+	 * generates Buffer Read Ready interrupt, so enable that.
+	 *
+	 * Note: The spec clearly says that when tuning sequence
+	 * is being performed, the controller does not generate
+	 * interrupts other than Buffer Read Ready interrupt. But
+	 * to make sure we don't hit a controller bug, we _only_
+	 * enable Buffer Read Ready interrupt here.
+	 */
+	ier = sdhci_readl(host, SDHCI_INT_ENABLE);
+	sdhci_clear_set_irqs(host, ier, SDHCI_INT_DATA_AVAIL);
+
+	/*
+	 * Issue CMD19 repeatedly till Execute Tuning is set to 0 or the number
+	 * of loops reaches 40 times or a timeout of 150ms occurs.
+	 */
+	timeout = 150;
+	do {
+		struct mmc_command cmd = {0};
+		struct mmc_request mrq = {0};
+
+		if (!tuning_loop_counter && !timeout)
+			break;
+
+		cmd.opcode = MMC_SEND_TUNING_BLOCK;
+		cmd.arg = 0;
+		cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+		cmd.retries = 0;
+		cmd.data = NULL;
+		cmd.error = 0;
+
+		mrq.cmd = &cmd;
+		host->mrq = &mrq;
+
+		/*
+		 * In response to CMD19, the card sends 64 bytes of tuning
+		 * block to the Host Controller. So we set the block size
+		 * to 64 here.
+		 */
+		sdhci_writew(host, SDHCI_MAKE_BLKSZ(7, 64), SDHCI_BLOCK_SIZE);
+
+		/*
+		 * The tuning block is sent by the card to the host controller.
+		 * So we set the TRNS_READ bit in the Transfer Mode register.
+		 * This also takes care of setting DMA Enable and Multi Block
+		 * Select in the same register to 0.
+		 */
+		sdhci_writew(host, SDHCI_TRNS_READ, SDHCI_TRANSFER_MODE);
+
+		sdhci_send_command(host, &cmd);
+
+		host->cmd = NULL;
+		host->mrq = NULL;
+
+		spin_unlock(&host->lock);
+		enable_irq(host->irq);
+
+		/* Wait for Buffer Read Ready interrupt */
+		wait_event_interruptible_timeout(host->buf_ready_int,
+					(host->tuning_done == 1),
+					msecs_to_jiffies(50));
+		disable_irq(host->irq);
+		spin_lock(&host->lock);
+
+		if (!host->tuning_done) {
+			printk(KERN_INFO DRIVER_NAME ": Timeout waiting for "
+				"Buffer Read Ready interrupt during tuning "
+				"procedure, falling back to fixed sampling "
+				"clock\n");
+			ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+			ctrl &= ~SDHCI_CTRL_TUNED_CLK;
+			ctrl &= ~SDHCI_CTRL_EXEC_TUNING;
+			sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
+
+			err = -EIO;
+			goto out;
+		}
+
+		host->tuning_done = 0;
+
+		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+		tuning_loop_counter--;
+		timeout--;
+		mdelay(1);
+	} while (ctrl & SDHCI_CTRL_EXEC_TUNING);
+
+	/*
+	 * The Host Driver has exhausted the maximum number of loops allowed,
+	 * so use fixed sampling frequency.
+	 */
+	if (!tuning_loop_counter || !timeout) {
+		ctrl &= ~SDHCI_CTRL_TUNED_CLK;
+		sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
+	} else {
+		if (!(ctrl & SDHCI_CTRL_TUNED_CLK)) {
+			printk(KERN_INFO DRIVER_NAME ": Tuning procedure"
+				" failed, falling back to fixed sampling"
+				" clock\n");
+			err = -EIO;
+		}
+	}
+
+out:
+	sdhci_clear_set_irqs(host, SDHCI_INT_DATA_AVAIL, ier);
+	spin_unlock(&host->lock);
+	enable_irq(host->irq);
+
+	return err;
+}
+
 static const struct mmc_host_ops sdhci_ops = {
 	.request	= sdhci_request,
 	.set_ios	= sdhci_set_ios,
@@ -1532,6 +1712,7 @@ static const struct mmc_host_ops sdhci_ops = {
 	.disable	= sdhci_disable,
 	.enable_sdio_irq = sdhci_enable_sdio_irq,
 	.start_signal_voltage_switch	= sdhci_start_signal_voltage_switch,
+	.execute_tuning			= sdhci_execute_tuning,
 };
 
 /*****************************************************************************\
@@ -1672,6 +1853,7 @@ static void sdhci_timeout_timer(unsigned long data)
 static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask)
 {
 	BUG_ON(intmask == 0);
+	int opcode;
 
 	if (!host->cmd) {
 		printk(KERN_ERR "%s: Got command interrupt 0x%08x even "
@@ -1681,11 +1863,36 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask)
 		return;
 	}
 
-	if (intmask & SDHCI_INT_TIMEOUT)
+	opcode = host->cmd->opcode;
+	if (intmask & SDHCI_INT_TIMEOUT) {
+                if (host->mmc->card) {
+                        printk(KERN_ERR "%s: Got cmd intr: TIMEOUT, CMD(%d) ARG(0x%x)\n",
+                                mmc_hostname(host->mmc), host->cmd->opcode, host->cmd->arg);
+                } else {
+					if (host->mmc->index != 1) {
+						if (( host->mmc->index == 2 && (opcode != 1 || opcode != 5 || opcode != 52)) &&
+							( host->mmc->index == 0 && (opcode != 5 || opcode != 8 || opcode != 52 || opcode != 55)))
+                        printk(KERN_INFO "%s: CMD(%d) ARG(0x%x) timed out durning identification mode\n",
+                                mmc_hostname(host->mmc), host->cmd->opcode, host->cmd->arg);
+					}
+                }
 		host->cmd->error = -ETIMEDOUT;
-	else if (intmask & (SDHCI_INT_CRC | SDHCI_INT_END_BIT |
-			SDHCI_INT_INDEX))
+	} else if (intmask & (SDHCI_INT_CRC | SDHCI_INT_END_BIT |
+			SDHCI_INT_INDEX)) {
+		if (intmask & (SDHCI_INT_CRC))
+			printk(KERN_ERR "%s: Got cmd intr: CRC error, CMD(%d)\n",
+				mmc_hostname(host->mmc), host->cmd->opcode);
+
+		if (intmask & (SDHCI_INT_END_BIT))
+			printk(KERN_ERR "%s: Got cmd intr: END_BIT error, CMD(%d)\n",
+				mmc_hostname(host->mmc), host->cmd->opcode);
+
+		if (intmask & (SDHCI_INT_INDEX))
+			printk(KERN_ERR "%s: Got cmd intr: INDEX error, CMD(%d)\n",
+			mmc_hostname(host->mmc), host->cmd->opcode);
+
 		host->cmd->error = -EILSEQ;
+	}
 
 	if (host->cmd->error) {
 		tasklet_schedule(&host->finish_tasklet);
@@ -1751,6 +1958,16 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 {
 	BUG_ON(intmask == 0);
 
+	/* CMD19 generates _only_ Buffer Read Ready interrupt */
+	if (intmask & SDHCI_INT_DATA_AVAIL) {
+		if (SDHCI_GET_CMD(sdhci_readw(host, SDHCI_COMMAND)) ==
+		    MMC_SEND_TUNING_BLOCK) {
+			host->tuning_done = 1;
+			wake_up(&host->buf_ready_int);
+			return;
+		}
+	}
+
 	if (!host->data) {
 		/*
 		 * The "data complete" interrupt is also used to
@@ -1772,15 +1989,33 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 		return;
 	}
 
-	if (intmask & SDHCI_INT_DATA_TIMEOUT)
+	u32 opcode;
+	u32 argument;
+	if (host->data->mrq) {
+		if (host->data->mrq->cmd) {
+			opcode = host->data->mrq->cmd->opcode;
+			argument = host->data->mrq->cmd->arg;
+		}
+	} else {
+		opcode = 0;
+		argument = 0xffffffff;
+	}
+
+	if (intmask & SDHCI_INT_DATA_TIMEOUT) {
+		printk(KERN_ERR "%s: CMD(%d) ARG(0x%x), DATA_TIMEOUT(%u ns), blksz=%u, blocks=%u\n",
+			mmc_hostname(host->mmc), opcode, argument, host->data->timeout_ns, host->data->blksz, host->data->blocks);
 		host->data->error = -ETIMEDOUT;
-	else if (intmask & SDHCI_INT_DATA_END_BIT)
+	} else if (intmask & SDHCI_INT_DATA_END_BIT) {
+		printk(KERN_ERR "%s: DATA_END_BIT error\n",
+			mmc_hostname(host->mmc));
 		host->data->error = -EILSEQ;
-	else if ((intmask & SDHCI_INT_DATA_CRC) &&
+	} else if ((intmask & SDHCI_INT_DATA_CRC) &&
 		SDHCI_GET_CMD(sdhci_readw(host, SDHCI_COMMAND))
-			!= MMC_BUS_TEST_R)
+			!= MMC_BUS_TEST_R) {
+		printk(KERN_ERR "%s: CMD(%d) ARG(0x%x), DATA_CRC error\n",
+			mmc_hostname(host->mmc), opcode, argument);
 		host->data->error = -EILSEQ;
-	else if (intmask & SDHCI_INT_ADMA_ERROR) {
+	} else if (intmask & SDHCI_INT_ADMA_ERROR) {
 		printk(KERN_ERR "%s: ADMA error\n", mmc_hostname(host->mmc));
 		sdhci_show_adma_error(host);
 		host->data->error = -EIO;
@@ -1910,8 +2145,13 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 
 	sdhci_disable_card_detection(host);
 
-	if (mmc->card && (mmc->card->type != MMC_TYPE_SDIO))
-		ret = mmc_suspend_host(host->mmc);
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+	if (mmc->card) { //austin && (mmc->card->type != MMC_TYPE_SDIO))
+#else
+    if (mmc->card && (mmc->card->type != MMC_TYPE_SDIO)) {
+#endif
+        ret = mmc_suspend_host(host->mmc);
+    }
 
 	if (host->flags & MMC_PM_KEEP_POWER)
 		host->card_int_set = sdhci_readl(host, SDHCI_INT_ENABLE) &
@@ -1957,6 +2197,17 @@ int sdhci_resume_host(struct sdhci_host *host)
 		if (mmc->card->type != MMC_TYPE_SDIO) {
 			ret = mmc_resume_host(host->mmc);
 		} else {
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+            printk("wifi_is_on: %d\n",wifi_is_on);
+            if (host->mmc->index == 1 && wifi_is_on == 1) {
+                printk("%s: host->mmc->index = %d, call mmc_resume_host()\n"
+                       , __func__,host->mmc->index);
+                ret = mmc_resume_host(host->mmc);
+            } else if (host->mmc->index == 1 && wifi_is_on != 1) {
+			if (host->ops->set_clock)
+				host->ops->set_clock(host, 0);
+		}
+#endif
 			/* Enable card interrupt as it is overwritten in sdhci_init */
 			if ((mmc->caps & MMC_CAP_SDIO_IRQ) &&
 				(mmc->pm_flags & MMC_PM_KEEP_POWER))
@@ -2032,6 +2283,7 @@ int sdhci_add_host(struct sdhci_host *host)
 	host->version = sdhci_readw(host, SDHCI_HOST_VERSION);
 	host->version = (host->version & SDHCI_SPEC_VER_MASK)
 				>> SDHCI_SPEC_VER_SHIFT;
+
 	if (host->version > SDHCI_SPEC_300) {
 		printk(KERN_ERR "%s: Unknown controller version (%d). "
 			"You may experience problems.\n", mmc_hostname(mmc),
@@ -2107,12 +2359,13 @@ int sdhci_add_host(struct sdhci_host *host)
 		mmc_dev(host->mmc)->dma_mask = &host->dma_mask;
 	}
 
-	if (host->version >= SDHCI_SPEC_300)
+	if (host->version >= SDHCI_SPEC_300) {
 		host->max_clk = (caps[0] & SDHCI_CLOCK_V3_BASE_MASK)
 			>> SDHCI_CLOCK_BASE_SHIFT;
-	else
+	} else {
 		host->max_clk = (caps[0] & SDHCI_CLOCK_BASE_MASK)
 			>> SDHCI_CLOCK_BASE_SHIFT;
+	}
 
 	host->max_clk *= 1000000;
 	if (host->max_clk == 0 || host->quirks &
@@ -2171,6 +2424,17 @@ int sdhci_add_host(struct sdhci_host *host)
 	if ((host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) &&
 	    mmc_card_is_removable(mmc))
 		mmc->caps |= MMC_CAP_NEEDS_POLL;
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+	/* HTC_WIFI_START */
+	if(host->mmc->index==1) {
+		mmc->caps |= MMC_CAP_NONREMOVABLE;
+		mmc->caps |= MMC_CAP_DISABLE;
+		mmc->caps |= MMC_CAP_POWER_OFF_CARD;
+		mmc->caps |= MMC_PM_KEEP_POWER;
+        host->flags |= MMC_PM_KEEP_POWER;
+	}
+	/* HTC_WIFI_END */
+#endif
 
 	/* UHS-I mode(s) supported by the host controller. */
 	if (host->version >= SDHCI_SPEC_300)
@@ -2184,6 +2448,10 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	if (caps[1] & SDHCI_SUPPORT_DDR50)
 		mmc->caps |= MMC_CAP_UHS_DDR50;
+
+	/* Does the host needs tuning for SDR50? */
+	if (caps[1] & SDHCI_USE_SDR50_TUNING)
+		host->flags |= SDHCI_SDR50_NEEDS_TUNING;
 
 	/* Driver Type(s) (A, C, D) supported by the host */
 	if (caps[1] & SDHCI_DRIVER_TYPE_A)
@@ -2328,18 +2596,24 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	setup_timer(&host->timer, sdhci_timeout_timer, (unsigned long)host);
 
+	if (host->version >= SDHCI_SPEC_300)
+		init_waitqueue_head(&host->buf_ready_int);
+
 	ret = request_irq(host->irq, sdhci_irq, IRQF_SHARED,
 		mmc_hostname(mmc), host);
 	if (ret)
 		goto untasklet;
 
-	host->vmmc = regulator_get(mmc_dev(mmc), "vmmc");
+	host->vmmc = NULL; // regulator_get(mmc_dev(mmc), "vmmc");
+
+	/* Tegra SDMMC does not use vmmc
 	if (IS_ERR(host->vmmc)) {
 		printk(KERN_INFO "%s: no vmmc regulator found\n", mmc_hostname(mmc));
 		host->vmmc = NULL;
 	} else {
 		regulator_enable(host->vmmc);
 	}
+	*/
 
 	sdhci_init(host, 0);
 

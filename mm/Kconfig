@@ -347,3 +347,11 @@ config NEED_PER_CPU_KM
 	depends on !SMP
 	bool
 	default y
+
+config SLUB_DEBUG
+	bool "Enable SLUB debugging support"
+
+config SLUB_DEBUG_ON
+	bool "Enable SLUB debugging ON"
+
+

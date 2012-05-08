@@ -46,6 +46,11 @@
 #include "reset.h"
 #include "tegra_smmu.h"
 
+#if defined(CONFIG_RESET_REASON)
+#include <linux/interrupt.h>
+#include <mach/restart.h>
+#endif
+
 #define MC_SECURITY_CFG2	0x7c
 
 #define AHB_ARBITRATION_PRIORITY_CTRL		0x4
@@ -76,6 +81,9 @@
 #define   ADDR_BNDRY(x)	(((x) & 0xf) << 21)
 #define   INACTIVITY_TIMEOUT(x)	(((x) & 0xffff) << 0)
 
+#define BOOT_DEBUG_LOG_ENTER(fn) \
+	printk(KERN_NOTICE "[BOOT_LOG] Entering %s\n", fn);
+
 unsigned long tegra_bootloader_fb_start;
 unsigned long tegra_bootloader_fb_size;
 unsigned long tegra_fb_start;
@@ -88,11 +96,13 @@ unsigned long tegra_vpr_start;
 unsigned long tegra_vpr_size;
 unsigned long tegra_lp0_vec_start;
 unsigned long tegra_lp0_vec_size;
+unsigned long nvdumper_reserved;
 bool tegra_lp0_vec_relocate;
 unsigned long tegra_grhost_aperture = ~0ul;
 static   bool is_tegra_debug_uart_hsport;
 static struct board_info pmu_board_info;
 static struct board_info display_board_info;
+unsigned long g_panel_id;
 static struct board_info camera_board_info;
 
 static int pmu_core_edp = 1200;	/* default 1.2V EDP limit */
@@ -100,6 +110,11 @@ static int board_panel_type;
 static enum power_supply_type pow_supply_type = POWER_SUPPLY_TYPE_MAINS;
 
 void (*arch_reset)(char mode, const char *cmd) = tegra_assert_system_reset;
+
+extern unsigned reboot_battery_first_level;
+
+unsigned (*get_battery_level_cb)(void) = NULL;
+EXPORT_SYMBAL_GPL(get_battery_level_cb);
 
 #define NEVER_RESET 0
 
@@ -122,6 +137,14 @@ static int modem_id;
 static int debug_uart_port_id;
 static enum audio_codec_type audio_codec_name;
 static int max_cpu_current;
+
+void (*tegra_reset)(char mode, const char *cmd);
+
+#if defined(CONFIG_RESET_REASON)
+extern struct htc_reboot_params *reboot_params;
+static atomic_t restart_counter = ATOMIC_INIT(0);
+static int in_panic = 0;
+#endif
 
 /* WARNING: There is implicit client of pllp_out3 like i2c, uart, dsi
  * and so this clock (pllp_out3) should never be disabled.
@@ -157,6 +180,7 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "sclk",	"pll_p_out4",	102000000,	true },
 	{ "hclk",	"sclk",		102000000,	true },
 	{ "pclk",	"hclk",		51000000,	true },
+	{ "cpu.sclk",	NULL,		80000000,	false },
 #endif
 #else
 	{ "pll_p",	NULL,		216000000,	true },
@@ -171,7 +195,7 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "hclk",	"sclk",		108000000,	true },
 	{ "pclk",	"hclk",		54000000,	true },
 #endif
-	{ "csite",	NULL,		0,		true },
+	{ "csite",	NULL,		4250000,	true },
 	{ "emc",	NULL,		0,		true },
 	{ "cpu",	NULL,		0,		true },
 	{ "kfuse",	NULL,		0,		true },
@@ -180,9 +204,11 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "sdmmc1",	"pll_p",	48000000,	false},
 	{ "sdmmc3",	"pll_p",	48000000,	false},
 	{ "sdmmc4",	"pll_p",	48000000,	false},
+	{ "wake.sclk",	"sbus",		40000000,	true },
 #ifndef CONFIG_ARCH_TEGRA_2x_SOC
 	{ "cbus",	"pll_c",	416000000,	false },
 	{ "pll_c_out1",	"pll_c",	208000000,	false },
+	{ "mselect",	"pll_p",	102000000,	true },
 #endif
 	{ NULL,		NULL,		0,		0},
 };
@@ -413,14 +439,210 @@ static void tegra_pm_flush_console(void)
 	console_unlock();
 }
 
+#if defined(CONFIG_RESET_REASON)
+static inline unsigned get_restart_reason(void)
+{
+	return reboot_params->reboot_reason;
+}
+/*
+	This function should not be called outside
+	to ensure that others do not change restart reason.
+	Use mode & cmd to set reason & msg in arch_reset().
+*/
+static inline void set_restart_reason(unsigned int reason)
+{
+	reboot_params->reboot_reason = reason;
+	//printk(KERN_NOTICE "%s: TEGRA_IRAM_BASE: 0x%x\n", __func__, TEGRA_IRAM_BASE);
+	//printk(KERN_NOTICE "%s: TEGRA_IRAM_OFFSET_REBOOT_PARAMS: 0x%x\n", __func__, TEGRA_IRAM_OFFSET_REBOOT_PARAMS);
+	//printk(KERN_NOTICE "%s: reboot_params: 0x%p\n", __func__, reboot_params);
+	//printk(KERN_NOTICE "%s: reason: 0x%x\n", __func__, reason);
+	//printk(KERN_NOTICE "%s: reboot_params->reboot_reason: 0x%x\n", __func__, reboot_params->reboot_reason);
+}
+
+/*
+	This function should not be called outsite
+	to ensure that others do no change restart reason.
+	Use mode & cmd to set reason & msg in arch_reset().
+*/
+static inline void set_restart_msg(const char *msg)
+{
+	strncpy(reboot_params->msg, msg, sizeof(reboot_params->msg)-1);
+}
+
+/* This function expose others to restart message for entering ramdump mode. */
+void set_ramdump_reason(const char *msg)
+{
+	if(!strcmp("Kernel panic", msg))
+		in_panic = 1;
+	/* only allow write msg before entering arch_rest */
+	if (atomic_read(&restart_counter) != 0)
+		return;
+
+	set_restart_reason(RESTART_REASON_RAMDUMP);
+	set_restart_msg(msg? msg: "");
+	//printk(KERN_NOTICE "%s: finished...\n", __func__);
+}
+
+/* This function is for setting hardware reset reason*/
+void set_hardware_reason(const char *msg)
+{
+	/* We redirect WatchDog to Ramdump for debug. */
+	if(!strcmp("WatchDog_marked", msg)) {
+		set_restart_reason(RESTART_REASON_HARDWARE);
+	} else if(!strcmp("WatchDog", msg)) {
+		set_restart_reason(RESTART_REASON_RAMDUMP);
+	} else if(!strcmp("offmode", msg)) {
+		set_restart_reason(RESTART_REASON_OFFMODE);
+	}
+	//printk(KERN_NOTICE "%s: finished...\n", __func__);
+}
+
+unsigned get_reboot_battery_level(void)
+{
+	unsigned signature;
+	unsigned level;
+
+	printk(KERN_INFO "[BATT]%s:the reboot_battery_first_level:0x%x\n"
+				, __func__, reboot_battery_first_level);
+	signature = (reboot_battery_first_level >> BATTERY_LEVEL_SIG_SHIFT)
+			& BATTERY_LEVEL_SIG_MASK;
+
+	if (signature != BATTERY_LEVEL_SIG)
+		return BATTERY_LEVEL_NO_VALUE;
+
+	level = reboot_battery_first_level & BATTERY_LEVEL_MASK;
+
+	if (level > 100)
+		return BATTERY_LEVEL_NO_VALUE;
+
+	return level;
+}
+
+void set_reboot_battery_level(unsigned level)
+{
+	if ((level >= 0 && level <= 100) || (level == BATTERY_LEVEL_NO_VALUE)) {
+		level |= BATTERY_LEVEL_SIG << BATTERY_LEVEL_SIG_SHIFT;
+		reboot_params->battery_level = level;
+		printk(KERN_INFO "[BATT]%s:record reboot_battery_first_level :0x%x\n"
+					, __func__, reboot_params->battery_level);
+	}
+}
+
+static void tegra_pm_restart(char mode, const char *cmd)
+{
+	printk("tegra_pm_restart(%c,%s)\n", mode, cmd);
+	/* arch_reset should only enter once*/
+	if(atomic_add_return(1, &restart_counter) != 1)
+		return;
+
+	printk(KERN_NOTICE "%s: Going down for restart now.\n", __func__);
+	printk(KERN_NOTICE "%s: mode %d\n", __func__, mode);
+	if (cmd) {
+		printk(KERN_NOTICE "%s: restart command `%s'.\n", __func__, cmd);
+		/* XXX: modem will set msg itself.
+		   Dying msg should be passed to this function directly. */
+		if (mode != RESTART_MODE_MODEM_CRASH)
+			set_restart_msg(cmd);
+	}
+	else
+		printk(KERN_NOTICE "%s: no command restart.\n", __func__);
+	if (in_panic) {
+		//printk(KERN_NOTICE "%s: in_panic, RESTART_REASON_RAMDUMP\n", __func__);
+		set_restart_reason(RESTART_REASON_RAMDUMP);
+		set_restart_msg("Kernel panic");
+	} else if (!cmd) {
+		//printk(KERN_NOTICE "%s: !cmd, RESTART_REASON_REBOOT\n", __func__);
+		set_restart_reason(RESTART_REASON_REBOOT);
+	} else if (!strcmp(cmd, "bootloader")) {
+		//printk(KERN_NOTICE "%s: bootloader, RESTART_REASON_BOOTLOADER\n", __func__);
+		set_restart_reason(RESTART_REASON_BOOTLOADER);
+	} else if (!strcmp(cmd, "recovery")) {
+		//printk(KERN_NOTICE "%s: recovery, RESTART_REASON_RECOVERY\n", __func__);
+		set_restart_reason(RESTART_REASON_RECOVERY);
+	} else if (!strcmp(cmd, "eraseflash")) {
+		//printk(KERN_NOTICE "%s: eraseflash, RESTART_REASON_ERASE_FLASH\n", __func__);
+		set_restart_reason(RESTART_REASON_ERASE_FLASH);
+	} else if(!strcmp(cmd, "offmode")) {
+		//printk(KERN_NOTICE "%s: offmode, RESTART_REASON_OFFMODE\n", __func__);
+		set_restart_reason(RESTART_REASON_OFFMODE);
+	} else if (!strncmp(cmd, "oem-", 4)) {
+		unsigned long code;
+
+		code = simple_strtoul(cmd + 4, 0, 16) & 0xff;
+
+		//printk(KERN_NOTICE "%s: oem-%u, RESTART_REASON_OEM_BASE\n", __func__, code);
+		/* oem-97, 98, 99 are RIL fatal */
+		if ((code == 0x97) || (code == 0x98))
+			code = 0x99;
+
+		set_restart_reason(RESTART_REASON_OEM_BASE | code);
+		if (!!get_battery_level_cb && (code == 0x11 || code == 0x33 || code == 0x88))
+			set_reboot_battery_level(get_battery_level_cb());
+
+	} else if (!strcmp(cmd, "force-hard") ||
+			(RESTART_MODE_LEGECY < mode && mode < RESTART_MODE_MAX)
+		  ) {
+		/* The only situation modem user triggers reset is NV restore after erasing EFS. */
+		if (mode == RESTART_MODE_MODEM_USER_INVOKED)
+			set_restart_reason(RESTART_REASON_REBOOT);
+		else
+			set_restart_reason(RESTART_REASON_RAMDUMP);
+	} else {
+		/* unknown command */
+		//printk(KERN_NOTICE "%s: unknown cmd, RESTART_REASON_REBOOT\n", __func__);
+		set_restart_reason(RESTART_REASON_REBOOT);
+	}
+
+	printk(KERN_NOTICE "%s: restart reason 0x%X.\n", __func__, get_restart_reason());
+
+	switch (get_restart_reason()) {
+		case RESTART_REASON_RIL_FATAL:
+		case RESTART_REASON_RAMDUMP:
+			if (!in_panic && mode != RESTART_MODE_APP_WATCHDOG_BARK) {
+				/* Suspend wdog until all stacks are printed */
+				//msm_watchdog_suspend();
+				dump_stack();
+				//show_state_filter(TASK_UNINTERRUPTIBLE); // TODO FIXME this maybe old kernel code
+				//print_workqueue();
+				//msm_watchdog_resume();
+			}
+			if (!!get_battery_level_cb)
+				set_reboot_battery_level(get_battery_level_cb());
+			break;
+		case RESTART_REASON_REBOOT:
+		case RESTART_REASON_OFFMODE:
+			if (!!get_battery_level_cb)
+				set_reboot_battery_level(get_battery_level_cb());
+			break;
+	}
+
+	arm_machine_restart(mode, cmd);
+}
+#else
+
 static void tegra_pm_restart(char mode, const char *cmd)
 {
 	tegra_pm_flush_console();
 	arm_machine_restart(mode, cmd);
 }
 
+#endif /* end of CONFIG_RESET_REASON */
+
 void __init tegra_init_early(void)
 {
+#if defined(CONFIG_RESET_REASON)
+/*
+	printk(KERN_NOTICE "tegra_common_init init reboot params start\n");
+
+	reboot_params = reboot_params=(void *)(IO_ADDRESS(nvdumper_reserved - 4096));
+	memset(reboot_params, 0x0, sizeof(struct htc_reboot_params));
+	//set_restart_reason(RESTART_REASON_RAMDUMP);
+	//reboot_params->radio_flag = get_radio_flag();
+
+	printk(KERN_NOTICE "tegra_common_init init reboot params end\n");
+*/
+#endif
+
 	arm_pm_restart = tegra_pm_restart;
 #ifndef CONFIG_SMP
 	/* For SMP system, initializing the reset handler here is too
@@ -433,7 +655,9 @@ void __init tegra_init_early(void)
 	tegra_init_clock();
 	tegra_init_pinmux();
 	tegra_clk_init_from_table(common_clk_init_table);
+	BOOT_DEBUG_LOG_ENTER("<machine>_init_power");
 	tegra_init_power();
+	BOOT_DEBUG_LOG_ENTER("<machine>_init_cache");
 	tegra_init_cache(true);
 	tegra_init_ahb_gizmo_settings();
 }
@@ -453,6 +677,15 @@ static int __init tegra_lp0_vec_arg(char *options)
 	return 0;
 }
 early_param("lp0_vec", tegra_lp0_vec_arg);
+
+static int __init tegra_nvdumper_arg(char *options)
+{
+	char *p = options;
+
+	nvdumper_reserved = memparse(p, &p);
+	return 0;
+}
+early_param("nvdumper_reserved", tegra_nvdumper_arg);
 
 static int __init tegra_bootloader_fb_arg(char *options)
 {
@@ -502,6 +735,17 @@ enum power_supply_type get_power_supply_type(void)
 {
 	return pow_supply_type;
 }
+
+static int __init tegra_bootloader_panel_arg(char *options)
+{
+	char *p = options;
+	g_panel_id = memparse(p, &p);
+
+	pr_info("Found panel_vendor: %0lx\n", g_panel_id);
+	return 1;
+}
+__setup("panel_id=", tegra_bootloader_panel_arg);
+
 static int __init tegra_board_power_supply_type(char *options)
 {
 	if (!strcmp(options, "Adapter"))
@@ -596,7 +840,11 @@ __setup("audio_codec=", tegra_audio_codec_type);
 
 void tegra_get_board_info(struct board_info *bi)
 {
+#if 0
 	bi->board_id = (system_serial_high >> 16) & 0xFFFF;
+#else
+	bi->board_id = 0x0C5B;
+#endif
 	bi->sku = (system_serial_high) & 0xFFFF;
 	bi->fab = (system_serial_low >> 24) & 0xFF;
 	bi->major_revision = (system_serial_low >> 16) & 0xFF;
@@ -847,6 +1095,14 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 	} else
 		tegra_lp0_vec_relocate = true;
 
+	if (nvdumper_reserved) {
+		if (memblock_reserve(nvdumper_reserved, NVDUMPER_RESERVED_LEN)) {
+			pr_err("Failed to reserve nvdumper page %08lx@%08lx\n",
+			       nvdumper_reserved, NVDUMPER_RESERVED_LEN);
+			nvdumper_reserved = 0;
+		}
+	}
+
 	/*
 	 * We copy the bootloader's framebuffer to the framebuffer allocated
 	 * above, and then free this one.
@@ -889,6 +1145,12 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 		tegra_vpr_size ?
 			tegra_vpr_start + tegra_vpr_size - 1 : 0);
 
+	if (nvdumper_reserved) {
+		pr_info("Nvdumper:               %08lx - %08lx\n",
+			nvdumper_reserved,
+			nvdumper_reserved + NVDUMPER_RESERVED_LEN);
+	}
+
 #ifdef SUPPORT_SMMU_BASE_FOR_TEGRA3_A01
 	if (smmu_reserved)
 		pr_info("SMMU:                   %08lx - %08lx\n",
@@ -904,14 +1166,20 @@ void __init tegra_release_bootloader_fb(void)
 						tegra_bootloader_fb_size))
 			pr_err("Failed to free bootloader fb.\n");
 }
-
-#ifdef CONFIG_TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
+#if defined CONFIG_TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND \
+	|| defined CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
 static char cpufreq_gov_default[32];
-static char *cpufreq_gov_conservative = "conservative";
-static char *cpufreq_sysfs_place_holder="/sys/devices/system/cpu/cpu%i/cpufreq/scaling_governor";
-static char *cpufreq_gov_conservative_param="/sys/devices/system/cpu/cpufreq/conservative/%s";
+static char saved_boost_factor[32];
+static char saved_go_maxspeed_load[32];
+static char saved_max_boost[32];
+static char saved_sustain_load[32];
 
-static void cpufreq_set_governor(char *governor)
+static char saved_up_threshold[32];
+static char saved_down_threshold[32];
+static char saved_freq_step[32];
+
+
+void cpufreq_set_governor(char *governor)
 {
 	struct file *scaling_gov = NULL;
 	mm_segment_t old_fs;
@@ -926,10 +1194,10 @@ static void cpufreq_set_governor(char *governor)
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 #ifndef CONFIG_TEGRA_AUTO_HOTPLUG
-	for_each_online_cpu(i)
+//	for_each_online_cpu(i)
 #endif
 	{
-		sprintf(buf, cpufreq_sysfs_place_holder, i);
+		sprintf(buf, CPUFREQ_SYSFS_PLACE_HOLDER, i);
 		scaling_gov = filp_open(buf, O_RDWR, 0);
 		if (IS_ERR_OR_NULL(scaling_gov)) {
 			pr_err("%s. Can't open %s\n", __func__, buf);
@@ -949,7 +1217,104 @@ static void cpufreq_set_governor(char *governor)
 	set_fs(old_fs);
 }
 
-void cpufreq_save_default_governor(void)
+static void cpufreq_read_governor_param(char *param_path, char *name, char *value)
+{
+	struct file *gov_param = NULL;
+	mm_segment_t old_fs;
+	static char buf[128];
+	loff_t offset = 0;
+
+	if (!value || !param_path || !name)
+		return;
+
+	/* change to KERNEL_DS address limit */
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	sprintf(buf, CPUFREQ_GOV_PARAM, param_path, name);
+	gov_param = filp_open(buf, O_RDONLY, 0);
+	if (gov_param != NULL) {
+		if (gov_param->f_op != NULL &&
+			gov_param->f_op->read != NULL)
+			gov_param->f_op->read(gov_param,
+					value,
+					32,
+					&offset);
+		else
+			pr_err("f_op might be null\n");
+
+		filp_close(gov_param, NULL);
+	} else {
+		pr_err("%s. Can't open %s\n", __func__, buf);
+	}
+	set_fs(old_fs);
+}
+
+static void set_governor_param(char *param_path, char *name, char *value)
+{
+	struct file *gov_param = NULL;
+	mm_segment_t old_fs;
+	static char buf[128];
+	loff_t offset = 0;
+
+	/* change to KERNEL_DS address limit */
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	sprintf(buf, CPUFREQ_GOV_PARAM, param_path, name);
+	gov_param = filp_open(buf, O_RDWR, 0);
+	if (gov_param != NULL) {
+		if (gov_param->f_op != NULL &&
+			gov_param->f_op->write != NULL)
+			gov_param->f_op->write(gov_param,
+					value,
+					strlen(value),
+					&offset);
+		else
+			pr_err("f_op might be null\n");
+		
+		filp_close(gov_param, NULL);
+	}
+	set_fs(old_fs);
+}
+
+static void set_sysfs_param(char *param_path, char *name, char *value)
+{
+	struct file *gov_param = NULL;
+	mm_segment_t old_fs;
+	static char buf[128];
+	loff_t offset = 0;
+
+	/* change to KERNEL_DS address limit */
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	sprintf(buf, "%s%s", param_path, name);
+	gov_param = filp_open(buf, O_RDWR, 0);
+	if (gov_param != NULL) {
+		if (gov_param->f_op != NULL &&
+			gov_param->f_op->write != NULL)
+			gov_param->f_op->write(gov_param,
+					value,
+					strlen(value),
+					&offset);
+		else
+			pr_err("f_op might be null\n");
+
+		filp_close(gov_param, NULL);
+	}
+	set_fs(old_fs);
+}
+
+void cpufreq_set_governor_param(char *param_path, char *name, int value)
+{
+	char buf[32];
+	sprintf(buf, "%d", value);
+	set_governor_param(param_path, name, buf);
+}
+
+
+void cpufreq_save_governor(void)
 {
 	struct file *scaling_gov = NULL;
 	mm_segment_t old_fs;
@@ -961,11 +1326,9 @@ void cpufreq_save_default_governor(void)
 	set_fs(KERNEL_DS);
 
 	buf[127] = 0;
-	sprintf(buf, cpufreq_sysfs_place_holder,0);
+	sprintf(buf, CPUFREQ_SYSFS_PLACE_HOLDER,0);
 	scaling_gov = filp_open(buf, O_RDONLY, 0);
-	if (IS_ERR_OR_NULL(scaling_gov)) {
-		pr_err("%s. Can't open %s\n", __func__, buf);
-	} else {
+	if (scaling_gov != NULL) {
 		if (scaling_gov->f_op != NULL &&
 			scaling_gov->f_op->read != NULL)
 			scaling_gov->f_op->read(scaling_gov,
@@ -976,72 +1339,62 @@ void cpufreq_save_default_governor(void)
 			pr_err("f_op might be null\n");
 
 		filp_close(scaling_gov, NULL);
+	} else {
+		pr_err("%s. Can't open %s\n", __func__, buf);
+	}
+	if (strncmp(cpufreq_gov_default,INTERACTIVE_GOVERNOR,
+				strlen(INTERACTIVE_GOVERNOR)) == 0) {
+		cpufreq_read_governor_param(INTERACTIVE_GOVERNOR, BOOST_FACTOR,
+					saved_boost_factor);
+		cpufreq_read_governor_param(INTERACTIVE_GOVERNOR, GO_MAXSPEED_LOAD,
+					saved_go_maxspeed_load);
+		cpufreq_read_governor_param(INTERACTIVE_GOVERNOR, MAX_BOOST,
+					saved_max_boost);	
+		cpufreq_read_governor_param(INTERACTIVE_GOVERNOR, SUSTAIN_LOAD,
+					saved_sustain_load);
+	} else if (strncmp(cpufreq_gov_default, CONSERVATIVE_GOVERNOR,
+				strlen(CONSERVATIVE_GOVERNOR)) == 0) {
+		cpufreq_read_governor_param(CONSERVATIVE_GOVERNOR, UP_THRESHOLD,
+					saved_up_threshold);
+		cpufreq_read_governor_param(CONSERVATIVE_GOVERNOR, DOWN_THRESHOLD,
+					saved_down_threshold);
+		cpufreq_read_governor_param(CONSERVATIVE_GOVERNOR, FREQ_STEP,
+					saved_freq_step);	
+	} else {
 	}
 	set_fs(old_fs);
 }
 
-void cpufreq_restore_default_governor(void)
+void cpufreq_restore_governor(void)
 {
 	cpufreq_set_governor(cpufreq_gov_default);
-}
 
-void cpufreq_set_conservative_governor_param(int up_th, int down_th)
-{
-	struct file *gov_param = NULL;
-	static char buf[128],parm[8];
-	loff_t offset = 0;
-	mm_segment_t old_fs;
 
-	if (up_th <= down_th) {
-		printk(KERN_ERR "%s: up_th(%d) is lesser than down_th(%d)\n",
-			__func__, up_th, down_th);
-		return;
+	if (strncmp(cpufreq_gov_default, "ondemand",
+				strlen("ondemand")) == 0) {
+
+		set_sysfs_param("/sys/devices/system/cpu/cpu0/cpufreq/",
+				"scaling_max_freq", "1500000");
+
+	} else if (strncmp(cpufreq_gov_default,INTERACTIVE_GOVERNOR,
+				strlen(INTERACTIVE_GOVERNOR)) == 0) {
+		set_governor_param(INTERACTIVE_GOVERNOR, BOOST_FACTOR,
+					saved_boost_factor);
+		set_governor_param(INTERACTIVE_GOVERNOR, GO_MAXSPEED_LOAD,
+					saved_go_maxspeed_load);
+		set_governor_param(INTERACTIVE_GOVERNOR, MAX_BOOST,
+					saved_max_boost);	
+		set_governor_param(INTERACTIVE_GOVERNOR, SUSTAIN_LOAD,
+					saved_sustain_load);
+	} else if (strncmp(cpufreq_gov_default, CONSERVATIVE_GOVERNOR,
+				strlen(CONSERVATIVE_GOVERNOR)) == 0) {
+		set_governor_param(CONSERVATIVE_GOVERNOR, UP_THRESHOLD,
+					saved_up_threshold);
+		set_governor_param(CONSERVATIVE_GOVERNOR, DOWN_THRESHOLD,
+					saved_down_threshold);
+		set_governor_param(CONSERVATIVE_GOVERNOR, FREQ_STEP,
+					saved_freq_step);	
 	}
-
-	/* change to KERNEL_DS address limit */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	sprintf(parm, "%d", up_th);
-	sprintf(buf, cpufreq_gov_conservative_param ,"up_threshold");
-	gov_param = filp_open(buf, O_RDONLY, 0);
-	if (IS_ERR_OR_NULL(gov_param)) {
-		pr_err("%s. Can't open %s\n", __func__, buf);
-	} else {
-		if (gov_param->f_op != NULL &&
-			gov_param->f_op->write != NULL)
-			gov_param->f_op->write(gov_param,
-					parm,
-					strlen(parm),
-					&offset);
-		else
-			pr_err("f_op might be null\n");
-
-		filp_close(gov_param, NULL);
-	}
-
-	sprintf(parm, "%d", down_th);
-	sprintf(buf, cpufreq_gov_conservative_param ,"down_threshold");
-	gov_param = filp_open(buf, O_RDONLY, 0);
-	if (IS_ERR_OR_NULL(gov_param)) {
-		pr_err("%s. Can't open %s\n", __func__, buf);
-	} else {
-		if (gov_param->f_op != NULL &&
-			gov_param->f_op->write != NULL)
-			gov_param->f_op->write(gov_param,
-					parm,
-					strlen(parm),
-					&offset);
-		else
-			pr_err("f_op might be null\n");
-
-		filp_close(gov_param, NULL);
-	}
-	set_fs(old_fs);
 }
-
-void cpufreq_set_conservative_governor(void)
-{
-	cpufreq_set_governor(cpufreq_gov_conservative);
-}
-#endif /* CONFIG_TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND */
+#endif /* TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND ||
+		TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND*/

@@ -22,6 +22,10 @@
 #include <linux/io.h>
 #include <linux/err.h>
 #include <mach/iomap.h>
+#if (defined(CONFIG_MACH_ENDEAVORU) | defined(CONFIG_MACH_ENDEAVORTD))
+#include <linux/init.h>
+#include <mach/board_htc.h>
+#endif
 
 #include "fuse.h"
 
@@ -149,6 +153,13 @@ static void rev_sku_to_speedo_ids(int rev, int sku)
 				cpu_speedo_id = 4;
 				soc_speedo_id = 1;
 				threshold_index = 7;
+#if (defined(CONFIG_MACH_ENDEAVORU) | defined(CONFIG_MACH_ENDEAVORTD))
+				if (htc_get_pcbid_info() <= PROJECT_PHASE_XC) {
+					cpu_speedo_id = 1;
+					soc_speedo_id = 1;
+					threshold_index = 1;
+				}
+#endif
 				break;
 			default:
 				pr_err("Tegra3 Rev-A02: Reserved pkg: %d\n",

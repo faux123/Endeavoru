@@ -11,6 +11,15 @@ config TEGRA_CAMERA
 
           If unsure, say Y
 
+config TEGRA_DTV
+        bool "Enable support for tegra dtv interface"
+        depends on ARCH_TEGRA
+        default y
+        help
+          Enables support for the Tegra dtv interface
+
+          If unsure, say Y
+
 config VIDEO_OV5650
         tristate "OV5650 camera sensor support"
         depends on I2C && ARCH_TEGRA
@@ -39,6 +48,62 @@ config VIDEO_OV2710
         ---help---
           This is a driver for the Omnivision OV2710 camera sensor
           for use with the tegra isp.
+
+config VIDEO_S5K4E5YX
+        tristate "Samsung S5K4E5YX camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the Samsung S5K4E5YX 5MP camera sensor
+          for use with the tegra isp.
+
+config VIDEO_S5K6A1G
+        tristate "Samsung S5K6A1GXA3 camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the Samsung S5K6A1GXA3 1.3MP camera sensor
+          for use with the tegra isp.
+
+config VIDEO_S5K6A1GX03
+        tristate "Samsung S5K6A1GX03 camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the Samsung S5K6A1GX03 1.3MP camera sensor
+          for use with the tegra isp.
+
+config VIDEO_S5K6AAFX
+        tristate "Samsung S5K6AAFX camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the Samsung S5K6AAFX 1.3MP camera sensor
+          for use with the tegra isp.
+
+config VIDEO_S5K5B3G
+        tristate "Samsung S5K5B3G camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the Samsung S5K5B3G 2MP camera sensor
+          for use with the tegra isp.
+
+config VIDEO_S5K4E1GA
+        tristate "Samsung S5K4E1GA camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the Samsung S5K4E1GA 5MP camera sensor
+          for use with the tegra isp.
+
+config VIDEO_S5K3H2Y
+        tristate "Samsung S5K3H2YX camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the Samsung S5K4E5YX 8MP camera sensor
+          for use with the tegra isp.
+
+config VIDEO_RAWCHIP
+        tristate "YUSHAN rawchip support"
+        depends on SPI && ARCH_TEGRA
+        ---help---
+          This is a driver for the YUSHAN rawchip
+          for use with camera.
 
 config VIDEO_AR0832
         tristate "AR0832 camera sensor support"
@@ -78,4 +143,11 @@ config VIDEO_AD5820
         depends on I2C && ARCH_TEGRA
         ---help---
           This is a driver for the AD5820 focuser
+          for use with the tegra isp.
+
+config VIDEO_AD5823
+        tristate "AD5823 focuser support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the AD5823 focuser
           for use with the tegra isp.

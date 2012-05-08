@@ -39,6 +39,7 @@
 #include <mach/fb.h>
 #include <linux/nvhost.h>
 #include <mach/hdmi-audio.h>
+#include <linux/disp_debug.h>
 
 #include <video/tegrafb.h>
 
@@ -48,6 +49,7 @@
 #include "hdmi.h"
 #include "edid.h"
 #include "nvhdcp.h"
+#include "external_common.h"
 
 /* datasheet claims this will always be 216MHz */
 #define HDMI_AUDIOCLK_FREQ		216000000
@@ -208,6 +210,8 @@ const struct fb_videomode tegra_dc_hdmi_supported_modes[] = {
 		.sync = FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	},
 	/* 1920x1080p 59.94/60hz EIA/CEA-861-B Format 16 */
+#ifndef CONFIG_TEGRA_HDMI_MHL
+	/* TODO: to check if MHL spec support 1080p 60Hz, currently default 720p */
 	{
 		.xres =		1920,
 		.yres =		1080,
@@ -221,6 +225,7 @@ const struct fb_videomode tegra_dc_hdmi_supported_modes[] = {
 		.vmode =	FB_VMODE_NONINTERLACED,
 		.sync = FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
 	},
+#endif
 };
 
 /* table of electrical settings, must be in acending order. */
@@ -427,7 +432,6 @@ static const struct tegra_hdmi_audio_config
 
 	return NULL;
 }
-
 
 unsigned long tegra_hdmi_readl(struct tegra_dc_hdmi_data *hdmi,
 					     unsigned long reg)
@@ -762,7 +766,17 @@ void tegra_dc_hdmi_detect_config(struct tegra_dc *dc,
 	tegra_fb_update_monspecs(dc->fb, specs, tegra_dc_hdmi_mode_filter);
 #ifdef CONFIG_SWITCH
 	hdmi->hpd_switch.state = 0;
+#ifdef CONFIG_TEGRA_HDMI_MHL_SUPERDEMO
+	if (g_bDemoTvFound) {
+		DISP_INFO_LN("This is a DEMO_TV\n");
+		switch_set_state(&hdmi->hpd_switch, 2);
+	} else {
+		DISP_INFO_LN("This is NOT a DEMO_TV\n");
+		switch_set_state(&hdmi->hpd_switch, 1);
+	}
+#else
 	switch_set_state(&hdmi->hpd_switch, 1);
+#endif
 #endif
 	dev_info(&dc->ndev->dev, "display detected\n");
 
@@ -777,7 +791,12 @@ bool tegra_dc_hdmi_detect_test(struct tegra_dc *dc, unsigned char *edid_ptr)
 	struct fb_monspecs specs;
 	struct tegra_dc_hdmi_data *hdmi = tegra_dc_get_outdata(dc);
 
-	if (!dc || !hdmi || !edid_ptr) {
+	if (!dc)
+		return false;
+	//Fix Klocwork issue
+	//if (!dc || !hdmi) {
+	//if (!dc || !hdmi || !edid_ptr) {
+	if (!hdmi || !edid_ptr) {
 		dev_err(&dc->ndev->dev, "HDMI test failed to get arguments.\n");
 		return false;
 	}

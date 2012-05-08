@@ -49,6 +49,24 @@ __vet_atags:
 	cmp	r5, r6
 	bne	1f
 
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_VERTEXF)
+#define ATAGS_BLOCK_DISPLACE
+#endif
+
+#if defined(ATAGS_BLOCK_DISPLACE)
+#define ATAGS_START 0x80000100
+# clone 8K from r2 to 0x100
+	mov r6, #0
+	ldr r5, =ATAGS_START
+cp1:
+	ldr r7, [r2, r6]
+	str r7, [r5, r6]
+	add r6, r6, #4
+	cmp r6, #0x2100
+	bne cp1
+	ldr r2, =ATAGS_START
+#endif // ATAGS_BLOCK_DISPLACE
+
 	mov	pc, lr				@ atag pointer is ok
 
 1:	mov	r2, #0

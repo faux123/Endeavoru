@@ -41,6 +41,7 @@
 #include <linux/scatterlist.h>
 #include <linux/mm.h>
 #include <linux/dma-mapping.h>
+#include <linux/wakelock.h>
 
 #include "usb.h"
 
@@ -48,6 +49,8 @@
 const char *usbcore_name = "usbcore";
 
 static int nousb;	/* Disable USB when built into kernel image */
+/* Prevent autosuspend in Linux suspend path */
+struct wake_lock usbd_suspend_wl;
 
 #ifdef	CONFIG_USB_SUSPEND
 static int usb_autosuspend_delay = 2;		/* Default delay value,
@@ -1014,6 +1017,7 @@ static int __init usb_init(void)
 	retval = usb_debugfs_init();
 	if (retval)
 		goto out;
+	wake_lock_init(&usbd_suspend_wl, WAKE_LOCK_SUSPEND, "usbd_suspend");
 
 	retval = bus_register(&usb_bus_type);
 	if (retval)
@@ -1055,6 +1059,7 @@ bus_notifier_failed:
 	bus_unregister(&usb_bus_type);
 bus_register_failed:
 	usb_debugfs_cleanup();
+	wake_lock_destroy(&usbd_suspend_wl);
 out:
 	return retval;
 }

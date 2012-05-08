@@ -28,5 +28,11 @@ struct tegra_fb_modedb {
 };
 
 #define FBIO_TEGRA_GET_MODEDB	_IOWR('F', 0x42, struct tegra_fb_modedb)
+#define FBIO_TEGRA_GET_USB_PROJECTOR_INFO _IOR('F', 301, struct tegra_usb_projector_info)
+#define FBIO_TEGRA_SET_USB_PROJECTOR_INFO _IOW('F', 302, struct tegra_usb_projector_info)
+struct  tegra_usb_projector_info {
+       int usb_offset;
+       int latest_offset;
+};
 
 #endif

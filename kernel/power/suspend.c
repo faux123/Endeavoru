@@ -24,8 +24,11 @@
 #include <linux/suspend.h>
 #include <linux/syscore_ops.h>
 #include <trace/events/power.h>
+#include <htc/log.h>
 
 #include "power.h"
+
+extern int resume_from_deep_suspend;
 
 const char *const pm_states[PM_SUSPEND_MAX] = {
 #ifdef CONFIG_EARLYSUSPEND
@@ -167,15 +170,19 @@ static int suspend_enter(suspend_state_t state)
 	BUG_ON(!irqs_disabled());
 
 	error = sysdev_suspend(PMSG_SUSPEND);
+	suspend_console();
 	if (!error) {
 		error = syscore_suspend();
 		if (error)
 			sysdev_resume();
 	}
+
 	if (!error) {
 		if (!(suspend_test(TEST_CORE) || pm_wakeup_pending())) {
+//			pr_info("[R] suspend going to end");
 			error = suspend_ops->enter(state);
 			events_check_enabled = false;
+//			pr_info("[R] resume start\n");
 		}
 		syscore_resume();
 		sysdev_resume();
@@ -184,15 +191,28 @@ static int suspend_enter(suspend_state_t state)
 	arch_suspend_enable_irqs();
 	BUG_ON(irqs_disabled());
 
- Enable_cpus:
-	enable_nonboot_cpus();
+#ifdef CONFIG_POWER_KEY_WAKEUP_FAILED_PATCH
 
- Platform_wake:
+Platform_wake:
 	if (suspend_ops->wake)
 		suspend_ops->wake();
 
 	dpm_resume_noirq(PMSG_RESUME);
 
+Enable_cpus:
+	   enable_nonboot_cpus();
+#else
+	printk("POWER_KEY_WAKEUP_FAILED_PATCH  is not defined \n");
+
+Enable_cpus:
+	   enable_nonboot_cpus();
+
+Platform_wake:
+	if (suspend_ops->wake)
+		suspend_ops->wake();
+
+	dpm_resume_noirq(PMSG_RESUME);
+#endif
  Platform_finish:
 	if (suspend_ops->finish)
 		suspend_ops->finish();
@@ -218,7 +238,6 @@ int suspend_devices_and_enter(suspend_state_t state)
 		if (error)
 			goto Close;
 	}
-	suspend_console();
 	suspend_test_start();
 	error = dpm_suspend_start(PMSG_SUSPEND);
 	if (error) {
@@ -282,6 +301,7 @@ int enter_state(suspend_state_t state)
 	if (!mutex_trylock(&pm_mutex))
 		return -EBUSY;
 
+	resume_from_deep_suspend = 0;
 	printk(KERN_INFO "PM: Syncing filesystems ... ");
 	sys_sync();
 	printk("done.\n");

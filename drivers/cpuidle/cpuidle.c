@@ -25,6 +25,12 @@ DEFINE_PER_CPU(struct cpuidle_device *, cpuidle_devices);
 
 DEFINE_MUTEX(cpuidle_lock);
 LIST_HEAD(cpuidle_detected_devices);
+
+#ifdef PWR_DEVICE_TAG
+#undef PWR_DEVICE_TAG
+#endif
+#define PWR_DEVICE_TAG "CPUIDLE"
+
 static void (*pm_idle_old)(void);
 
 static int enabled_devices;
@@ -41,6 +47,22 @@ static void cpuidle_kick_cpus(void) {}
 #endif
 
 static int __cpuidle_register_device(struct cpuidle_device *dev);
+/*for CPUidle Profile*/
+void cpu_idle_debug_show(void)
+{
+	struct cpuidle_device *dev;
+	unsigned long long lp2_cpu[4], lp3_cpu[4];
+	int i = 0;
+
+	for(i = 0; i < 4 ; i++)
+	{
+		dev = per_cpu(cpuidle_devices, i);
+		lp2_cpu[i] = dev->states[1].time;
+		lp3_cpu[i] = dev->states[0].time;
+
+	}
+	pr_pwr_story("%llu us, %llu us, %llu us, %llu us, %llu us, %llu us, %llu us, %llu us", lp2_cpu[0], lp3_cpu[0], lp2_cpu[1], lp3_cpu[1], lp2_cpu[2], lp3_cpu[2], lp2_cpu[3], lp3_cpu[3]);
+}
 
 /**
  * cpuidle_idle_call - the main idle loop
@@ -108,8 +130,10 @@ static void cpuidle_idle_call(void)
 	if (dev->last_state)
 		target_state = dev->last_state;
 
-	target_state->time += (unsigned long long)dev->last_residency;
-	target_state->usage++;
+/*it might be redirect from LP2 to LP3
+* move these to mach-tegra/cpuidle.c */
+//	target_state->time += (unsigned long long)dev->last_residency;
+//	target_state->usage++;
 
 	/* give the governor an opportunity to reflect on the outcome */
 	if (cpuidle_curr_governor->reflect)
@@ -125,6 +149,8 @@ void cpuidle_install_idle_handler(void)
 		/* Make sure all changes finished before we switch to new idle */
 		smp_wmb();
 		pm_idle = cpuidle_idle_call;
+		/* for CPUidle profile*/
+		pm_debug_idle = cpu_idle_debug_show;
 	}
 }
 

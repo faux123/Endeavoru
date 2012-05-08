@@ -28,7 +28,7 @@
 #include <linux/async.h>
 #include <linux/suspend.h>
 #include <linux/timer.h>
-
+#include <htc/log.h>
 #include "../base.h"
 #include "power.h"
 
@@ -230,14 +230,28 @@ static int pm_op(struct device *dev,
 	switch (state.event) {
 #ifdef CONFIG_SUSPEND
 	case PM_EVENT_SUSPEND:
+		/*htc*/
+                if(!strcmp(kobject_name(&dev->kobj), "usb1") || !strcmp(kobject_name(&dev->kobj), "1-1") )
+                	printk("PM: Suspended Driver: %s\n", kobject_name(&dev->kobj));
+
+
 		if (ops->suspend) {
+			pmr_pr_info("[R]+%s\n", kobject_name(&dev->kobj));
 			error = ops->suspend(dev);
+			pmr_pr_info("[R]-\n");
 			suspend_report_result(ops->suspend, error);
 		}
 		break;
 	case PM_EVENT_RESUME:
+		/*htc*/
+            	if(!strcmp(kobject_name(&dev->kobj), "usb1") || !strcmp(kobject_name(&dev->kobj), "1-1"))
+			printk("PM: Resumed Driver: %s\n", kobject_name(&dev->kobj));	
+
+
 		if (ops->resume) {
+			pmr_pr_info("[R]+%s\n", kobject_name(&dev->kobj));
 			error = ops->resume(dev);
+			pmr_pr_info("[R]-\n");
 			suspend_report_result(ops->resume, error);
 		}
 		break;
@@ -306,13 +320,17 @@ static int pm_noirq_op(struct device *dev,
 #ifdef CONFIG_SUSPEND
 	case PM_EVENT_SUSPEND:
 		if (ops->suspend_noirq) {
+			pmr_pr_info("[R]+%s\n", kobject_name(&dev->kobj));
 			error = ops->suspend_noirq(dev);
+			pmr_pr_info("[R]-\n");
 			suspend_report_result(ops->suspend_noirq, error);
 		}
 		break;
 	case PM_EVENT_RESUME:
 		if (ops->resume_noirq) {
+			pmr_pr_info("[R]+%s\n", kobject_name(&dev->kobj));
 			error = ops->resume_noirq(dev);
+			pmr_pr_info("[R]-\n");
 			suspend_report_result(ops->resume_noirq, error);
 		}
 		break;
@@ -463,6 +481,8 @@ void dpm_resume_noirq(pm_message_t state)
 {
 	ktime_t starttime = ktime_get();
 
+	pmr_pr_info("[R]+dpm_resume_noirq:\n");
+
 	mutex_lock(&dpm_list_mtx);
 	while (!list_empty(&dpm_noirq_list)) {
 		struct device *dev = to_device(dpm_noirq_list.next);
@@ -482,6 +502,8 @@ void dpm_resume_noirq(pm_message_t state)
 	mutex_unlock(&dpm_list_mtx);
 	dpm_show_time(starttime, state, "early");
 	resume_device_irqs();
+
+	pmr_pr_info("[R]-dpm_resume_noirq:\n");
 }
 EXPORT_SYMBOL_GPL(dpm_resume_noirq);
 
@@ -631,6 +653,8 @@ static void dpm_resume(pm_message_t state)
 	pm_transition = state;
 	async_error = 0;
 
+	pmr_pr_info("[R]+dpm_resume:\n");
+
 	list_for_each_entry(dev, &dpm_suspended_list, power.entry) {
 		INIT_COMPLETION(dev->power.completion);
 		if (is_async(dev)) {
@@ -660,6 +684,8 @@ static void dpm_resume(pm_message_t state)
 	mutex_unlock(&dpm_list_mtx);
 	async_synchronize_full();
 	dpm_show_time(starttime, state, NULL);
+
+	pmr_pr_info("[R]-dpm_resume:\n");
 }
 
 /**
@@ -811,6 +837,8 @@ int dpm_suspend_noirq(pm_message_t state)
 	ktime_t starttime = ktime_get();
 	int error = 0;
 
+	pmr_pr_info("[R]+dpm_suspend_noirq:\n");
+
 	suspend_device_irqs();
 	mutex_lock(&dpm_list_mtx);
 	while (!list_empty(&dpm_suspended_list)) {
@@ -836,6 +864,7 @@ int dpm_suspend_noirq(pm_message_t state)
 		dpm_resume_noirq(resume_event(state));
 	else
 		dpm_show_time(starttime, state, "late");
+	pmr_pr_info("[R]-dpm_suspend_noirq:\n");
 	return error;
 }
 EXPORT_SYMBOL_GPL(dpm_suspend_noirq);
@@ -978,6 +1007,7 @@ static int dpm_suspend(pm_message_t state)
 	ktime_t starttime = ktime_get();
 	int error = 0;
 
+	pmr_pr_info("[R]+dpm_suspend:\n");
 	mutex_lock(&dpm_list_mtx);
 	pm_transition = state;
 	async_error = 0;
@@ -1007,6 +1037,7 @@ static int dpm_suspend(pm_message_t state)
 		error = async_error;
 	if (!error)
 		dpm_show_time(starttime, state, NULL);
+	pmr_pr_info("[R]-dpm_suspend:\n");
 	return error;
 }
 

@@ -349,12 +349,18 @@ extern const struct tegra_drive_pingroup_desc tegra_soc_drive_pingroups[];
 extern const int gpio_to_pingroup[];
 
 int tegra_pinmux_get_func(enum tegra_pingroup pg);
+int tegra_pinmux_get_tristate(enum tegra_pingroup pg);
 int tegra_pinmux_set_tristate(enum tegra_pingroup pg,
 	enum tegra_tristate tristate);
+int tegra_pinmux_get_pullupdown(enum tegra_pingroup pg);
+int tegra_pinmux_set_io(enum tegra_pingroup pg,
+	enum tegra_pin_io input);
 int tegra_pinmux_get_pingroup(int gpio_nr);
 int tegra_pinmux_set_pullupdown(enum tegra_pingroup pg,
 	enum tegra_pullupdown pupd);
-
+int tegra_pinmux_set_io(enum tegra_pingroup pg,
+	enum tegra_pin_io io);
+int tegra_pinmux_get_io(enum tegra_pingroup pg);
 void tegra_pinmux_config_table(const struct tegra_pingroup_config *config,
 	int len);
 

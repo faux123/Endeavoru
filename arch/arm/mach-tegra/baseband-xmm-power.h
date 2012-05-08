@@ -22,6 +22,24 @@
 
 #define VENDOR_ID         0x1519
 #define PRODUCT_ID        0x0020
+
+#if defined(CONFIG_MACH_EDGE)\
+	|| defined(CONFIG_MACH_EDGE_TD)\
+	|| defined(CONFIG_MACH_BLUE)\
+	|| defined(CONFIG_MACH_QUATTRO_U)\
+	|| defined(CONFIG_MACH_ENDEAVORU)
+
+#include <linux/completion.h>
+#include "gpio-names.h"
+
+#define BB_XMM_OEM1
+
+#define pr_debug pr_info
+
+#endif
+
+#define VENDOR_ID         0x1519
+#define PRODUCT_ID        0x0020
 #define TEGRA_EHCI_DEVICE "/sys/devices/platform/tegra-ehci.1/ehci_power"
 
 #define XMM_MODEM_VER_1121	0x1121

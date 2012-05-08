@@ -2464,6 +2464,19 @@ bool flush_work(struct work_struct *work)
 }
 EXPORT_SYMBOL_GPL(flush_work);
 
+bool flush_work_timeout(struct work_struct *work, unsigned long timeout)
+{
+        struct wq_barrier barr;
+
+        if (start_flush_work(work, &barr, true)) {
+                wait_for_completion_timeout(&barr.done, timeout);
+                destroy_work_on_stack(&barr.work);
+                return true;
+        } else
+                return false;
+}
+EXPORT_SYMBOL_GPL(flush_work_timeout);
+
 static bool wait_on_cpu_work(struct global_cwq *gcwq, struct work_struct *work)
 {
 	struct wq_barrier barr;

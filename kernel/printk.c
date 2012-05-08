@@ -55,6 +55,9 @@ void asmlinkage __attribute__((weak)) early_printk(const char *fmt, ...)
 #ifdef        CONFIG_DEBUG_LL
 extern void printascii(char *);
 #endif
+#ifdef CONFIG_DEBUG_LL_DYNAMIC
+extern bool enable_debug_ll;
+#endif
 
 /* printk's without a loglevel use this.. */
 #define DEFAULT_MESSAGE_LOGLEVEL CONFIG_DEFAULT_MESSAGE_LOGLEVEL
@@ -895,7 +898,11 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 				  sizeof(printk_buf) - printed_len, fmt, args);
 
 #ifdef	CONFIG_DEBUG_LL
+#ifdef CONFIG_DEBUG_LL_DYNAMIC
+	if (unlikely(enable_debug_ll)) printascii(printk_buf);
+#else
 	printascii(printk_buf);
+#endif
 #endif
 
 	p = printk_buf;
@@ -1121,7 +1128,7 @@ int update_console_cmdline(char *name, int idx, char *name_new, int idx_new, cha
 	return -1;
 }
 
-int console_suspend_enabled = 1;
+int console_suspend_enabled = 0;
 EXPORT_SYMBOL(console_suspend_enabled);
 
 static int __init console_suspend_disable(char *str)

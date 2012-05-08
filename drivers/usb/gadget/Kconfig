@@ -260,6 +260,24 @@ config USB_R8A66597
 	default USB_GADGET
 	select USB_GADGET_SELECTED
 
+config USB_GADGET_RENESAS_USBHS
+	boolean "Renesas USBHS"
+	depends on USB_RENESAS_USBHS
+	select USB_GADGET_DUALSPEED
+	help
+	   Renesas USBHS is a discrete USB host and peripheral controller
+	   chip that supports both full and high speed USB 2.0 data transfers.
+	   platform is able to configure endpoint (pipe) style
+
+	   Say "y" to enable the gadget specific portion of the USBHS driver.
+
+
+config USB_RENESAS_USBHS_UDC
+	tristate
+	depends on USB_GADGET_RENESAS_USBHS
+	default USB_GADGET
+	select USB_GADGET_SELECTED
+
 config USB_GADGET_PXA27X
 	boolean "PXA 27x"
 	depends on ARCH_PXA && (PXA27x || PXA3xx)
@@ -337,6 +355,23 @@ config USB_S3C2410
 config USB_S3C2410_DEBUG
 	boolean "S3C2410 udc debug messages"
 	depends on USB_GADGET_S3C2410
+
+config USB_GADGET_S3C_HSUDC
+	boolean "S3C2416, S3C2443 and S3C2450 USB Device Controller"
+	depends on ARCH_S3C2410
+	select USB_GADGET_DUALSPEED
+	help
+	  Samsung's S3C2416, S3C2443 and S3C2450 is an ARM9 based SoC
+	  integrated with dual speed USB 2.0 device controller. It has
+	  8 endpoints, as well as endpoint zero.
+
+	  This driver has been tested on S3C2416 and S3C2450 processors.
+
+config USB_S3C_HSUDC
+	tristate
+	depends on USB_GADGET_S3C_HSUDC
+	default USB_GADGET
+	select USB_GADGET_SELECTED
 
 config USB_GADGET_PXA_U2O
 	boolean "PXA9xx Processor USB2.0 controller"
@@ -597,13 +632,10 @@ config USB_DUMMY_HCD
 
 endchoice
 
+# Selected by UDC drivers that support high-speed operation.
 config USB_GADGET_DUALSPEED
 	bool
 	depends on USB_GADGET
-	default n
-	help
-	  Means that gadget drivers should include extra descriptors
-	  and code to handle dual-speed controllers.
 
 #
 # USB Gadget Drivers
@@ -910,6 +942,94 @@ config USB_G_ANDROID
 	  The Android gadget driver supports multiple USB functions.
 	  The functions can be configured via a board file and may be
 	  enabled and disabled dynamically.
+
+config USB_ANDROID_ADB
+	boolean "Android gadget adb function"
+	depends on USB_G_ANDROID
+	default y
+	help
+	  Provides adb function for android gadget driver.
+
+config USB_ANDROID_DIAG
+	boolean "USB MSM7K Diag Function"
+	depends on USB_G_ANDROID
+	default n
+	help
+	  Qualcomm diagnostics interface support.
+
+config USB_ANDROID_MASS_STORAGE
+	boolean "Android gadget mass storage function"
+	depends on USB_G_ANDROID && SWITCH
+	default y
+	help
+	  Provides USB mass storage function for android gadget driver.
+config USB_2A_CHARGER_DETECT
+	boolean "Android 2A charger detect function"
+	depends on USB_G_ANDROID
+	help
+	  Provides 2A charger detect.
+
+config USB_ANDROID_MTP
+	boolean "Android MTP function"
+	depends on USB_G_ANDROID
+	help
+	  Provides Media Transfer Protocol (MTP) support for android gadget driver.
+
+config USB_ANDROID_RNDIS
+	boolean "Android gadget RNDIS ethernet function"
+	depends on USB_G_ANDROID
+	default n
+	help
+	  Provides RNDIS ethernet function for android gadget driver.
+
+config USB_ANDROID_RMNET
+	boolean "RmNet function driver"
+	depends on USB_G_ANDROID
+	default n
+	help
+	  Enabling this option adds rmnet support to the
+	  android gadget. Rmnet is an alternative to CDC-ECM
+	  and Windows RNDIS. It uses QUALCOMM MSM Interface
+	  for control transfers. It acts like a bridge between
+	  Host and modem found in MSM chipsets.
+
+
+config USB_F_SERIAL
+	boolean "generic serial function driver"
+	depends on USB_G_ANDROID
+	default n
+	help
+	  Say "y" to link the driver statically, or "m" to build
+	  as a part of "g_android"
+
+config MODEM_SUPPORT
+	boolean "modem support in generic serial function driver"
+	depends on USB_F_SERIAL
+	default y
+	help
+          This feature enables the modem functionality in the
+	  generic serial.
+	  adds interrupt endpoint support to send modem notifications
+	  to host.
+	  adds CDC descriptors to enumerate the generic serial as MODEM.
+	  adds CDC class requests to configure MODEM line settings.
+	  Say "y" to enable MODEM support in the generic serial driver.
+
+config USB_ANDROID_SERIAL
+	boolean "Android gadget Serial function"
+	depends on USB_G_ANDROID
+	help
+
+config USB_ANDROID_PROJECTOR
+	boolean "Android gadget Projector function"
+	depends on USB_G_ANDROID
+	help
+
+config USB_ANDROID_ECM
+	boolean "Android gadget ECM function"
+	depends on USB_G_ANDROID
+	help
+
 
 config USB_CDC_COMPOSITE
 	tristate "CDC Composite Device (Ethernet and ACM)"

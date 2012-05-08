@@ -154,10 +154,40 @@ void ram_console_enable_console(int enabled)
 		ram_console.flags &= ~CON_ENABLED;
 }
 
+#ifdef CONFIG_ANDROID_RAM_CONSOLE_APPEND_PMIC_STATUS_BITS
+static char *last_off_event = "NULL";
+static int __init pmic_last_off_event(char *opt)
+{
+	if (!opt || !*opt || *opt == '\0')
+		return 1;
+	pr_debug("ram_console: last_off_event=%s", opt);
+	last_off_event = opt;
+	return 1;
+}
+__setup("last_off_event=", pmic_last_off_event);
+
+static char *start_on_event = "NULL";
+static int __init pmic_start_on_event(char *opt)
+{
+	if (!opt || !*opt || *opt == '\0')
+		return 1;
+	pr_debug("ram_console: start_on_event=%s", opt);
+	start_on_event = opt;
+	return 1;
+}
+__setup("start_on_event=", pmic_start_on_event);
+#endif
+
 static void __init
 ram_console_save_old(struct ram_console_buffer *buffer, char *dest)
 {
+	char* buffer_ptr;
 	size_t old_log_size = buffer->size;
+#ifdef CONFIG_ANDROID_RAM_CONSOLE_APPEND_PMIC_STATUS_BITS
+#define PMIC_STATUS_MAX 100
+	char pmic_status_buffer[PMIC_STATUS_MAX];
+	size_t pmic_status_buffer_len;
+#endif
 #ifdef CONFIG_ANDROID_RAM_CONSOLE_ERROR_CORRECTION
 	uint8_t *block;
 	uint8_t *par;
@@ -199,6 +229,15 @@ ram_console_save_old(struct ram_console_buffer *buffer, char *dest)
 		strbuf_len = sizeof(strbuf) - 1;
 	old_log_size += strbuf_len;
 #endif
+#ifdef CONFIG_ANDROID_RAM_CONSOLE_APPEND_PMIC_STATUS_BITS
+	pmic_status_buffer_len =
+		snprintf(pmic_status_buffer, sizeof(pmic_status_buffer),
+			"\nPMIC status: start_on_event=%s, last_off_event=%s\n",
+			start_on_event, last_off_event);
+	pmic_status_buffer_len =
+		min(pmic_status_buffer_len, sizeof(pmic_status_buffer) - 1);
+	old_log_size += pmic_status_buffer_len;
+#endif
 
 	if (dest == NULL) {
 		dest = kmalloc(old_log_size, GFP_KERNEL);
@@ -211,13 +250,23 @@ ram_console_save_old(struct ram_console_buffer *buffer, char *dest)
 
 	ram_console_old_log = dest;
 	ram_console_old_log_size = old_log_size;
-	memcpy(ram_console_old_log,
+
+	buffer_ptr = ram_console_old_log;
+	memcpy(buffer_ptr,
 	       &buffer->data[buffer->start], buffer->size - buffer->start);
-	memcpy(ram_console_old_log + buffer->size - buffer->start,
+	buffer_ptr += buffer->size - buffer->start;
+	memcpy(buffer_ptr,
 	       &buffer->data[0], buffer->start);
+	buffer_ptr += buffer->start;
 #ifdef CONFIG_ANDROID_RAM_CONSOLE_ERROR_CORRECTION
-	memcpy(ram_console_old_log + old_log_size - strbuf_len,
+	memcpy(buffer_ptr,
 	       strbuf, strbuf_len);
+	buffer_ptr += strbuf_len;
+#endif
+#ifdef CONFIG_ANDROID_RAM_CONSOLE_APPEND_PMIC_STATUS_BITS
+	memcpy(buffer_ptr,
+		   pmic_status_buffer, pmic_status_buffer_len);
+	buffer_ptr += pmic_status_buffer_len;
 #endif
 }
 

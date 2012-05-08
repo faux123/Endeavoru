@@ -117,6 +117,8 @@ struct platform_suspend_ops {
 	void (*recover)(void);
 };
 
+extern suspend_state_t get_suspend_state(void);
+
 #ifdef CONFIG_SUSPEND
 /**
  * suspend_set_ops - set platform dependent suspend operations

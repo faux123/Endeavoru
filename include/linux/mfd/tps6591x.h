@@ -104,6 +104,7 @@ struct tps6591x_platform_data {
 
 	struct tps6591x_gpio_init_data *gpio_init_data;
 	int num_gpioinit_data;
+	bool pwon_lp_off;
 };
 
 /*

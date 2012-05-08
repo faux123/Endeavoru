@@ -137,6 +137,9 @@ struct mmc_host_ops {
 	void	(*init_card)(struct mmc_host *host, struct mmc_card *card);
 
 	int	(*start_signal_voltage_switch)(struct mmc_host *host, struct mmc_ios *ios);
+	int	(*execute_tuning)(struct mmc_host *host);
+	int	(*select_drive_strength)(unsigned int max_dtr,
+		int host_drv, int card_drv);
 };
 
 struct mmc_card;
@@ -391,5 +394,9 @@ static inline int mmc_card_is_powered_resumed(struct mmc_host *host)
 	return host->pm_flags & MMC_PM_KEEP_POWER;
 }
 
+static inline int mmc_card_wake_sdio_irq(struct mmc_host *host)
+{
+       return host->pm_flags & MMC_PM_WAKE_SDIO_IRQ;
+}
 #endif
 

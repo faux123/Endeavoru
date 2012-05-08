@@ -1222,7 +1222,9 @@ static int ethtool_get_regs(struct net_device *dev, char __user *useraddr)
 		regs.len = reglen;
 
 	regbuf = vzalloc(reglen);
-	if (!regbuf)
+	/* HTC_WIFI_START */
+	if (reglen && !regbuf)
+	/* HTC_WIFI_END */
 		return -ENOMEM;
 
 	ops->get_regs(dev, &regs, regbuf);
@@ -1231,7 +1233,9 @@ static int ethtool_get_regs(struct net_device *dev, char __user *useraddr)
 	if (copy_to_user(useraddr, &regs, sizeof(regs)))
 		goto out;
 	useraddr += offsetof(struct ethtool_regs, data);
-	if (copy_to_user(useraddr, regbuf, regs.len))
+	/* HTC_WIFI_START */
+	if (regbuf && copy_to_user(useraddr, regbuf, regs.len))
+	/* HTC_WIFI_END */
 		goto out;
 	ret = 0;
 

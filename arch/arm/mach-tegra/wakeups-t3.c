@@ -43,7 +43,7 @@ static int tegra_wake_event_irq[] = {
 	INT_RTC,				/* wake16 */
 	INT_KBC,				/* wake17 */
 	INT_EXTERNAL_PMU,			/* wake18 */
-	-EINVAL, /* TEGRA_USB1_VBUS, */		/* wake19 */
+	INT_USB,//-EINVAL, /* TEGRA_USB1_VBUS, */		/* wake19 */
 	-EINVAL, /* TEGRA_USB2_VBUS, */		/* wake20 */
 	-EINVAL, /* TEGRA_USB1_ID, */		/* wake21 */
 	-EINVAL, /* TEGRA_USB2_ID, */		/* wake22 */
@@ -63,7 +63,7 @@ static int tegra_wake_event_irq[] = {
 	TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PBB1),	/* wake36 */
 	-EINVAL, /* TEGRA_USB3_VBUS, */		/* wake37 */
 	-EINVAL, /* TEGRA_USB3_ID, */		/* wake38 */
-	INT_USB, /* TEGRA_USB1_UTMIP, */	/* wake39 */
+	-EINVAL, /* TEGRA_USB1_UTMIP, */	/* wake39 */
 	INT_USB2, /* TEGRA_USB2_UTMIP, */	/* wake40 */
 	INT_USB3, /* TEGRA_USB3_UTMIP, */	/* wake41 */
 };

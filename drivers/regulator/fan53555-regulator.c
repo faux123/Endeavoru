@@ -297,6 +297,8 @@ static int fan53555_dcdc_init(struct fan53555_chip *fan,
 		return err;
 	fan->shadow[FAN53555_REG_CONTROL] = (u8)err;
 
+	return 0;
+
 	err = __fan53555_dcdc_set_voltage(fan,
 					  FAN53555_VSEL0_ID,
 					  pdata->init_vsel0_min_uV,
@@ -382,7 +384,7 @@ static int fan53555_dcdc_get_voltage(struct regulator_dev *dev)
 
 static int fan53555_dcdc_enable(struct regulator_dev *dev)
 {
-	struct fan53555_chip *fan = rdev_get_drvdata(dev);
+/*	struct fan53555_chip *fan = rdev_get_drvdata(dev);
 
 	if ((fan->vsel_id != FAN53555_VSEL0_ID) &&
 	    (fan->vsel_id != FAN53555_VSEL1_ID)) {
@@ -394,11 +396,13 @@ static int fan53555_dcdc_enable(struct regulator_dev *dev)
 	return fan53555_set_bits(fan,
 				 FAN53555_REG_VSEL0 + fan->vsel_id,
 				 FAN53555_VSEL_BUCK_EN, FAN53555_VSEL_BUCK_EN);
+*/
+	return 1;
 }
 
 static int fan53555_dcdc_disable(struct regulator_dev *dev)
 {
-	struct fan53555_chip *fan = rdev_get_drvdata(dev);
+/*	struct fan53555_chip *fan = rdev_get_drvdata(dev);
 
 	if ((fan->vsel_id != FAN53555_VSEL0_ID) &&
 	    (fan->vsel_id != FAN53555_VSEL1_ID)) {
@@ -410,11 +414,13 @@ static int fan53555_dcdc_disable(struct regulator_dev *dev)
 	return fan53555_set_bits(fan,
 				 FAN53555_REG_VSEL0 + fan->vsel_id,
 				 FAN53555_VSEL_BUCK_EN, 0);
+*/
+	return 1;
 }
 
 static int fan53555_dcdc_is_enabled(struct regulator_dev *dev)
 {
-	struct fan53555_chip *fan = rdev_get_drvdata(dev);
+/*	struct fan53555_chip *fan = rdev_get_drvdata(dev);
 	u8 data;
 
 	if ((fan->vsel_id != FAN53555_VSEL0_ID) &&
@@ -426,6 +432,8 @@ static int fan53555_dcdc_is_enabled(struct regulator_dev *dev)
 	data = fan->shadow[FAN53555_REG_VSEL0 + fan->vsel_id];
 
 	return (data & FAN53555_VSEL_BUCK_EN) ? 1 : 0;
+*/
+	return 1;
 }
 
 static struct regulator_ops fan53555_dcdc_ops = {
