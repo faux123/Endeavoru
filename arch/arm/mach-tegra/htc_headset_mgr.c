@@ -607,7 +607,7 @@ static void mic_detect_work_func(struct work_struct *work)
 }
 
 /*config GPIO for one-wire tx*/
-static void enable_1wire_tx()
+static void enable_1wire_tx(void)
 {
 	int ret;
 	ret = gpio_direction_output(hi->pdata.level_1wire_gpio,0);
@@ -622,7 +622,7 @@ static void enable_1wire_tx()
 }
 
 /*config GPIO for one-wire rx*/
-static void enable_1wire_rx()
+static void enable_1wire_rx(void)
 {
 	int ret;
 	ret = gpio_direction_output(hi->pdata.level_1wire_gpio,1);
@@ -637,7 +637,7 @@ static void enable_1wire_rx()
 }
 
 /*disable one-wire GPIO setting*/
-static void disable_1wire()
+static void disable_1wire(void)
 {
 	int ret;
 	tegra_gpio_disable(hi->pdata.rx_1wire_gpio);
@@ -861,7 +861,7 @@ static void remove_detect_work_func(struct work_struct *work)
 }
 
 /*insert one-wire work function. send start comment and initail comment and then recieve AID form accessory.*/
-static int insert_1wire_work_func()
+static int insert_1wire_work_func(void)
 {
 	HS_LOG("insert one-wire detection start");
 	int cnt = 0;
@@ -880,7 +880,7 @@ static int insert_1wire_work_func()
 		while (1){
 			if(hi->detect_type ==99){
 				uart_check = 1;
-				hi->detect_type == HEADSET_ADC;
+				hi->detect_type = HEADSET_ADC;
 				msleep(1000);
 				break;
 			}

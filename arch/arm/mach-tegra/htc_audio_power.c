@@ -78,7 +78,7 @@ void power_config(const char *name, int pin, int method)
 		gpio_direction_input(pin);
 		break;
 	default:
-		AUD_ERR("[PWR] ***** power_configure nothing *****\n", name, pin);
+		AUD_ERR("[PWR] ***** power_configure nothing *****\n");
 	}
 
 	return;
@@ -117,7 +117,7 @@ void power_deconfig(const char *name, int pin, int method)
 		AUD_INFO("[PWR] ***** gpio %s %d disable *****\n", name, pin);
 		break;
 	default:
-		AUD_ERR("[PWR] ***** power_deconfig nothing *****\n", name, pin);
+		AUD_ERR("[PWR] ***** power_deconfig nothing *****\n");
 	}
 
 	return;

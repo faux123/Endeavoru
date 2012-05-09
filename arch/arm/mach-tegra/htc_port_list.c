@@ -71,7 +71,7 @@ static int ril_debug_flag = 0;
 		printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__);  \
 	} while (0)
 
-static void portlist_work_func()
+static void portlist_work_func(void)
 {
 	size_t i=0;
 	char message[128*6+14] = {'\0'};

@@ -1031,7 +1031,7 @@ static void utmip_phy_enable_trking_data(struct tegra_usb_phy *phy)
 	init_done = true;
 }
 
-static utmip_powerdown_pmc_wake_detect(struct tegra_usb_phy *phy)
+static void utmip_powerdown_pmc_wake_detect(struct tegra_usb_phy *phy)
 {
 	unsigned long val;
 	void __iomem *pmc_base = IO_ADDRESS(TEGRA_PMC_BASE);
@@ -1063,7 +1063,7 @@ static utmip_powerdown_pmc_wake_detect(struct tegra_usb_phy *phy)
 	writel(val, pmc_base + PMC_SLEEP_CFG);
 }
 
-static utmip_powerup_pmc_wake_detect(struct tegra_usb_phy *phy)
+static void utmip_powerup_pmc_wake_detect(struct tegra_usb_phy *phy)
 {
 	unsigned long val;
 	void __iomem *pmc_base = IO_ADDRESS(TEGRA_PMC_BASE);

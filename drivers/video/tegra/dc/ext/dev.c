@@ -257,7 +257,7 @@ static void tegra_dc_ext_flip_worker(struct work_struct *work)
 		ext_win = &ext->win[index];
 
 		if (!win)
-			return -EINVAL;
+			return;
 
 		if (win->flags & TEGRA_WIN_FLAG_ENABLED) {
 			int j;

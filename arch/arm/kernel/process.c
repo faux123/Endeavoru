@@ -220,7 +220,7 @@ void cpu_idle(void)
 	/* endless idle loop with no priority at all */
 	while (1) {
 		cur_time = cpu_clock(UINT_MAX);
-		if (((cur_time - last_time) >= 5000000000) && (smp_processor_id()==0))
+		if (((cur_time - last_time) >= 5000000000ULL) && (smp_processor_id()==0))
 		{
 			pm_debug_idle();
 			pm_debug_cpu_hotplug();

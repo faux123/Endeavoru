@@ -428,12 +428,12 @@ void greenLED_on_off(bool on)
 static int s5k6a1gx03_set_mode(struct s5k6a1gx03_info *info, struct s5k6a1gx03_mode *mode)
 {
 	int sensor_mode;
-	int err;
+	int err = 0;
 	struct s5k6a1gx03_reg reg_list[6];
 
 /* HTC_START */
 /* get sensor id and check*/
-	if(s5k6a1gx03_check_sensorid()!=0)
+	if( (err = s5k6a1gx03_check_sensorid()) !=0)
 		return err;
 	mdelay(5);
 /* HTC_END */
