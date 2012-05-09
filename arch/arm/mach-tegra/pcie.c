@@ -1206,7 +1206,7 @@ static int tegra_pcie_init(void)
 	return err;
 }
 
-static int tegra_pci_probe(struct platform_device *pdev)
+static int __init tegra_pci_probe(struct platform_device *pdev)
 {
 	tegra_pcie.plat_data = pdev->dev.platform_data;
 	dev_dbg(&pdev->dev, "PCIE.C: %s : _port_status[0] %d\n",
@@ -1234,7 +1234,7 @@ static int tegra_pci_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_driver tegra_pci_driver = {
+static struct platform_driver tegra_pci_driver __refdata = {
 	.probe   = tegra_pci_probe,
 	.remove  = tegra_pci_remove,
 #ifdef CONFIG_PM
