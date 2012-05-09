@@ -1719,7 +1719,7 @@ static int aic3008_resume(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static struct snd_soc_codec_driver soc_codec_dev_aic3008 = {
+static struct snd_soc_codec_driver soc_codec_dev_aic3008_driver = {
 	.probe =	aic3008_probe,
 	.remove =	aic3008_remove,
 	.suspend =	aic3008_suspend,
@@ -1745,7 +1745,7 @@ static int spi_aic3008_probe(struct spi_device *spi_aic3008)
 	spi_set_drvdata(spi_aic3008, aic3008);
 
 	ret = snd_soc_register_codec(&spi_aic3008->dev,
-			&soc_codec_dev_aic3008, &aic3008_dai, 1);
+			&soc_codec_dev_aic3008_driver, &aic3008_dai, 1);
 	if (ret < 0)
 	{
 		AUD_ERR("snd_soc_register_codec() Failed\n");
