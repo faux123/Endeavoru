@@ -612,7 +612,7 @@ static void enterprise_gyro_diag_init(void)
 
 }
 
-static void enterprise_mpuirq_init(void)
+static void __init enterprise_mpuirq_init(void)
 {
 	int ret = 0;
 
