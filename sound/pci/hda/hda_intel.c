@@ -2728,7 +2728,7 @@ static void __devinit check_msi(struct azx *chip)
 }
 
 #ifdef CONFIG_SND_HDA_PLATFORM_NVIDIA_TEGRA
-static const char *tegra_clk_names[] __initdata = {
+static const char *tegra_clk_names[] __devinitdata = {
 	"hda",
 	"hda2codec",
 	"hda2hdmi",
@@ -3246,7 +3246,7 @@ static const struct platform_device_id azx_platform_ids[] = {
 MODULE_DEVICE_TABLE(platform, azx_platform_ids);
 
 /* platform_driver definition */
-static struct platform_driver driver_platform = {
+static struct platform_driver hda_platform_driver = {
 	.driver = {
 		.name = "hda-platform"
 	},
@@ -3271,7 +3271,7 @@ static int __init alsa_card_azx_init(void)
 	}
 
 #ifdef CONFIG_SND_HDA_PLATFORM_DRIVER
-	err = platform_driver_register(&driver_platform);
+	err = platform_driver_register(&hda_platform_driver);
 	if (err < 0) {
 		snd_printk(KERN_ERR SFX "Failed to register platform driver\n");
 		pci_unregister_driver(&driver);
@@ -3285,7 +3285,7 @@ static int __init alsa_card_azx_init(void)
 static void __exit alsa_card_azx_exit(void)
 {
 #ifdef CONFIG_SND_HDA_PLATFORM_DRIVER
-	platform_driver_unregister(&driver_platform);
+	platform_driver_unregister(&hda_platform_driver);
 #endif
 
 	pci_unregister_driver(&driver);
