@@ -915,9 +915,9 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 	}
 
 #if defined CONFIG_MACH_ENDEAVORU || defined CONFIG_MACH_ENDEAVORTD
-	if (!err && host->pm_flags & MMC_PM_KEEP_POWER && mmc_card_wake_sdio_irq(host)) {
+	if (!err && host->pm_flags & mmc_card_keep_power(host) && mmc_card_wake_sdio_irq(host)) {
 #else
-	if (!err && host->pm_flags & MMC_PM_KEEP_POWER) {
+	if (!err && host->pm_flags & mmc_card_keep_power(host)) {
 #endif
 		mmc_claim_host(host);
 		sdio_disable_wide(host->card);
@@ -938,13 +938,13 @@ static int mmc_sdio_resume(struct mmc_host *host)
 	mmc_claim_host(host);
 
 	/* No need to reinitialize powered-resumed nonremovable cards */
-	if (mmc_card_is_removable(host) || !mmc_card_is_powered_resumed(host)) {
+	if (mmc_card_is_removable(host) || !mmc_card_keep_power(host)) {
 		err = mmc_sdio_init_card(host, host->ocr, host->card,
 								 (host->pm_flags & MMC_PM_KEEP_POWER));
 #if defined CONFIG_MACH_ENDEAVORU || defined CONFIG_MACH_ENDEAVORTD
-	} else if (mmc_card_is_powered_resumed(host) && mmc_card_wake_sdio_irq(host)) {
+	} else if (mmc_card_keep_power(host) && mmc_card_wake_sdio_irq(host)) {
 #else
-	} else if (mmc_card_is_powered_resumed(host)) {
+	} else if (mmc_card_keep_power(host)) {
 #endif
 		/* We may have switched to 1-bit mode during suspend */
 		err = sdio_enable_4bit_bus(host->card);
@@ -1029,7 +1029,7 @@ static int mmc_sdio_power_restore(struct mmc_host *host)
 	/* HTC_WIFI_END */	
 	
 	ret = mmc_sdio_init_card(host, host->ocr, host->card,
-			(host->pm_flags & MMC_PM_KEEP_POWER));
+			mmc_card_keep_power(host));
 	if (!ret && host->sdio_irqs)
 		mmc_signal_sdio_irq(host);
 
