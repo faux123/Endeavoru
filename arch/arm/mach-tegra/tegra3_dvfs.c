@@ -73,7 +73,6 @@ static struct dvfs_rail *tegra3_dvfs_rails[] = {
 
 static int tegra3_get_core_floor_mv(int cpu_mv)
 {
-
 	if (cpu_mv < 850)
 		return  950;
 	if (cpu_mv < 1000)
