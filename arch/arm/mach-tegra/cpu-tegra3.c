@@ -211,11 +211,11 @@ static struct kernel_param_ops tegra_hp_state_ops = {
 };
 module_param_cb(auto_hotplug, &tegra_hp_state_ops, &hp_state, 0644);
 
-static unsigned int NwNs_Threshold[] = {19, 30, 19, 11, 19, 11, 0, 11};
+static unsigned int NwNs_Threshold[] = {13, 30, 15, 11, 17, 11, 0, 11};
 static unsigned int TwTs_Threshold[] = {140, 0, 140, 190, 140, 190, 0, 190};
 extern unsigned int get_rq_info(void);
 
-static unsigned int NwNs[8] = {19, 30, 19, 11, 19, 11, 0, 11};
+static unsigned int NwNs[8] = {13, 30, 15, 11, 17, 11, 0, 11};
 module_param_array(NwNs, uint, NULL, 0644);
 static unsigned int TwTs[8] = {140, 0, 140, 190, 140, 190, 0, 190};
 module_param_array(TwTs, uint, NULL, 0644);
