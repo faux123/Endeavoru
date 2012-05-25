@@ -826,8 +826,8 @@ static void dbs_refresh_callback(struct work_struct *unused)
 		}
 		break;
 	case 2:
-		if (policy->cur < policy->max && policy->cur < 880000) {
-			__cpufreq_driver_target(policy, 880000,
+		if (policy->cur < policy->max && policy->cur < 1100000) {
+			__cpufreq_driver_target(policy, 1100000,
 				CPUFREQ_RELATION_L);
 			this_dbs_info->prev_cpu_idle = get_cpu_idle_time(0,
 				&this_dbs_info->prev_cpu_wall);
