@@ -84,7 +84,7 @@ module_param(idle_bottom_freq, uint, 0644);
 static int mp_overhead = 10;
 module_param(mp_overhead, int, 0644);
 
-static int balance_level = 75;
+static int balance_level = 65;
 module_param(balance_level, int, 0644);
 
 static int up_time = 100;
