@@ -25,6 +25,7 @@ config SPARC
 	select HAVE_DMA_ATTRS
 	select HAVE_DMA_API_DEBUG
 	select HAVE_ARCH_JUMP_LABEL
+	select GENERIC_STRNCPY_FROM_USER
 
 config SPARC32
 	def_bool !64BIT
