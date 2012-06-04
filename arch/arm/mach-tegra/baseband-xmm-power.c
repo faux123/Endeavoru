@@ -1132,7 +1132,15 @@ irqreturn_t baseband_xmm_power_ipc_ap_wake_irq(int irq, void *dev_id)
 				 queue_work(workqueue_susp, &work_shortsusp);
 			}
 			modem_sleep_flag = false;
-			baseband_xmm_set_power_status(BBXMM_PS_L0);
+			if ((baseband_xmm_powerstate ==
+						BBXMM_PS_L2TOL0) ||
+				(baseband_xmm_powerstate ==
+						BBXMM_PS_L3TOL0))
+				baseband_xmm_set_power_status(
+						BBXMM_PS_L0);
+			else
+				pr_info("%s:no state"
+					"change required\n", __func__);
 
 		/* save gpio state */
 		ipc_ap_wake_state = IPC_AP_WAKE_H;
