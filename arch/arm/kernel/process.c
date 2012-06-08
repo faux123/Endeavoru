@@ -200,7 +200,7 @@ EXPORT_SYMBOL(pm_debug_dvfs);
 #include <linux/time.h>
 #include <linux/rtc.h>
 #include <mach/board_htc.h>
-extern void htc_print_active_wake_locks();
+extern void htc_print_active_wake_locks(void);
 /*
  * The idle thread, has rather strange semantics for calling pm_idle,
  * but this is what x86 does and we need to do the same, so that
@@ -210,12 +210,12 @@ extern void htc_print_active_wake_locks();
 void cpu_idle(void)
 {
 
-    static bool bPrint_wake_lock = true;
-    struct timespec ts;
-    struct rtc_time tm;
+	static bool bPrint_wake_lock = true;
+	struct timespec ts;
+	struct rtc_time tm;
+	u64 cur_time, last_time;
 
 	local_fiq_enable();
-	u64 cur_time, last_time;
 	last_time = cpu_clock(UINT_MAX);
 	/* endless idle loop with no priority at all */
 	while (1) {
