@@ -1472,7 +1472,7 @@ static int cancel_resolve_name(struct sock *sk, u16 index, unsigned char *data, 
 	struct mgmt_cp_resolve_name *mgmt_cp = (void *) data;
 	struct hci_cp_remote_name_req_cancel hci_cp;
 	struct hci_dev *hdev;
-	struct pending_cmd *cmd;
+	//struct pending_cmd *cmd;
 	int err;
 
 	BT_DBG("");
@@ -1504,7 +1504,7 @@ static int cancel_resolve_name(struct sock *sk, u16 index, unsigned char *data, 
 		mgmt_pending_remove(cmd);
 	*/
 
-failed:
+//failed:
 	hci_dev_unlock_bh(hdev);
 	hci_dev_put(hdev);
 
@@ -1625,7 +1625,7 @@ static int encrypt_link(struct sock *sk, u16 index, unsigned char *data, u16 len
 	struct hci_dev *hdev;
 	struct mgmt_cp_encrypt_link *cp;
 	struct pending_cmd *cmd;
-	struct adv_entry *entry;
+	//struct adv_entry *entry;
 	struct hci_conn *conn;
 	int err;
 	u8 sec_level = BT_SECURITY_MEDIUM;
