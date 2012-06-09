@@ -878,10 +878,11 @@ int msm_fixup(struct tag *tags, struct meminfo *mi)
 }
 #endif
 
-static unsigned int radio_flag = 0;
+static unsigned long int radio_flag = 0;
 int __init radio_flag_init(char *s)
 {
-	strict_strtoul(s, 16, &radio_flag);
+	int ret;
+	ret = strict_strtoul(s, 16, &radio_flag);
 	return 1;
 }
 __setup("radioflag=", radio_flag_init);
@@ -891,10 +892,11 @@ unsigned int get_radio_flag(void)
 	return radio_flag;
 }
 
-static unsigned int kernel_flag = 0;
+static unsigned long int kernel_flag = 0;
 int __init kernel_flag_init(char *s)
 {
-	strict_strtoul(s, 16, &kernel_flag);
+	int ret;
+	ret = strict_strtoul(s, 16, &kernel_flag);
 	return 1;
 }
 __setup("kernelflag=", kernel_flag_init);
@@ -904,10 +906,11 @@ unsigned int get_kernel_flag(void)
 	return kernel_flag;
 }
 
-static unsigned int extra_kernel_flag = 0;
+static unsigned long int extra_kernel_flag = 0;
 int __init extra_kernel_flag_init(char *s)
 {
-	strict_strtoul(s, 16, &extra_kernel_flag);
+	int ret;
+	ret = strict_strtoul(s, 16, &extra_kernel_flag);
 	return 1;
 }
 __setup("kernelflagex=", extra_kernel_flag_init);

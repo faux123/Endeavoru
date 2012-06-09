@@ -377,28 +377,28 @@ static irqreturn_t sim_det_irq(int irq, void *dev_id)
 #endif//sim move to other driver
 static void radio_detect_work_handler(struct work_struct *work)
 {
-		int radiopower=0;
-
-		pr_info("Enter radio_detect_work_handler\n");
-
-		/* Sleep 30 ms and then check if radio is turn off */
-		msleep(30);
-		radiopower =gpio_get_value(TEGRA_GPIO_PM4);
-
-		if (!radiopower) {
-			pr_info("radio is off, it's not coredump interrupt\n");
-			return;
-		}
-
-    if (!baseband_power2_driver_data)
-    {
-			pr_info("baseband_power2_driver_data is null\n");
-			return ;
-    }
-
+	int radiopower=0;
 	char message[20] = "RADIO=";
 	char *envp[] = { message, NULL };
-	int status = gpio_get_value(CORE_DUMP_DETECT);
+	int status;
+
+	pr_info("Enter radio_detect_work_handler\n");
+
+	/* Sleep 30 ms and then check if radio is turn off */
+	msleep(30);
+	radiopower =gpio_get_value(TEGRA_GPIO_PM4);
+
+	if (!radiopower) {
+		pr_info("radio is off, it's not coredump interrupt\n");
+		return;
+	}
+
+	if (!baseband_power2_driver_data) {
+		pr_info("baseband_power2_driver_data is null\n");
+		return ;
+	}
+
+	status = gpio_get_value(CORE_DUMP_DETECT);
 
 	pr_info("CORE_DUMP_DETECT = %d\n", status);
 		if (status) {
@@ -902,6 +902,8 @@ static int baseband_xmm_power2_driver_probe(struct platform_device *device)
 			device->dev.platform_data;
 
 	int err=0;
+	int err_radio;
+
 	pr_debug("%s 0309 - CPU Freq with data protect.\n", __func__);
 
 	if (data == NULL) {
@@ -994,7 +996,6 @@ static int baseband_xmm_power2_driver_probe(struct platform_device *device)
 
 		/* radio detect*/
 		radio_detect_status = RADIO_STATUS_UNKNOWN;
-		int err_radio;
 		err_radio = request_irq(gpio_to_irq(CORE_DUMP_DETECT),
 			radio_det_irq,
 			/*IRQF_TRIGGER_RISING |*/ IRQF_TRIGGER_FALLING,
@@ -1116,7 +1117,7 @@ if (kobj_hsic_device) {
 
 	/* free work structure */
 	if (workqueue) {
-		cancel_work_sync(baseband_xmm_power2_work);
+		cancel_work_sync((struct work_struct *)baseband_xmm_power2_work);
 		destroy_workqueue(workqueue);
 	}
 	kfree(baseband_xmm_power2_work);

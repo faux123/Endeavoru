@@ -51,7 +51,7 @@ static int enterprise_wifi_reset(int on);
 //static int enterprise_wifi_set_carddetect(int val);
 int enterprise_wifi_power(int on);
 int enterprise_wifi_set_carddetect(int val);
-int enterprise_wifi_status(struct device *dev);
+unsigned int enterprise_wifi_status(struct device *dev);
 static int enterprise_wifi_cd;		/* WIFI virtual 'card detect' status */
 /* HTC_WIFI_END */
 
@@ -247,7 +247,7 @@ static int enterprise_wifi_status_register(
 }
 
 /* HTC_WIFI_START */
-int enterprise_wifi_status(struct device *dev)
+unsigned int enterprise_wifi_status(struct device *dev)
 {
 	return enterprise_wifi_cd;
 }
@@ -397,27 +397,27 @@ void blue_pincfg_uartc_gpio_request(void) {
 	/* UART3_CTS_N GPIO-A.01 */
         err = gpio_request(TEGRA_GPIO_PA1, "bt");
         if (err)
-                pr_err("BT_CTS_N gpio request failed:%d\n", err);
+                pr_err("BT_CTS_N gpio request failed:%li\n", err);
 
 	/* UART3_RTS_N GPIO-C.00 */
         err = gpio_request(TEGRA_GPIO_PC0, "bt");
         if (err)
-                pr_err("BT_RTS_N gpio request failed:%d\n", err);
+                pr_err("BT_RTS_N gpio request failed:%li\n", err);
 
         /* UART3_TXD GPIO-W.06  */
         err = gpio_request(TEGRA_GPIO_PW6, "bt");
         if (err)
-                pr_err("BT_TXD gpio request failed:%d\n", err);
+                pr_err("BT_TXD gpio request failed:%li\n", err);
 
         /* UART3_RXD GPIO-W.07  */
         err = gpio_request(TEGRA_GPIO_PW7, "bt");
         if (err)
-                pr_err("BT_RXD gpio request failed:%d\n", err);
+                pr_err("BT_RXD gpio request failed:%li\n", err);
 
         /* BT_CTS#WAKE_UPGPIO-O.05_W  */
         err = gpio_request(TEGRA_GPIO_PO5, "bt");
         if (err)
-                pr_err("BT_WAKEUP gpio request failed:%d\n", err);
+                pr_err("BT_WAKEUP gpio request failed:%li\n", err);
         tegra_gpio_enable(TEGRA_GPIO_PO5);
         gpio_direction_input(TEGRA_GPIO_PO5);
 	tegra_pinmux_set_pullupdown(TEGRA_PINGROUP_ULPI_DATA4, TEGRA_PUPD_NORMAL);

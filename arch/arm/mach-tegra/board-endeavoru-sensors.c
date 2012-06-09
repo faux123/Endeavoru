@@ -73,7 +73,7 @@
 
 static struct regulator *v_sdmmc_2v85_en ;
 static struct regulator *v_srio_1v8_en ;
-void cm3629_enable_power(int enable)
+int cm3629_enable_power(int enable)
 {
 	if(htc_get_pcbid_info() >= PROJECT_PHASE_XD) {
 		if(enable == 1) {
@@ -115,6 +115,7 @@ void cm3629_enable_power(int enable)
 			}	
 		}
 	}
+	return 0;
 }
 
 /*void cm3629_enable_power(int enable)
@@ -140,7 +141,7 @@ void cm3629_enable_power(int enable)
 
 static struct cm3628_platform_data cm3628_pdata = {
 	/*.intr = PSNENOR_INTz,*/
-	.pwr = NULL,
+	.pwr = 0,
 	.intr = TEGRA_GPIO_PK2,
 	.levels = { 12, 14, 16, 41, 83, 3561, 6082, 6625, 7168, 65535},
 	.golden_adc = 0x1145,
@@ -1444,9 +1445,10 @@ static int __init enterprise_ina230_init(void)
 
 int __init enterprise_sensors_init(void)
 {
+	int ret;
+
 	psensor_init();
 	
-	int ret;
 	if (htc_get_pcbid_info() == PROJECT_PHASE_XA){
 		pr_info("[GYRO]Use Invensense solution");
 		enterprise_mpuirq_init();

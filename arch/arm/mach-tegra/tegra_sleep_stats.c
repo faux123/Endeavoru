@@ -70,7 +70,7 @@ unsigned int get_rq_info(void)
 	spin_unlock_irqrestore(&rq_lock, flags);
 
 	if (debug)
-		pr_info("get rq_avg is %lu\n", rq);
+		pr_info("get rq_avg is %u\n", rq);
 
 	return rq;
 }
@@ -150,7 +150,7 @@ static void rq_work_fn(struct work_struct *work)
 	spin_unlock_irqrestore(&rq_lock, flags);
 
 	if (debug)
-		pr_info("func rq_avg is %lu, total_time=%lld\n", (unsigned int)rq_avg, rq_info.total_time);
+		pr_info("func rq_avg is %u, total_time=%lld\n", (unsigned int)rq_avg, rq_info.total_time);
 }
 
 static void def_work_fn(struct work_struct *work)

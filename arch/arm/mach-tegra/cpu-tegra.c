@@ -802,6 +802,8 @@ static int tegra_pm_notify(struct notifier_block *nb, unsigned long event,
 	void *dummy)
 {
 	int cpu;
+	unsigned int freq;
+
 	if (event == PM_SUSPEND_PREPARE) {
 		mutex_lock(&tegra_cpu_lock);
 		is_suspended = true;
@@ -818,7 +820,6 @@ static int tegra_pm_notify(struct notifier_block *nb, unsigned long event,
 		}
 	} else if (event == PM_POST_SUSPEND) {
 		mutex_lock(&tegra_cpu_lock);
-		unsigned int freq;
 		is_suspended = false;
 		tegra_cpu_edp_init(true);
 		if (wake_reason_resume == 0x80) {

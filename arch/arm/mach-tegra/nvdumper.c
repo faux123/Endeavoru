@@ -69,7 +69,7 @@ static int __init nvdumper_init(void)
 {
 	int ret, dirty;
 
-	printk(KERN_INFO "nvdumper: nvdumper_reserved:0x%x\n", nvdumper_reserved);
+	printk(KERN_INFO "nvdumper: nvdumper_reserved:0x%lx\n", nvdumper_reserved);
 	if (!nvdumper_reserved) {
 		printk(KERN_INFO "nvdumper: not configured\n");
 		return -ENOTSUPP;
@@ -113,13 +113,12 @@ static int __init nvdumper_init(void)
 	return 0;
 }
 
-static int __exit nvdumper_exit(void)
+static void __exit nvdumper_exit(void)
 {
 	unregister_reboot_notifier(&nvdumper_reboot_notifier);
 	set_dirty_state(0);
 	iounmap(nvdumper_ptr);
 	iounmap(reboot_params);
-	return 0;
 }
 
 module_init(nvdumper_init);

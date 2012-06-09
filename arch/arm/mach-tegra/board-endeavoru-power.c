@@ -672,6 +672,7 @@ int __init enterprise_regulator_init(void)
 	void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
 	u32 pmc_ctrl;
 	u32 pmc_dpd_pads;
+	int projectPhase;
 
 	/* configure the power management controller to trigger PMU
 	 * interrupts when low */
@@ -684,7 +685,7 @@ int __init enterprise_regulator_init(void)
 
 	endeavor_gpio_rtc_init();
 
-	int projectPhase = htc_get_pcbid_info();
+	projectPhase = htc_get_pcbid_info();
 
 	if (projectPhase == PROJECT_PHASE_XD){
 		tps_platform.num_subdevs = ARRAY_SIZE(tps80031_devs_xd);

@@ -119,10 +119,11 @@ static ssize_t cpu_temp_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	long temperature;
-	struct nct_1008data *thermal_data = get_pwr_data();
+	struct nct1008_data *thermal_data = get_pwr_data();
+
 	nct1008_thermal_get_temp(thermal_data, &temperature);
 	temperature /= 10;
-	return sprintf(buf, "%d.%d\n", temperature/100, temperature%100);
+	return sprintf(buf, "%li.%li\n", temperature/100, temperature%100);
 }
 
 static ssize_t cpu_temp_store(struct kobject *kobj,

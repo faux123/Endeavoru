@@ -652,7 +652,7 @@ static void disable_1wire(void)
 }
 
 /*One-wire button event handler*/
-int button_1wire_work_func()
+int button_1wire_work_func(void)
 {
 	int cnt = 0;
 	char a_buf[20];
@@ -712,7 +712,7 @@ static void button_35mm_work_func(struct work_struct *work)
 	if (hi->hs_35mm_type == HEADSET_UNPLUG &&
 	    hi->h2w_35mm_type == HEADSET_UNPLUG) {
 //		kfree(works);
-		works->key_code = NULL;
+		works->key_code = 0;
 		HS_LOG("Ignore key event (HEADSET_UNPLUG)");
 		return;
 	}
@@ -744,7 +744,7 @@ static void button_35mm_work_func(struct work_struct *work)
 	}
 
 //	kfree(works);
-	works->key_code = NULL;
+	works->key_code = 0;
 }
 
 static void debug_work_func(struct work_struct *work)
@@ -863,17 +863,17 @@ static void remove_detect_work_func(struct work_struct *work)
 /*insert one-wire work function. send start comment and initail comment and then recieve AID form accessory.*/
 static int insert_1wire_work_func(void)
 {
-	HS_LOG("insert one-wire detection start");
 	int cnt = 0;
 	char b_buf[128];
 	int r,i;
 	int count = 0;
 	int mic = HEADSET_NO_MIC;
 
-	char buf2[1];
-	buf2[0]=0x00;
-
 	char buf1[1];
+	char buf2[1];
+
+	HS_LOG("insert one-wire detection start");
+	buf2[0]=0x00;
 	buf1[0]=0x35;
 
 	if (uart_check == 0)
@@ -905,7 +905,7 @@ static int insert_1wire_work_func(void)
 			HS_LOG("Read %xh bytes, count:%d, %s\n",r,count,b_buf);
 
 			for(cnt = 0; cnt < r; cnt++){
-				HS_LOG("Read:0x%x, %d, %s\n", (int) b_buf[cnt], (int)b_buf[cnt], b_buf[cnt]);
+				HS_LOG("Read:0x%x, %d, %d\n", (int) b_buf[cnt], (int)b_buf[cnt], b_buf[cnt]);
 
 				if (hi->pdata.headset_config_1wire_num)
 					for (i = 0; i < hi->pdata.headset_config_1wire_num; i++)

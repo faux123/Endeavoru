@@ -405,8 +405,11 @@ static int gpio_config_state(int cnf, int oe, int out, int pupd)
 
 void gpio_dump(void)
 {
-    int b, p, i;
-    unsigned long flags;
+	int b, p, i;
+	int gpio_cnf;
+	int gpio_out;
+	int gpio_oe;
+
 
     for (b = 0; b < ARRAY_SIZE(tegra_gpio_banks); b++) {
 	struct tegra_gpio_bank *bank = &tegra_gpio_banks[b];
@@ -435,11 +438,9 @@ void gpio_dump(void)
 			else
 				sprintf(port, "%c%c", ((b*4+p)%26)+'A', ((b*4+p)%26)+'A');
 
-			int gpio_cnf = __raw_readl(GPIO_CNF(gpio));
-			int gpio_out = __raw_readl(GPIO_OUT(gpio));
-			int gpio_oe = __raw_readl(GPIO_OE(gpio));
-
-			int i;
+			gpio_cnf = __raw_readl(GPIO_CNF(gpio));
+			gpio_out = __raw_readl(GPIO_OUT(gpio));
+			gpio_oe = __raw_readl(GPIO_OE(gpio));
 
 			for (i = 0; i < 8; i++) {
 				enum tegra_pingroup ball = gpio_to_pingroup[gpio+i];

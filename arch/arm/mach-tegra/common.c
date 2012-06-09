@@ -114,7 +114,7 @@ void (*arch_reset)(char mode, const char *cmd) = tegra_assert_system_reset;
 extern unsigned reboot_battery_first_level;
 
 unsigned (*get_battery_level_cb)(void) = NULL;
-EXPORT_SYMBAL_GPL(get_battery_level_cb);
+EXPORT_SYMBOL_GPL(get_battery_level_cb);
 
 #define NEVER_RESET 0
 
@@ -289,8 +289,6 @@ void tegra_init_cache(bool init)
 #ifdef CONFIG_CACHE_L2X0
 	void __iomem *p = IO_ADDRESS(TEGRA_ARM_PERIF_BASE) + 0x3000;
 	u32 aux_ctrl;
-	u32 speedo;
-	u32 tmp;
 
 #ifdef CONFIG_TRUSTED_FOUNDATIONS
 	/* issue the SMC to enable the L2 */
@@ -317,6 +315,8 @@ void tegra_init_cache(bool init)
 		writel(0x221, p + L2X0_TAG_LATENCY_CTRL);
 		writel(0x221, p + L2X0_DATA_LATENCY_CTRL);
 	} else {
+		u32 speedo;
+
 		/* relax l2-cache latency for speedos 4,5,6 (T33's chips) */
 		speedo = tegra_cpu_speedo_id();
 		if (speedo == 4 || speedo == 5 || speedo == 6 ||
@@ -339,6 +339,8 @@ void tegra_init_cache(bool init)
 	if (init) {
 		l2x0_init(p, aux_ctrl, 0x8200c3fe);
 	} else {
+		u32 tmp;
+
 		tmp = aux_ctrl;
 		aux_ctrl = readl(p + L2X0_AUX_CTRL);
 		aux_ctrl &= 0x8200c3fe;
@@ -1099,7 +1101,7 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 	if (nvdumper_reserved) {
 		if (memblock_reserve(nvdumper_reserved, NVDUMPER_RESERVED_LEN)) {
 			pr_err("Failed to reserve nvdumper page %08lx@%08lx\n",
-			       nvdumper_reserved, NVDUMPER_RESERVED_LEN);
+			       nvdumper_reserved, (long unsigned)NVDUMPER_RESERVED_LEN);
 			nvdumper_reserved = 0;
 		}
 	}
