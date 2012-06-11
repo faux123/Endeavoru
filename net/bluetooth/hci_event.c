@@ -52,9 +52,9 @@ static int enable_le;
 
 static void hci_cc_inquiry_cancel(struct hci_dev *hdev, struct sk_buff *skb)
 {
-	BT_DBG("%s", hdev->name);
-
 	__u8 status = *((__u8 *) skb->data);
+
+	BT_DBG("%s", hdev->name);
 
 	BT_DBG("%s status 0x%x", hdev->name, status);
 
