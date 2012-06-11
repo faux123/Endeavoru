@@ -1,6 +1,8 @@
 #ifndef _CABLE_DETECT_H_
 #define _CABLE_DETECT_H_
 
+#include <linux/list.h>
+
 #define DOCK_STATE_UNDEFINED		-1
 #define DOCK_STATE_UNDOCKED		0
 #define DOCK_STATE_DESK			(1 << 0)
@@ -111,6 +113,7 @@ struct t_usb_status_notifier {
 	const char *name;
 	void (*func)(int cable_type);
 };
+
 static LIST_HEAD(g_lh_usb_notifier_list);
 
 /***********************************
