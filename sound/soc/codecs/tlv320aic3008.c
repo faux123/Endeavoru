@@ -994,7 +994,7 @@ static int aic3008_set_config(int config_tbl, int idx, int en)
 		if(!aic3008_power_ctl->isPowerOn)
 		{
 			AUD_ERR("[TX] AIC3008 is power off now, can't do IO CONFIG TX = %d, please check this condition!!", idx);
-			AUD_ERR("[TX] Since IO CONFIG TX = %d can't be done, it maybe no sound on device");
+			AUD_ERR("[TX] Since IO CONFIG TX can't be done, it maybe no sound on device");
 			break;
 		}
 		if (en) {
@@ -1019,7 +1019,7 @@ static int aic3008_set_config(int config_tbl, int idx, int en)
 		if(!aic3008_power_ctl->isPowerOn)
 		{
 			AUD_ERR("[RX] AIC3008 is power off now, can't do IO CONFIG RX = %d, please check this condition!!", idx);
-			AUD_ERR("[RX] Since IO CONFIG RX = %d can't be done, it maybe no sound on device");
+			AUD_ERR("[RX] Since IO CONFIG RX can't be done, it maybe no sound on device");
 			break;
 		}
 		if(!first_boot_path && idx == 10)
@@ -1392,10 +1392,8 @@ static long aic3008_ioctl(struct file *file, unsigned int cmd,
 			ret = codec_spi_read(i, &data, true);
 			if (ret < 0) {
 				AUD_ERR("read fail on register 0x%X\n", i);
-				0;
 			} else {
 				AUD_DBG("(addr:0x%02X, data:0x%02X)\n", i, data);
-				0;
 			}
 		}
 		AUD_DBG("=============================================\n");
@@ -1671,16 +1669,17 @@ struct snd_soc_dai_driver aic3008_dai = {
 /*****************************************************************************/
 static int __devinit aic3008_probe(struct snd_soc_codec *codec)
 {
-	AUD_INFO("aic3008_probe() start... aic3008_codec:%p", codec);
 	int ret = 0;
 
 	struct aic3008_priv *aic3008 = snd_soc_codec_get_drvdata(codec);
+
+	AUD_INFO("aic3008_probe() start... aic3008_codec:%p", codec);
 	aic3008->codec = codec;
 	aic3008->codec->control_data = (void *)codec_spi_dev;
 
 	if (!aic3008) {
 		AUD_ERR("%s: Codec not registered, SPI device not yet probed\n",
-				&aic3008->codec->name);
+				aic3008->codec->name);
 		return -ENODEV;
 	}
 	aic3008_sw_reset(codec); // local call to reset codec
@@ -1733,12 +1732,14 @@ static struct snd_soc_codec_driver soc_codec_dev_aic3008_driver = {
 /*****************************************************************************/
 static int spi_aic3008_probe(struct spi_device *spi_aic3008)
 {
+	int ret = 0;
+	struct aic3008_priv *aic3008 = kzalloc(sizeof(struct aic3008_priv), GFP_KERNEL);;
+
 	AUD_DBG("spi device: %s, addr = 0x%p. YAY! ***** Start to Test *****\n",
 		spi_aic3008->modalias, spi_aic3008);
-	int ret = 0;
+
 	codec_spi_dev = spi_aic3008; /* assign global pointer to SPI device. */
 
-	struct aic3008_priv *aic3008 = kzalloc(sizeof(struct aic3008_priv), GFP_KERNEL);;
 	if (aic3008 == NULL)
 		return -ENOMEM;
 	
