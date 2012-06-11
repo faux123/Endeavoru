@@ -227,19 +227,23 @@ static void print_active_locks(int type)
 	}
 }
 
-void htc_print_active_wake_locks()
+void htc_print_active_wake_locks(void)
 {
 	static char idle_hdr[] = "idle lock: ";
 	static char suspend_hdr[] = "wakelock: ";
 	bool lock_exist[2] = {false, false}; // 0: idle; 1: suspend
 	
 	struct wake_lock *lock;
-	char buf[2][2048]; // maed of 4K page, [0][]: idle; [1][]: suspend
+	char *buf;//[2][2048]; // maed of 4K page, [0][]: idle; [1][]: suspend
 	int idx = 0;
 	
 	unsigned long irqflags;	
 	spin_lock_irqsave(&list_lock, irqflags);	
 	
+
+	buf = kzalloc(2*2048, GFP_KERNEL);
+	if (!buf)
+		goto err;
 	//
 	// IRQs off, Trap off
 	// finish the dump job ASAP
@@ -254,11 +258,11 @@ void htc_print_active_wake_locks()
 				long timeout = lock->expires - jiffies;
 				if (timeout > 0)
 					if (idx < sizeof(buf[0]))
-						idx += snprintf (buf[0]+idx, sizeof(buf[0])-idx, " '%s', time left %ld; ", lock->name, timeout);
+						idx += snprintf ( (char *)(buf[0]+idx), sizeof(buf[0])-idx, " '%s', time left %ld; ", lock->name, timeout);
 
 			} else {
 				if (idx < sizeof(buf[0]))
-					idx += snprintf (buf[0]+idx, sizeof(buf[0])-idx, " '%s' ", lock->name);
+					idx += snprintf ( (char *)(buf[0]+idx), sizeof(buf[0])-idx, " '%s' ", lock->name);
 			}
 		}
 	}
@@ -273,15 +277,16 @@ void htc_print_active_wake_locks()
 				long timeout = lock->expires - jiffies;
 				if (timeout > 0)
 					if (idx < sizeof(buf[1]))
-						idx += snprintf (buf[1]+idx, sizeof(buf[1])-idx, " '%s', time left %ld; ", lock->name, timeout);
+						idx += snprintf ( (char *)(buf[1]+idx), sizeof(buf[1])-idx, " '%s', time left %ld; ", lock->name, timeout);
 				
 			} else {
 				if (idx < sizeof(buf[1]))
-					idx += snprintf (buf[1]+idx, sizeof(buf[1])-idx, " '%s' ", lock->name);
+					idx += snprintf ( (char *)(buf[1]+idx), sizeof(buf[1])-idx, " '%s' ", lock->name);
 			}
 		}
 	}
-	
+
+err:	
 	spin_unlock_irqrestore(&list_lock, irqflags);
 	
 	//
@@ -289,13 +294,17 @@ void htc_print_active_wake_locks()
 	//
 	/* idle lockers */
 	if (lock_exist[0]) {
-		printk ("%s%s\n", idle_hdr, buf[0]);
+
+		printk ("%s%d\n", idle_hdr, buf[0]);
 	}
 	
 	/* suspend lockers */
 	if (lock_exist[1]) {
-		printk ("%s%s\n", suspend_hdr, buf[1]);
+		printk ("%s%d\n", suspend_hdr, buf[1]);
 	}
+
+	if (buf != NULL)
+		kfree(buf);
 }
 
 static long has_wake_lock_locked(int type)
