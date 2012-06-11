@@ -41,10 +41,12 @@
 #include <linux/wakelock.h>
 #include <linux/usb/htc_info.h>
 
+/*
 #define USB_INFO(fmt, args...) \
 	pr_info(KERN_INFO "[USBOTG] " fmt, ## args)
 #define USB_ERR(fmt, args...) \
 	pr_err("[USBOTG] " fmt, ## args)
+*/
 
 #define USB_PHY_WAKEUP		0x408
 #define  USB_ID_INT_EN		(1 << 0)
@@ -74,7 +76,7 @@ struct tegra_otg_data {
 static struct tegra_otg_data *tegra_clone;
 
 #if defined(CONFIG_CABLE_DETECT_ACCESSORY)
-extern void cable_detection_queue_recovery_host_work(time);
+extern void cable_detection_queue_recovery_host_work(int time);
 #endif
 
 static inline unsigned long otg_readl(struct tegra_otg_data *tegra,
@@ -301,9 +303,9 @@ static irqreturn_t tegra_otg_irq(int irq, void *data)
 
 void tegra_otg_check_vbus_detection(void)
 {
-	pr_info("[USBOTG] %s \n", __func__);
 	unsigned long flags;
 
+	pr_info("[USBOTG] %s \n", __func__);
 	tegra_otg_enable_clk();
 }
 EXPORT_SYMBOL(tegra_otg_check_vbus_detection);

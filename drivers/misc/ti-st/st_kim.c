@@ -480,7 +480,7 @@ long st_kim_start(void *kim_data)
 
 	do {
 
-		printk("\n[BT_GPS] nshutdown gpio new: %d\n", kim_gdata->nshutdown);
+		printk("\n[BT_GPS] nshutdown gpio new: %li\n", kim_gdata->nshutdown);
 
 		if (pdata->chip_enable)
 			pdata->chip_enable();
@@ -824,7 +824,7 @@ static int kim_probe(struct platform_device *pdev)
 		/* rfill alloc */
 		rfkillBT = rfkill_alloc(bt_name, &pdev->dev, RFKILL_TYPE_BLUETOOTH, &wl127x_rfkill_ops, NULL);
 		status = rfkill_register(rfkillBT);
-		pr_info("rfkill prob for Bluetooth ==> status: %d\n", status);
+		pr_info("rfkill prob for Bluetooth ==> status: %li\n", status);
 
 		/* pydtd_pincfg_uart0_suspend(); */
 		blue_pincfg_uartc_gpio_request();
@@ -886,7 +886,7 @@ int kim_suspend(struct platform_device *pdev, pm_message_t state)
 	core_data = kim_gdata->core_data;
 
 	/* after_suspend = true; */
-	dev_info(&pdev->dev, "[BT] %s, st_data->ll_state=%d\n", __func__,
+	dev_info(&pdev->dev, "[BT] %s, st_data->ll_state=%li\n", __func__,
 		kim_gdata->core_data->ll_state);
 /*
 	if ((kim_gdata->core_data->ll_state < 4) && (kim_gdata->core_data->ll_state > 0))

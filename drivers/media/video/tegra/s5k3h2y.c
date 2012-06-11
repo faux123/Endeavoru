@@ -752,7 +752,7 @@ static int s5k3h2y_read_reg(struct i2c_client *client, u16 addr, u8 *val)
 }
 #endif
 
-static int s5k3h2y_check_sensorid()
+static int s5k3h2y_check_sensorid(void)
 {
 	uint16_t chipid = 0;
 	int32_t rc = 0;
@@ -896,7 +896,7 @@ static int s5k3h2y_set_mode(struct s5k3h2y_info *info, struct s5k3h2y_mode *mode
 {
 	int sensor_mode;
 	int err = -1;
-	bool_t	bStatus = SUCCESS;
+	unsigned char	bStatus = SUCCESS;
 	struct s5k3h2y_reg reg_list[6];
 	static Yushan_New_Context_Config_t *newContextConfig;
 	int retry = 0;

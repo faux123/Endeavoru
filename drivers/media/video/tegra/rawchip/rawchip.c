@@ -582,9 +582,9 @@ static unsigned int tegra_rawchip_poll(struct file *filp,
 
 	return rc;
 }
-bool_t block_iotcl = false;
+unsigned char block_iotcl = false;
 
-void tegra_rawchip_block_iotcl(bool_t blocked)
+void tegra_rawchip_block_iotcl(unsigned char blocked)
 {
 	block_iotcl = blocked;
 }

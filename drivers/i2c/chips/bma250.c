@@ -640,11 +640,11 @@ static struct miscdevice bma_device = {
 
 int bma250_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
-	printk("bma250 probe start\n");
 	struct bma250_data *bma;
 	char buffer[2];
 	int err = 0;
 
+	printk("bma250 probe start\n");
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		err = -ENODEV;
 		goto exit_check_functionality_failed;

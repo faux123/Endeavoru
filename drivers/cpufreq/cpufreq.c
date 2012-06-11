@@ -694,7 +694,7 @@ static ssize_t show_UV_mV_table(struct cpufreq_policy *policy, char *buf)
 	return out - buf;
 }
 
-static ssize_t store_UV_mV_table(struct cpufreq_policy *policy, char *buf, size_t count)
+static ssize_t store_UV_mV_table(struct cpufreq_policy *policy, const char *buf, size_t count)
 {
 	int i = 0;
 	unsigned long volt_cur;
@@ -1784,8 +1784,8 @@ static int __cpufreq_set_policy(struct cpufreq_policy *data,
 	int ret = 0;
 	unsigned int pmin = policy->min;
 	unsigned int pmax = policy->max;
-	unsigned int qmin = min(pm_qos_request(PM_QOS_CPU_FREQ_MIN), data->max);
-	unsigned int qmax = max(pm_qos_request(PM_QOS_CPU_FREQ_MAX), data->min);
+	unsigned int qmin = min((int)pm_qos_request(PM_QOS_CPU_FREQ_MIN), (int)data->max);
+	unsigned int qmax = max((int)pm_qos_request(PM_QOS_CPU_FREQ_MAX), (int)data->min);
 
 	cpufreq_debug_disable_ratelimit();
 	dprintk("setting new policy for CPU %u: %u - %u (%u - %u) kHz\n",

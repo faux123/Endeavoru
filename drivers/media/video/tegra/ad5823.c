@@ -160,13 +160,13 @@ static long ad5823_ioctl(struct file *file,
     {
         #if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
         short gsensor_info[3];
-        GSensorReadData(gsensor_info);
+        struct g_sensor_info data;
 
-        struct g_sensor_info data = {
-            .x = gsensor_info[0],
-            .y = gsensor_info[1],
-            .z = gsensor_info[2],
-        };
+        GSensorReadData(gsensor_info);
+	data.x = gsensor_info[0];
+	data.y = gsensor_info[1];
+	data.z = gsensor_info[2];
+
         if (copy_to_user((void __user *) arg,
                  &data,
                  sizeof(struct g_sensor_info))) {

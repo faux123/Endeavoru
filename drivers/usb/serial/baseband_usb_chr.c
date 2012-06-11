@@ -1317,7 +1317,7 @@ static struct baseband_usb *baseband_usb_open(unsigned int vid,
 	err = baseband_usb_chr_rx_urb_submit(usb);
 	if (err < 0) {
 		pr_err("submit rx failed - err %d\n", err);
-		return -ENODEV;
+		goto error_exit;
 	}
 
 	chrlog4("baseband_usb_open }\n");

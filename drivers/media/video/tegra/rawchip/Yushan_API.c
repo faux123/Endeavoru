@@ -30,7 +30,7 @@ struct yushan_int_t {
 };
 
 
-bool_t	gPllLocked;
+unsigned char	gPllLocked;
 
 extern int rawchip_intr0, rawchip_intr1;
 extern atomic_t interrupt, interrupt2;
@@ -88,7 +88,7 @@ static int PDP_enable(uint8_t	enable)
 {
 	uint8_t	bSpiData;
 	uint8_t pData = 1;
-	bool_t fStatus = SUCCESS;
+	unsigned char fStatus = SUCCESS;
 
 	pr_info("[CAM] %s:%d\n",__func__, enable);
 
@@ -105,7 +105,7 @@ static int black_level_enable(uint8_t	enable)
 {
 	uint8_t	bSpiData;
 	uint8_t pData = 1;
-	bool_t fStatus = SUCCESS;
+	unsigned char fStatus = SUCCESS;
 
 	pr_info("[CAM] %s:%d\n",__func__, enable);
 
@@ -124,7 +124,7 @@ static int dead_pixel_enable(uint8_t	enable)
 {
 	uint8_t	bSpiData;
 	uint8_t pData = 1;
-	bool_t fStatus = SUCCESS;
+	unsigned char fStatus = SUCCESS;
 
 	pr_info("[CAM] %s:%d\n",__func__, enable);
 
@@ -143,7 +143,7 @@ static int DPP_enable(uint8_t	enable)
 {
 	uint8_t	bSpiData;
 	uint8_t pData = 1;
-	bool_t fStatus = SUCCESS;
+	unsigned char fStatus = SUCCESS;
 	uint32_t udwSpiData;
 
 	pr_info("[CAM] %s:%d\n",__func__, enable);
@@ -174,7 +174,7 @@ static int DOP_enable(uint8_t	enable)
 {
 	uint8_t	bSpiData;
 	uint8_t pData = 1;
-	bool_t fStatus = SUCCESS;
+	unsigned char fStatus = SUCCESS;
 
 	pr_info("[CAM] %s:%d\n",__func__, enable);
 
@@ -196,7 +196,7 @@ static int AFSU_enable(uint8_t enable)
 {
 	uint8_t	bSpiData;
 	uint8_t pData = 1;
-	bool_t fStatus = SUCCESS;
+	unsigned char fStatus = SUCCESS;
 
 	pr_info("[CAM] %s:%d\n",__func__, enable); 
 
@@ -215,7 +215,7 @@ static int Denoise_enable(uint8_t enable)
 {
 	uint8_t	bSpiData;
 	uint8_t pData = 1;
-	bool_t fStatus = SUCCESS;
+	unsigned char fStatus = SUCCESS;
 
 	pr_info("[CAM] %s:%d\n",__func__, enable); 
 
@@ -354,10 +354,10 @@ API Function:	Yushan_Init_LDO. Performs the LDO initialization
 Input:			void
 Return:			SUCCESS(1),FALIURE(0)
 ********************************************************************/
-bool_t	Yushan_Init_LDO(uint8_t use_ext_1v2)
+unsigned char	Yushan_Init_LDO(uint8_t use_ext_1v2)
 {
 	
-	bool_t		fStatus = SUCCESS;
+	unsigned char		fStatus = SUCCESS;
 	uint8_t		bSpiReadData=0, bLDOTrimValue=0, bSpiData=0;
 	uint16_t	uwCount=500;	/* Some high number */
 
@@ -447,7 +447,7 @@ API Function:	Init_Clk_Yushan, perform the clock initialization of
 	Input:			InitStruct
 Return:			SUCCESS(1),FALIURE(0)
 ********************************************************************/
-bool_t Yushan_Init_Clocks(Yushan_Init_Struct_t *sInitStruct, Yushan_SystemStatus_t *sSystemStatus, uint8_t use_ext_1v2)
+unsigned char Yushan_Init_Clocks(Yushan_Init_Struct_t *sInitStruct, Yushan_SystemStatus_t *sSystemStatus, uint8_t use_ext_1v2)
 {
 
 	uint32_t		fpTargetPll_Clk, fpSys_Clk, fpPixel_Clk, fpDxo_Clk, fpIdp_Clk, fpDxoClockLow;		// 16.16 Fixed Point notation
@@ -726,13 +726,13 @@ uint32_t Yushan_ConvertTo16p16FP(uint16_t uwNonFPValue)
 API Function: Upload DXO micro code and perform the boot operation.
 Input:		  DXO_InitStruct
 *************************************************************/
-bool_t	Yushan_Init_Dxo(Yushan_Init_Dxo_Struct_t * sDxoStruct, bool_t fBypassDxoUpload)
+unsigned char	Yushan_Init_Dxo(Yushan_Init_Dxo_Struct_t * sDxoStruct, unsigned char fBypassDxoUpload)
 {
 	
 	uint8_t bSpiData;
 	uint32_t	udwHWnMicroCodeID = 0, udwCalibrationDataID = 0, udwErrorCode = 0;
 	uint32_t udwDxoBaseAddress = 0, udwSpiBaseIndex = 0;
-	bool_t	fStatus=1;
+	unsigned char	fStatus=1;
 	/* uint8_t readback=0; */
 
 	/******************************* DXO DOP RAM ***************************************************/
@@ -940,7 +940,7 @@ API Function:	Init Yushan, perform the basic initialization
 Input:			InitStruct
 Return:			
 *************************************************************************************/
-bool_t Yushan_Init(Yushan_Init_Struct_t * sInitStruct) 
+unsigned char Yushan_Init(Yushan_Init_Struct_t * sInitStruct) 
 {
 	uint32_t spi_base_address,udwSpiData;
 	uint16_t uwHsizeStill=0;
@@ -1293,10 +1293,10 @@ API Functtion: Update DXO image characteristics parameters.
 Same for all the the three IPs
 Input: ImageStruct
 **************************************************************/
-bool_t Yushan_Update_ImageChar(Yushan_ImageChar_t * sImageChar)
+unsigned char Yushan_Update_ImageChar(Yushan_ImageChar_t * sImageChar)
 {
 	uint8_t  *pData;
-	bool_t fStatus;
+	unsigned char fStatus;
 	uint32_t udwSpiData;
 	uint8_t  bData[20];
 
@@ -1343,10 +1343,10 @@ API Functtion: Update Sensor paramters. Same for all the the
 three IPs.
 Input: GainExpInfo
 **************************************************************/
-bool_t Yushan_Update_SensorParameters(Yushan_GainsExpTime_t * sGainsExpInfo)
+unsigned char Yushan_Update_SensorParameters(Yushan_GainsExpTime_t * sGainsExpInfo)
 {
 	uint8_t *pData;
-	bool_t fStatus;
+	unsigned char fStatus;
 	uint32_t udwSpiData;
 	uint8_t bData[20];
 
@@ -1392,7 +1392,7 @@ bool_t Yushan_Update_SensorParameters(Yushan_GainsExpTime_t * sGainsExpInfo)
 /***************************************************************************
 API Function: Update Pdp Tuning paramter for Dead pixel correction.
 ***************************************************************************/
-bool_t Yushan_Update_DxoPdp_TuningParameters(Yushan_DXO_PDP_Tuning_t * sDxoPdpTuning)
+unsigned char Yushan_Update_DxoPdp_TuningParameters(Yushan_DXO_PDP_Tuning_t * sDxoPdpTuning)
 {
 	uint8_t  *pData,fStatus;
 	uint8_t bData[3];
@@ -1412,11 +1412,11 @@ bool_t Yushan_Update_DxoPdp_TuningParameters(Yushan_DXO_PDP_Tuning_t * sDxoPdpTu
 /***************************************************************************
 API Function: Update Dpp Tuning parameters
 ***************************************************************************/
-bool_t Yushan_Update_DxoDpp_TuningParameters(Yushan_DXO_DPP_Tuning_t * sDxoDppTuning)
+unsigned char Yushan_Update_DxoDpp_TuningParameters(Yushan_DXO_DPP_Tuning_t * sDxoDppTuning)
 {
 
 	uint8_t  *pData;
-	bool_t	fStatus;
+	unsigned char	fStatus;
 	uint32_t udwSpiData;
 	uint8_t bData[10];
 
@@ -1443,10 +1443,10 @@ bool_t Yushan_Update_DxoDpp_TuningParameters(Yushan_DXO_DPP_Tuning_t * sDxoDppTu
 API Function: Update Dop Tuning parameters
 Input: DOP Tuning parameters
 ***************************************************************************/
-bool_t Yushan_Update_DxoDop_TuningParameters(Yushan_DXO_DOP_Tuning_t * sDxoDopTuning)
+unsigned char Yushan_Update_DxoDop_TuningParameters(Yushan_DXO_DOP_Tuning_t * sDxoDopTuning)
 {
 	uint8_t *pData;
-	bool_t fStatus;
+	unsigned char fStatus;
 	uint8_t bData[10];
 
 	pData = (uint8_t *) bData;
@@ -1480,10 +1480,10 @@ API Function: Update_Commit. This function will apply the changes programmed
 in the DXO parameters. This function will be called at the start of the frame
 so that the changes will be well reflected in the coming frame.
 ***************************************************************************/
-bool_t Yushan_Update_Commit(uint8_t  bPdpMode, uint8_t  bDppMode, uint8_t  bDopMode)
+unsigned char Yushan_Update_Commit(uint8_t  bPdpMode, uint8_t  bDppMode, uint8_t  bDopMode)
 {
 	uint8_t bData, *pData;
-	bool_t fStatus = SUCCESS;
+	unsigned char fStatus = SUCCESS;
 	uint32_t udwSpiData ;
 	uint8_t bSpiData;
 
@@ -1602,7 +1602,7 @@ Input:			Pointer to 88bit Interrupt_BitMask, which carry 1 or
 				0 for the interrupts to be enabled or disabled resp.
 Return:			Success or Failure
 *********************************************************************/
-bool_t Yushan_Intr_Enable(uint8_t *pIntrMask)
+unsigned char Yushan_Intr_Enable(uint8_t *pIntrMask)
 {
 	/* Two counters, bIntrCount to trace through Interrupt bits 1 through 83 and another counter */
 	/* bIntr32Count to trace through 32 to 0 for checking interrupts in 32 bit double word. */
@@ -1708,7 +1708,7 @@ Input:					DXO inputs, Clks and Min limits
 Return:					SUCCESS OR FAILURE, if DXO constraints
 						met or violated, respectively.
 *******************************************************************/
-bool_t Yushan_CheckDxoConstraints(uint32_t udwParameters, uint32_t udwMinLimit, uint32_t fpDxo_Clk, uint32_t fpPixel_Clk, uint16_t uwFullLine, uint32_t * pMinValue)
+unsigned char Yushan_CheckDxoConstraints(uint32_t udwParameters, uint32_t udwMinLimit, uint32_t fpDxo_Clk, uint32_t fpPixel_Clk, uint16_t uwFullLine, uint32_t * pMinValue)
 {
 	/* fpDxo_Clk and fpPixel_Clk are in fixed point notations. */
 
@@ -1760,7 +1760,7 @@ uint32_t Yushan_Compute_Pll_Divs(uint32_t fpExternal_Clk, uint32_t fpTarget_PllC
 	uint16_t		uwFreqVco, uwIdFreq;
 	uint8_t			bODiv, bLoop, bIDivCount = 0;
 	uint8_t			bSpiData;
-	bool_t			fStatus = SUCCESS;
+	unsigned char			fStatus = SUCCESS;
 
 
 	/* Arrays for saving Pll paramters above or below desired Pll_Clk. */
@@ -1831,7 +1831,7 @@ API Function:	Read DXO IP versions
 Input:			pointer to sYushanVersionInfo struct
 Return:			Update sYushanVersionInfo
 *****************************************************************************/
-bool_t Yushan_Get_Version_Information(Yushan_Version_Info_t * sYushanVersionInfo) 
+unsigned char Yushan_Get_Version_Information(Yushan_Version_Info_t * sYushanVersionInfo) 
 {
 #if 0
 	uint32_t udwSpiBaseIndex;
@@ -1865,12 +1865,12 @@ bool_t Yushan_Get_Version_Information(Yushan_Version_Info_t * sYushanVersionInfo
 WaitForInterruptEvent:
 Waiting for Interrupt and adding the same in the Interrupt list.
 *******************************************************************/
-bool_t WaitForInterruptEvent (uint8_t bInterruptId ,uint32_t udwTimeOut)
+unsigned char WaitForInterruptEvent (uint8_t bInterruptId ,uint32_t udwTimeOut)
 {
 
 	int					 counterLimit;
 	//int counter =0;
-	bool_t				fStatus = 0; /*, INTStatus=0;*/
+	unsigned char				fStatus = 0; /*, INTStatus=0;*/
 	//int rc = 0;
 
 	switch ( udwTimeOut )
@@ -1920,12 +1920,12 @@ bool_t WaitForInterruptEvent (uint8_t bInterruptId ,uint32_t udwTimeOut)
 		return FAILURE;
 }
 
-bool_t WaitForInterruptEvent2 (uint8_t bInterruptId ,uint32_t udwTimeOut)
+unsigned char WaitForInterruptEvent2 (uint8_t bInterruptId ,uint32_t udwTimeOut)
 {
 
 	int					 counterLimit;
 	//int counter =0;
-	bool_t				fStatus = 0; /*, INTStatus=0;*/
+	unsigned char				fStatus = 0; /*, INTStatus=0;*/
 	//int rc = 0;
 
 	switch ( udwTimeOut )
@@ -2649,10 +2649,10 @@ void Yushan_ISR2() /* for DOP7 */
 CheckForInterruptIDInList:
 Check InterruptID in the Interrupt list.
 *******************************************************************/
-bool_t CheckForInterruptIDInList(uint8_t bInterruptID) /*, uint32_t *udwListOfInterrupts) */
+unsigned char CheckForInterruptIDInList(uint8_t bInterruptID) /*, uint32_t *udwListOfInterrupts) */
 {
 
-	bool_t		fStatus = 0;
+	unsigned char		fStatus = 0;
 	uint8_t		bIntrDWordInList, bIndexInCurrentDWord;
 	uint32_t	*pListOfInterrupt;
 
@@ -2677,7 +2677,7 @@ bool_t CheckForInterruptIDInList(uint8_t bInterruptID) /*, uint32_t *udwListOfIn
 
 
 	/* Check whether the desired Interrupt has been aserted or not. */
-	fStatus = (bool_t)(((*pListOfInterrupt)>>bIndexInCurrentDWord) & 0x00000001);
+	fStatus = (unsigned char)(((*pListOfInterrupt)>>bIndexInCurrentDWord) & 0x00000001);
 
 	return fStatus;
 
@@ -2692,7 +2692,7 @@ void Yushan_Intr_Status_Read(uint8_t *bListOfInterrupts)
 {
 	uint16_t	uwSpiData = 0;
 	uint8_t		bIsIntrSetAsserted, bIntrSetID = 0; /* bIntrEventID = FALSE_ALARM; */
-	bool_t		fStatus = SUCCESS;
+	unsigned char		fStatus = SUCCESS;
 	uint8_t		bSpiData = 0;
 
 	/* Clearing the interrupt list */
@@ -2747,7 +2747,7 @@ void Read_IntrEvent(uint8_t bIntrSetID, uint32_t *udwListOfInterrupts)
 	uint8_t		bFirstIndexForSet[] = {1, 5, 11, 17, 23, 27, 58, 62, 69, 77, 79, 82, 83};
 	uint16_t	uwIntrSetOffset;
 	uint32_t	udwIntrStatus, udwIntrEnableStatus, udwCombinedStatus;
-	/* bool_t		fStatus = SUCCESS;, fIntrInListAlready = FAILURE; */
+	/* unsigned char		fStatus = SUCCESS;, fIntrInListAlready = FAILURE; */
 	
 	if (bIntrSetID != 13)
 		bTotalEventInASet = (bFirstIndexForSet[bIntrSetID+1] - bFirstIndexForSet[bIntrSetID]);
@@ -2834,7 +2834,7 @@ Input:				Interrupt ID to be added or removed from the list
 					and a Flag to decide to add or remove.
 Return:
 ***********************************************************************/
-void Yushan_AddnRemoveIDInList(uint8_t bInterruptID, uint32_t *udwListOfInterrupts, bool_t fAddORClear)
+void Yushan_AddnRemoveIDInList(uint8_t bInterruptID, uint32_t *udwListOfInterrupts, unsigned char fAddORClear)
 {
 
 	uint8_t		bIntrDWordInList, bIndexInCurrentDWord;
@@ -2885,7 +2885,7 @@ Input:			Pointer to 83bit udwListOfInterrupts, which carry 1 or
 				0 for the interrupts to be cleared.
 Return:			Success or Failure
 *********************************************************************/
-bool_t Yushan_Intr_Status_Clear(uint8_t *bListOfInterrupts)
+unsigned char Yushan_Intr_Status_Clear(uint8_t *bListOfInterrupts)
 {
 	/* Two counters, bIntrCount to trace through Interrupt bits 1 through 83 and another counter
 	*  bIntr32Count to trace through 32 to 0 for checking interrupts in 32 bit double word. */
@@ -3023,9 +3023,9 @@ Input:			Function will ask for inputs, i.e., New resolution, format
 
 Return:			Success or Failure
 **********************************************************************/
-bool_t	Yushan_Context_Config_Update(Yushan_New_Context_Config_t	*sYushanNewContextConfig)
+unsigned char	Yushan_Context_Config_Update(Yushan_New_Context_Config_t	*sYushanNewContextConfig)
 {
-	/* bool_t		bStatus=SUCCESS; */
+	/* unsigned char		bStatus=SUCCESS; */
 	uint8_t		bVfStillIndex, bVFIndex, bStillIndex, bVFMask=0;
 	uint8_t		bDataType, bCurrentDataType=0, bActiveDatatype=1, bRawFormat=0, bWCAlreadyPresent = 0;
 	uint8_t		bPixClkDiv=0, bDxoClkDiv=0, bCount=0;
@@ -3189,7 +3189,7 @@ API Function:	This function will update the DXO_DOP AF ROIs (Five ROIs).
 Input:			Structure for ROI and NumOfActiveROI
 Return:			Success or Failure
 **********************************************************************/
-bool_t Yushan_AF_ROI_Update(Yushan_AF_ROI_t  *sYushanAfRoi, uint8_t bNumOfActiveRoi) 
+unsigned char Yushan_AF_ROI_Update(Yushan_AF_ROI_t  *sYushanAfRoi, uint8_t bNumOfActiveRoi) 
 {
 
 	uint8_t		bSpiData[4];
@@ -3234,11 +3234,11 @@ API Function:	The function will put the Yushan in standby mode. It
 Input:
 Return:			Success or Failure
 *******************************************************************/
-bool_t Yushan_Enter_Standby_Mode (void)
+unsigned char Yushan_Enter_Standby_Mode (void)
 {
 	uint8_t		bSpiData;
 	uint32_t	udwSpiData;
-	bool_t		fStatus = SUCCESS;
+	unsigned char		fStatus = SUCCESS;
 
 	/* Disable the MIPI RX and TX. */
 	bSpiData = 0;
@@ -3294,11 +3294,11 @@ API Function:	The function will bring the Yushan out of standby mode.
 Input:			sInitStruct for NumberOfLanes information	
 Return:			Success or Failure
 **********************************************************************/
-bool_t Yushan_Exit_Standby_Mode(Yushan_Init_Struct_t * sInitStruct)
+unsigned char Yushan_Exit_Standby_Mode(Yushan_Init_Struct_t * sInitStruct)
 {
 	uint8_t		bSpiData;
 	uint32_t	udwSpiData;
-	bool_t		fStatus = SUCCESS;
+	unsigned char		fStatus = SUCCESS;
 
 
 	/* Switch the Clocks to Pll clk */
@@ -3370,9 +3370,9 @@ API Function:	This function will swap the P & N pins at CSI
 Input:			Clk_Lane, DataLane1, 2, 3 and 4.
 Return:			Success or Failure
 *******************************************************************/
-bool_t Yushan_Swap_Rx_Pins (bool_t fClkLane, bool_t fDataLane1, bool_t fDataLane2, bool_t fDataLane3, bool_t fDataLane4)
+unsigned char Yushan_Swap_Rx_Pins (unsigned char fClkLane, unsigned char fDataLane1, unsigned char fDataLane2, unsigned char fDataLane3, unsigned char fDataLane4)
 {
-	bool_t		fStatus; /* = SUCCESS; */
+	unsigned char		fStatus; /* = SUCCESS; */
 	uint8_t		bSpiData = 0;
 
 	bSpiData = (fClkLane | (fDataLane1<<4) | (fDataLane2<<5) | (fDataLane3<<6) | (fDataLane4<<7));
@@ -3392,10 +3392,10 @@ API Function:	This function will invert the HS signals of the CSI
 Input:			Clk_Lane, DataLane1, 2, 3 and 4.
 Return:			Success or Failure
 *******************************************************************/
-bool_t Yushan_Invert_Rx_Pins (bool_t fClkLane, bool_t fDataLane1, bool_t fDataLane2, bool_t fDataLane3, bool_t fDataLane4)
+unsigned char Yushan_Invert_Rx_Pins (unsigned char fClkLane, unsigned char fDataLane1, unsigned char fDataLane2, unsigned char fDataLane3, unsigned char fDataLane4)
 {
 
-	bool_t		fStatus; /* = SUCCESS; */
+	unsigned char		fStatus; /* = SUCCESS; */
 	uint8_t		bSpiData = 0;
 
 	bSpiData = (fClkLane | (fDataLane1<<4) | (fDataLane2<<5) | (fDataLane3<<6) | (fDataLane4<<7));
@@ -3414,11 +3414,11 @@ Input:			bModuleMask, 32bits Bitmask of Modules which are required
 				to be reset
 Return:			Success or Failure
 *******************************************************************/
-bool_t Yushan_Assert_Reset(uint32_t udwModuleMask, uint8_t bResetORDeReset)
+unsigned char Yushan_Assert_Reset(uint32_t udwModuleMask, uint8_t bResetORDeReset)
 {
 	uint8_t bCurrentModuleToReset, bCurrentModule=0;
 	uint8_t	bSpiData;
-	bool_t	bSetORReset;
+	unsigned char	bSetORReset;
 
 	if(!(udwModuleMask&0xFFFFFFFF))	
 	{
@@ -3615,7 +3615,7 @@ API Function:	This function will read the AF statistics based on the
 Input:			Pointer to the frst 32bit element of the ROI[0].
 Return:			Success or Failure
 *******************************************************************/
-bool_t Yushan_Read_AF_Statistics(uint32_t  *sYushanAFStats)
+unsigned char Yushan_Read_AF_Statistics(uint32_t  *sYushanAFStats)
 {	
 	
 	uint8_t		bStatus = SUCCESS, bNumOfActiveRoi = 0,  bCount = 0;
@@ -3664,7 +3664,7 @@ bool_t Yushan_Read_AF_Statistics(uint32_t  *sYushanAFStats)
 /*******************************************************************
 Yushan Pattern Gen Test
 *******************************************************************/
-bool_t	Yushan_PatternGenerator(Yushan_Init_Struct_t *sInitStruct, uint8_t	bPatternReq, bool_t	bDxoBypassForTestPattern) 
+unsigned char	Yushan_PatternGenerator(Yushan_Init_Struct_t *sInitStruct, uint8_t	bPatternReq, unsigned char	bDxoBypassForTestPattern) 
 {
 	uint8_t		bSpiData;
 	uint32_t	udwSpiData=0, uwHSize, uwVSize;
@@ -3914,9 +3914,9 @@ int Yushan_sensor_open_init(struct rawchip_sensor_init_data data)
 	/* frame_counter(); */
 #else
 	/*uint16_t		uwHSizeSecondary=1640,uwVSizeSecondary=1232;*/
-	/*bool_t			bDxoBypassForTestPattern = TRUE, bTestPatternMode = 1;*/
+	/*unsigned char			bDxoBypassForTestPattern = TRUE, bTestPatternMode = 1;*/
 #ifdef DxO
-	bool_t	bBypassDxoUpload = 0;
+	unsigned char	bBypassDxoUpload = 0;
 	Yushan_Version_Info_t sYushanVersionInfo;
 	uint8_t bPdpMode = 0, bDppMode = 0, bDopMode = 0;
 #endif
@@ -4237,7 +4237,7 @@ int Yushan_sensor_open_init(struct rawchip_sensor_init_data data)
 /*********************************************************************
 Function to programm AF_ROI and Check the stats too
 **********************************************************************/
-bool_t Yushan_Dxo_Dop_Af_Run(Yushan_AF_ROI_t	*sYushanAfRoi, uint32_t *pAfStatsGreen, uint8_t	bRoiActiveNumber)
+unsigned char Yushan_Dxo_Dop_Af_Run(Yushan_AF_ROI_t	*sYushanAfRoi, uint32_t *pAfStatsGreen, uint8_t	bRoiActiveNumber)
 {
 
 	uint8_t		bStatus = SUCCESS;
@@ -4313,11 +4313,11 @@ int Yushan_get_AFSU(uint32_t *pAfStatsGreen)
 Function: Context Update Wrapper
 **********************************************************************/
 Yushan_ImageChar_t	sImageChar_context;
-bool_t	Yushan_ContextUpdate_Wrapper(Yushan_New_Context_Config_t	*sYushanNewContextConfig)
+unsigned char	Yushan_ContextUpdate_Wrapper(Yushan_New_Context_Config_t	*sYushanNewContextConfig)
 {
 #if 0
 
-	bool_t	bStatus = SUCCESS;
+	unsigned char	bStatus = SUCCESS;
 	uint8_t	bPdpMode=0, bDppMode=0, bDopMode=0;
 
 		CDBG("[CAM] Reconfiguration starts:%d,%d,%d\n",
@@ -4354,7 +4354,7 @@ bool_t	Yushan_ContextUpdate_Wrapper(Yushan_New_Context_Config_t	*sYushanNewConte
 	return bStatus;
 
 #else
-	bool_t	bStatus = SUCCESS;
+	unsigned char	bStatus = SUCCESS;
 	uint8_t	bPdpMode=0, bDppMode=0, bDopMode=0;
 
 	/*pr_info("[CAM] Reconfiguration starts:%d,%d,%d\n",

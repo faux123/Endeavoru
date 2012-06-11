@@ -400,7 +400,7 @@ static void AKECS_CloseDone(void)
 	atomic_set(&mv_flag, 0);
 }
 
-static int akm_aot_release_assist()
+static int akm_aot_release_assist(void)
 {
 	debug_flag_fatal_err = 0;
 	fatal_err_pr_count = 0;

@@ -1255,8 +1255,9 @@ err1:
 
 static void mtp_cleanup(void)
 {
-	printk(KERN_INFO "[USBF] f_mtp init\n");
 	struct mtp_dev *dev = _mtp_dev;
+
+	printk(KERN_INFO "[USBF] f_mtp init\n");
 
 	if (!dev)
 		return;

@@ -732,7 +732,7 @@ static struct fb_info *file_fb_info(struct file *file)
 	struct fb_info *info = NULL;
 
 	if (fbidx >= FB_MAX)
-		return -EPERM;
+		return info;
 
 	info = registered_fb[fbidx];
 

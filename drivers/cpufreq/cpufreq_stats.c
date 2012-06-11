@@ -110,8 +110,7 @@ static ssize_t show_total_trans(struct cpufreq_policy *policy, char *buf)
 			per_cpu(cpufreq_stats_table, stat->cpu)->total_trans);
 }
 
-static ssize_t show_overall_total_trans(struct kobject *kobj,
-                                      struct attribute *attr, char *buf)
+static ssize_t show_overall_total_trans(struct cpufreq_policy *policy, char *buf)
 {
         return sprintf(buf, "%d\n%d\n%d\n%d\n", cpu0_total_trans,
 						cpu1_total_trans,
@@ -135,8 +134,7 @@ static ssize_t show_time_in_state(struct cpufreq_policy *policy, char *buf)
 	return len;
 }
 
-static ssize_t show_overall_time_in_state(struct kobject *kobj,
-                                      struct attribute *attr, char *buf)
+static ssize_t show_overall_time_in_state(struct cpufreq_policy *policy, char *buf)
 {
 	ssize_t len = 0;
 	int i;
@@ -262,8 +260,10 @@ static int freq_table_get_index(struct cpufreq_stats *stat, unsigned int freq)
  */
 static void cpufreq_stats_free_table(unsigned int cpu)
 {
+	struct cpufreq_stats *stat;
+
 	spin_lock(&cpufreq_stats_lock);
-	struct cpufreq_stats *stat = per_cpu(cpufreq_stats_table, cpu);
+	stat = per_cpu(cpufreq_stats_table, cpu);
 	per_cpu(cpufreq_stats_table, cpu) = NULL;
 	spin_unlock(&cpufreq_stats_lock);
 

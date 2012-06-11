@@ -835,7 +835,7 @@ static int tegra_sdhci_resume(struct sdhci_host *sdhci)
 	return 0;
 }
 
-static int tegra_sdhci_get_max_clock(struct sdhci_host *sdhci)
+static unsigned int tegra_sdhci_get_max_clock(struct sdhci_host *sdhci)
 {
 	if (sdhci->version >= SDHCI_SPEC_300)	
 		return 255000000;
@@ -843,7 +843,7 @@ static int tegra_sdhci_get_max_clock(struct sdhci_host *sdhci)
 		return 63000000;
 }
 
-static int tegra_sdhci_get_min_clock(struct sdhci_host *sdhci)
+static unsigned int tegra_sdhci_get_min_clock(struct sdhci_host *sdhci)
 {
 	return 400000;
 }

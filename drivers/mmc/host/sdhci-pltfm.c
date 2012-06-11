@@ -75,7 +75,9 @@ static int __devinit sdhci_pltfm_probe(struct platform_device *pdev)
 	struct sdhci_pltfm_host *pltfm_host;
 	struct resource *iomem;
 	int ret;
-
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+	int addr;
+#endif
 	if (platid && platid->driver_data)
 		pdata = (void *)platid->driver_data;
 	else
@@ -89,9 +91,9 @@ static int __devinit sdhci_pltfm_probe(struct platform_device *pdev)
 
 //HTC_CSP_START
 #if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
-    int addr = 0;
-    addr = iomem->start;
-    //printk(KERN_INFO "start addr = 0x%x\n", addr);
+ 	addr = 0;
+    	addr = iomem->start;
+    	//printk(KERN_INFO "start addr = 0x%x\n", addr);
 #endif
 //HTC_CSP_END
 
@@ -283,13 +285,15 @@ static struct platform_driver sdhci_pltfm_driver = {
 //HTC_CSP_START
 #if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
 struct platform_device *mmci_get_platform_device(void){
-	printk(KERN_INFO "sdhci-tegra.c  g_wlan_sdioDrv.pdev = 0x%x\n", g_wlan_sdioDrv.pdev);
+	printk(KERN_INFO "sdhci-tegra.c  g_wlan_sdioDrv.pdev = 0x%x\n", 
+		(unsigned int)g_wlan_sdioDrv.pdev);
 	return g_wlan_sdioDrv.pdev;
 }
 EXPORT_SYMBOL(mmci_get_platform_device);
 
 struct mmc_host *mmci_get_mmc(void){
-	printk(KERN_INFO "sdhci-tegra.c  g_wlan_sdioDrv.mmc = 0x%x\n", g_wlan_sdioDrv.mmc);
+	printk(KERN_INFO "sdhci-tegra.c  g_wlan_sdioDrv.mmc = 0x%x\n", 
+		(unsigned int)g_wlan_sdioDrv.mmc);
 	return g_wlan_sdioDrv.mmc;
 }
 EXPORT_SYMBOL(mmci_get_mmc);

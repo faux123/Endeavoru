@@ -90,7 +90,7 @@
 
 #define VUBS_IRQ -22
 #define VBUS_WAKEUP_ENR 19
-extern global_wakeup_state;
+extern int global_wakeup_state;
 
 static int irq_udc_debug;
 int irq_otg_debug;
@@ -1126,7 +1126,7 @@ static int fsl_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 	int ep_num, stopped, ret = 0;
 	u32 epctrl;
 
-	if (!_ep || !_req || !ep || !req || !ep->udc ||!ep->desc)
+	if (!_ep || !_req || !ep || !ep->udc ||!ep->desc)
 		return -EINVAL;
 
 	spin_lock_irqsave(&ep->udc->lock, flags);
@@ -1670,7 +1670,7 @@ static void udc_test_mode(struct fsl_udc *udc, u32 test_mode)
 	struct fsl_ep *ep;
 	u32 portsc, bitmask;
 	unsigned long timeout;
-	void __iomem *base = 0x7D000000;
+	unsigned int base = 0x7D000000;
 	u32 val;
 
 	/* Ack the ep0 IN */
@@ -2583,7 +2583,6 @@ int usb_register_notifier(struct t_usb_status_notifier *notifier)
 
 static void charger_detect_gpio(struct fsl_udc *udc)
 {
-	printk("charger_detect_gpio \n");
 	int val, val1, val2;
 	int charger_type;
 	int board_id = 0;
@@ -2592,6 +2591,9 @@ static void charger_detect_gpio(struct fsl_udc *udc)
 	u32 portsc;
 	int ret;
 	uint8_t command[2]={0};
+
+	printk("charger_detect_gpio \n");
+
 	mdelay(10);
 	board_id = htc_get_pcbid_info();
 	portsc = fsl_readl(&dr_regs->portsc1);
@@ -3056,11 +3058,12 @@ void tegra_usb_set_vbus_state(int online)
 {
 	unsigned long flags = 0;
 	struct fsl_udc *udc = udc_controller;
+        int count = 0;
+
 	VDBG("VBUS %s", online ? "on" : "off");
 	USB_INFO("tegra_usb_set_vbus_state %s \n", online ? "on" : "off");
 	wake_lock_timeout(&udc_wake_lock2, 1*HZ);
 	usb_check_count--;
-        int count = 0;
 
 	if (udc && udc->transceiver) {
 		if (udc->vbus_active && !online) {
@@ -3259,8 +3262,9 @@ static DEVICE_ATTR(tps_vbus, 0444, show_tps_vbus, NULL);
 
 static ssize_t show_charger(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	USB_INFO("show_charger\n");
 	unsigned length;
+
+	USB_INFO("show_charger\n");
 	if(udc_controller->connect_type == CONNECT_TYPE_USB || udc_controller->connect_type == CONNECT_TYPE_UNKNOWN){
 		length = sprintf(buf, "%d\n", 1);
 	}
@@ -3277,8 +3281,9 @@ static ssize_t show_charger(struct device *dev, struct device_attribute *attr, c
 static ssize_t store_charger(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	USB_INFO("store_charger\n");
 	int state;
+
+	USB_INFO("store_charger\n");
 	sscanf(buf, "%d", &(state));
 	if(state)
 	{

@@ -91,6 +91,7 @@ struct nct1008_data *get_pwr_data()
 {
 	if (pwr_data != NULL)
 		return pwr_data;
+	return NULL;
 }
 
 static int conv_period_ms_table[] =
@@ -946,7 +947,7 @@ int nct1008_thermal_set_limits(struct nct1008_data *data,
 		data->current_hi_limit = hi_limit;
 	}
 
-	printk(KERN_INFO "[TMS] set hi_limit=%d, lo_limit=%d", hi_limit, lo_limit);
+	printk(KERN_INFO "[TMS] set hi_limit=%li, lo_limit=%li", hi_limit, lo_limit);
 
 	return 0;
 }

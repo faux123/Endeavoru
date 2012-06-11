@@ -354,12 +354,13 @@ static int bma250_suspend(void *mlsl_handle,
 			  struct ext_slave_descr *slave,
 			  struct ext_slave_platform_data *pdata)
 {
-	printk("[GSNR]bma250_suspend start\n");
 	int result = 0;
 	unsigned char ctrl_reg;
 	unsigned char int_reg;
 
 	struct bma250_private_data *private_data = pdata->private_data;
+
+	printk("[GSNR]bma250_suspend start\n");
 	ctrl_reg = private_data->suspend.ctrl_reg;
 	int_reg = private_data->suspend.int_reg;
 
@@ -395,13 +396,13 @@ static int bma250_resume(void *mlsl_handle,
 			 struct ext_slave_descr *slave,
 			 struct ext_slave_platform_data *pdata)
 {
-	printk("[GSNR]bma250_resume start\n");
 	int result;
 	unsigned char ctrl_reg;
 	unsigned char bw_reg;
 	unsigned char int_reg;
-
 	struct bma250_private_data *private_data = pdata->private_data;
+
+	printk("[GSNR]bma250_resume start\n");
 	ctrl_reg = private_data->resume.ctrl_reg;
 	bw_reg = private_data->resume.bw_reg;
 	int_reg = private_data->resume.int_reg;
@@ -452,12 +453,12 @@ static int bma250_init(void *mlsl_handle,
 			  struct ext_slave_descr *slave,
 			  struct ext_slave_platform_data *pdata)
 {
-	printk(KERN_INFO "[GSNR]Gsensor enable\n");
 	tMLError result;
 	unsigned char reg = 0;
 	unsigned char bw_reg = 0;
-
 	struct bma250_private_data *private_data;
+
+	printk(KERN_INFO "[GSNR]Gsensor enable\n");
 	private_data = (struct bma250_private_data *)
 		MLOSMalloc(sizeof(struct bma250_private_data));
 

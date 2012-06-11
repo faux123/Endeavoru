@@ -30,8 +30,8 @@ static DEFINE_PER_CPU(struct sys_device *, cpu_sys_devices);
 
 #ifdef CONFIG_HOTPLUG_CPU
 
-static int target_number_of_online_cpus = 0;
-static int cpu_on_mdelay = 0;
+static long int target_number_of_online_cpus = 0;
+static long int cpu_on_mdelay = 0;
 
 static void tegra_cpuplug_work_func(struct work_struct *work)
 {
@@ -45,7 +45,7 @@ static void tegra_cpuplug_work_func(struct work_struct *work)
 	if(should_on_cpu <= 0)
 		return;
 
-	for (cpu = 0; cpu < 4, should_on_cpu != 0; cpu++) {
+	for (cpu = 0; cpu < 4 && should_on_cpu != 0; cpu++) {
 		if (!cpu_online(cpu)) {
 			cpu_up(cpu);
 			pr_info("[cpu] cpu %d is on", cpu);
@@ -68,15 +68,17 @@ static ssize_t store_cpu_on(struct sysdev_class *class,
 			 const char *buf,
 			 size_t count)
 {
-	strict_strtol(buf, 0, &target_number_of_online_cpus );
+	int ret;
+
+	ret = strict_strtol(buf, 0, &target_number_of_online_cpus );
 
 	if(target_number_of_online_cpus < 2)
-		return;
+		return count;
 
 	if(target_number_of_online_cpus > 4)
 		target_number_of_online_cpus  = 4;
 
-	pr_info("[cpu] number of online cpus is %d",
+	pr_info("[cpu] number of online cpus is %li",
 			target_number_of_online_cpus );
 
 	return queue_work(cpuplug_wq, &cpuplug_work);
@@ -86,7 +88,7 @@ static ssize_t store_cpu_on(struct sysdev_class *class,
 static ssize_t show_cpu_on_mdelay(struct sysdev_class *class,
 			struct sysdev_class_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%u\n", cpu_on_mdelay);
+	return sprintf(buf, "%li\n", cpu_on_mdelay);
 }
 
 static ssize_t store_cpu_on_mdelay(struct sysdev_class *class,
@@ -94,7 +96,11 @@ static ssize_t store_cpu_on_mdelay(struct sysdev_class *class,
 			 const char *buf,
 			 size_t count)
 {
-	strict_strtol(buf, 0, &cpu_on_mdelay);
+	int ret;
+
+	ret = strict_strtol(buf, 0, &cpu_on_mdelay);
+
+	return count;
 }
 
 

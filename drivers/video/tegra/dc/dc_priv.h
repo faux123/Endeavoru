@@ -162,6 +162,8 @@ static inline unsigned long tegra_dc_readl(struct tegra_dc *dc,
 		return readl(dc->base + reg * 4);
 	else
 		dump_stack();
+
+	return 0;
 }
 
 static inline void tegra_dc_writel(struct tegra_dc *dc, unsigned long val,

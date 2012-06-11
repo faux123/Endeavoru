@@ -226,10 +226,11 @@ ssize_t hciif_write(struct file *file, const char __user *data,
 static long hciif_ioctl(struct file * file, unsigned int cmd,
 					   unsigned long arg)
 {
-	lock_kernel();
 	struct sk_buff *skb = NULL;
 	int retCode = HCIIF_SUCCESS;
 	struct hciif_client *client, *tmp;
+
+	lock_kernel();
 	HCIIFDRV_DBG(" Inside %s", __func__);
 
 	/* Validate input parameters */

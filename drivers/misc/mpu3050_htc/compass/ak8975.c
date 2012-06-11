@@ -1,3 +1,4 @@
+
 /*
  $License:
     Copyright (C) 2010 InvenSense Corporation, All Rights Reserved.
@@ -59,9 +60,10 @@ int ak8975_suspend(void *mlsl_handle,
 		   struct ext_slave_descr *slave,
 		   struct ext_slave_platform_data *pdata)
 {
+	int result = ML_SUCCESS;
+
 	printk(KERN_INFO "[COMP]%s: comp suspend start\n", __func__);
 
-	int result = ML_SUCCESS;
 	result =
 	    MLSLSerialWriteSingle(mlsl_handle, pdata->address,
 				  AK8975_REG_CNTL,
@@ -76,9 +78,10 @@ int ak8975_resume(void *mlsl_handle,
 		  struct ext_slave_descr *slave,
 		  struct ext_slave_platform_data *pdata)
 {
+	int result = ML_SUCCESS;
+
 	printk(KERN_INFO "[COMP]%s: comp resume start\n", __func__);
 
-	int result = ML_SUCCESS;
 	result =
 	    MLSLSerialWriteSingle(mlsl_handle, pdata->address,
 				  AK8975_REG_CNTL,

@@ -640,7 +640,7 @@ static void thermal_zone_device_passive(struct thermal_zone_device *tz,
 				cdev->ops->get_max_state(cdev, &max_state);
 				if (state++ < max_state)
 					cdev->ops->set_cur_state(cdev, state);
-				printk(KERN_INFO "[TMS] throttling, state=%d", state);
+				printk(KERN_INFO "[TMS] throttling, state=%li", state);
 			}
 		} else if (trend < 0) { /* Cooling off? */
 			list_for_each_entry(instance, &tz->cooling_devices,
@@ -652,7 +652,7 @@ static void thermal_zone_device_passive(struct thermal_zone_device *tz,
 				cdev->ops->get_max_state(cdev, &max_state);
 				if (state > 0)
 					cdev->ops->set_cur_state(cdev, --state);
-				printk(KERN_INFO "[TMS] throttling, state=%d", state);
+				printk(KERN_INFO "[TMS] throttling, state=%li", state);
 			}
 		}
 		return;
@@ -673,7 +673,7 @@ static void thermal_zone_device_passive(struct thermal_zone_device *tz,
 		cdev->ops->get_max_state(cdev, &max_state);
 		if (state > 0)
 			cdev->ops->set_cur_state(cdev, --state);
-		printk(KERN_INFO "[TMS] throttling, state=%d", state);
+		printk(KERN_INFO "[TMS] throttling, state=%li", state);
 		if (state == 0) {
 			tz->passive = false;
 			if (tz->ops->get_temp(tz, &cur_temp)) {

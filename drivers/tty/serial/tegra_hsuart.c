@@ -1019,7 +1019,8 @@ static void tegra_uart_hw_deinit(struct tegra_uart_port *t)
 
 		/* Wait for Tx fifo to be empty */
 		while ((lsr & UART_LSR_TEMT) != UART_LSR_TEMT) {
-			wait_time = min(fifo_empty_time, 100);
+			wait_time = min((unsigned long)fifo_empty_time, 
+				(unsigned long)100);
 			udelay(wait_time);
 			fifo_empty_time -= wait_time;
 			if (!fifo_empty_time) {
@@ -1994,12 +1995,13 @@ static int tegra_uart_suspend(struct platform_device *pdev, pm_message_t state)
 		int bt_en_value = gpio_get_value(t->bt.bt_en);
 		if (bt_en_value) {
 			int bt_cts_irq = gpio_to_irq(t->bt.bt_cts_irq);
+			int bt_cts_err;
 			dev_dbg(t->uport.dev,
 				"bt_cts_irq = %d\n",
 				bt_cts_irq);
 
 			irq_set_irq_type(bt_cts_irq, IRQ_TYPE_LEVEL_HIGH);
-			int bt_cts_err = irq_set_irq_wake(bt_cts_irq, 1);
+			bt_cts_err = irq_set_irq_wake(bt_cts_irq, 1);
 			if (bt_cts_err < 0) {
 				dev_err(t->uport.dev,
 					"%s :Failed to enable BT_CTS wake, err=%d\n",
@@ -2052,11 +2054,12 @@ static int tegra_uart_resume(struct platform_device *pdev)
 			int bt_en_value = gpio_get_value(t->bt.bt_en);
 			if (bt_en_value) {
 				int bt_cts_irq = gpio_to_irq(t->bt.bt_cts_irq);
+				int bt_cts_err;
 				dev_dbg(t->uport.dev,
 					"bt_cts_irq = %d\n",
 					bt_cts_irq);
+				bt_cts_err = irq_set_irq_wake(bt_cts_irq, 0);
 
-				int bt_cts_err = irq_set_irq_wake(bt_cts_irq, 0);
 				if (bt_cts_err < 0) {
 					dev_err(t->uport.dev,
 						"%s :Failed to disable BT_CTS wake, err=%d\n",

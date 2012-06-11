@@ -2162,7 +2162,7 @@ uart_configure_port(struct uart_driver *drv, struct uart_state *state,
 		 * successfully registered yet, try to re-register it.
 		 * It may be that the port was not available.
 		 */
-		printk("port->cons=0x%X ", port->cons);
+		printk("port->cons=0x%X ", (unsigned  int)port->cons);
 		if (!port->cons)
 			printk("\n");
 		else

@@ -64,7 +64,7 @@
 #define ALL_UF_INT (0)
 #endif
 
-extern global_wakeup_state;
+extern int global_wakeup_state;
 extern int resume_from_deep_suspend;
 
 static int no_vsync;

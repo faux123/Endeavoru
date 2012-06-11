@@ -1190,8 +1190,10 @@ static void dm_table_set_integrity(struct dm_table *t)
 		       dm_device_name(t->md));
 		return;
 	}
+#ifdef CONFIG_BLK_DEV_INTEGRITY
 	blk_integrity_register(dm_disk(t->md),
 			       blk_get_integrity(template_disk));
+#endif
 }
 
 void dm_table_set_restrictions(struct dm_table *t, struct request_queue *q,
