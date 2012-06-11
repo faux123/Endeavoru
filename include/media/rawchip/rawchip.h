@@ -72,7 +72,7 @@ void rawchip_release(void);
 int rawchip_open_init(void);
 int rawchip_set_size(struct rawchip_sensor_data data);
 int Yushan_common_deinit(void);
-void tegra_rawchip_block_iotcl(bool_t);
+void tegra_rawchip_block_iotcl(unsigned char blocked);
 
 //XXX static inline void rawchip_dump_register(void) { Yushan_dump_register(); }
 

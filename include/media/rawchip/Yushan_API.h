@@ -34,7 +34,7 @@ Description:API header file.
 #include <media/rawchip/rawchip.h>
 
 
-typedef unsigned char bool_t;
+//typedef unsigned char bool_t;
 //typedef unsigned char uint8_t;
 //typedef signed char int8_t;
 //typedef unsigned short uint16_t;
@@ -640,66 +640,66 @@ typedef struct {
 #define Yushan_DXO_Sync_Reset_Dereset(bFlagResetOrDereset) 	SPI_Write(YUSHAN_RESET_CTRL+3, 1, &bFlagResetOrDereset)
 
 /* Initialization API function */
-bool_t	Yushan_Init_LDO(uint8_t use_ext_1v2);
-bool_t	Yushan_Init_Clocks(Yushan_Init_Struct_t *sInitStruct, Yushan_SystemStatus_t *sSystemStatus, uint8_t use_ext_1v2);
-bool_t	Yushan_Init(Yushan_Init_Struct_t * sInitStruct);
-bool_t	Yushan_Init_Dxo(Yushan_Init_Dxo_Struct_t * sDxoStruct, bool_t fBypassDxoUpload);
+unsigned char	Yushan_Init_LDO(uint8_t use_ext_1v2);
+unsigned char	Yushan_Init_Clocks(Yushan_Init_Struct_t *sInitStruct, Yushan_SystemStatus_t *sSystemStatus, uint8_t use_ext_1v2);
+unsigned char	Yushan_Init(Yushan_Init_Struct_t * sInitStruct);
+unsigned char	Yushan_Init_Dxo(Yushan_Init_Dxo_Struct_t * sDxoStruct, unsigned char fBypassDxoUpload);
 
 /* Update API Function */
-bool_t	Yushan_Update_ImageChar(Yushan_ImageChar_t * sImageChar);
-bool_t	Yushan_Update_SensorParameters(Yushan_GainsExpTime_t * sGainsExpInfo);
-bool_t Yushan_Update_DxoPdp_TuningParameters(Yushan_DXO_PDP_Tuning_t * sDxoPdpTuning);
-bool_t	Yushan_Update_DxoDpp_TuningParameters(Yushan_DXO_DPP_Tuning_t * sDxoDppTuning);
-bool_t	Yushan_Update_DxoDop_TuningParameters(Yushan_DXO_DOP_Tuning_t * sDxoDopTuning);
-bool_t	Yushan_Update_Commit(uint8_t  bPdpMode, uint8_t  bDppMode, uint8_t  bDopMode);
+unsigned char	Yushan_Update_ImageChar(Yushan_ImageChar_t * sImageChar);
+unsigned char	Yushan_Update_SensorParameters(Yushan_GainsExpTime_t * sGainsExpInfo);
+unsigned char Yushan_Update_DxoPdp_TuningParameters(Yushan_DXO_PDP_Tuning_t * sDxoPdpTuning);
+unsigned char	Yushan_Update_DxoDpp_TuningParameters(Yushan_DXO_DPP_Tuning_t * sDxoDppTuning);
+unsigned char	Yushan_Update_DxoDop_TuningParameters(Yushan_DXO_DOP_Tuning_t * sDxoDopTuning);
+unsigned char	Yushan_Update_Commit(uint8_t  bPdpMode, uint8_t  bDppMode, uint8_t  bDopMode);
 
 /* Interrupt functions */
-bool_t	Yushan_Intr_Enable(uint8_t *pIntrMask);
-bool_t WaitForInterruptEvent(uint8_t,uint32_t);
-bool_t WaitForInterruptEvent2 (uint8_t bInterruptId ,uint32_t udwTimeOut);
+unsigned char	Yushan_Intr_Enable(uint8_t *pIntrMask);
+unsigned char WaitForInterruptEvent(uint8_t,uint32_t);
+unsigned char WaitForInterruptEvent2 (uint8_t bInterruptId ,uint32_t udwTimeOut);
 void	Yushan_ISR(void);
 void	Yushan_ISR2(void);
 void	Yushan_Intr_Status_Read (uint8_t *bListOfInterrupts);
 void	Read_IntrEvent(uint8_t bIntrSetID, uint32_t *udwListOfInterrupts);
 void	Yushan_ClearInterruptEvent(uint8_t bInterruptID, uint32_t *udwListOfInterrupts);
-void	Yushan_AddnRemoveIDInList(uint8_t bInterruptID, uint32_t *udwListOfInterrupts, bool_t fAddORClear);
-bool_t	CheckForInterruptIDInList(uint8_t bInterruptID);//, uint32_t *udwListOfInterrupts);
-bool_t	Yushan_Intr_Status_Clear(uint8_t *bListOfInterrupts);
+void	Yushan_AddnRemoveIDInList(uint8_t bInterruptID, uint32_t *udwListOfInterrupts, unsigned char fAddORClear);
+unsigned char	CheckForInterruptIDInList(uint8_t bInterruptID);//, uint32_t *udwListOfInterrupts);
+unsigned char	Yushan_Intr_Status_Clear(uint8_t *bListOfInterrupts);
 
 uint8_t Yushan_parse_interrupt(void);
 
 
 
 /* DXO Version Information */
-bool_t Yushan_Get_Version_Information(Yushan_Version_Info_t * sYushanVersionInfo );
+unsigned char Yushan_Get_Version_Information(Yushan_Version_Info_t * sYushanVersionInfo );
 
 
 
 /* Optional Functions */
-bool_t Yushan_Context_Config_Update(Yushan_New_Context_Config_t	*sYushanNewContextConfig);
+unsigned char Yushan_Context_Config_Update(Yushan_New_Context_Config_t	*sYushanNewContextConfig);
 
-bool_t Yushan_Swap_Rx_Pins (bool_t fClkLane, bool_t fDataLane1, bool_t fDataLane2, bool_t fDataLane3, bool_t fDataLane4);
-bool_t Yushan_Invert_Rx_Pins (bool_t fClkLane, bool_t fDataLane1, bool_t fDataLane2, bool_t fDataLane3, bool_t fDataLane4);
-bool_t Yushan_Enter_Standby_Mode (void);
-bool_t Yushan_Exit_Standby_Mode(Yushan_Init_Struct_t * sInitStruct);
-bool_t Yushan_Assert_Reset(uint32_t bModuleMask, uint8_t bResetORDeReset);
-bool_t Yushan_AF_ROI_Update(Yushan_AF_ROI_t  *sYushanAfRoi, uint8_t bNumOfActiveRoi);
-bool_t	Yushan_PatternGenerator(Yushan_Init_Struct_t * sInitStruct, uint8_t	bPatternReq, bool_t	bDxoBypassForTestPattern);
+unsigned char Yushan_Swap_Rx_Pins (unsigned char fClkLane, unsigned char fDataLane1, unsigned char fDataLane2, unsigned char fDataLane3, unsigned char fDataLane4);
+unsigned char Yushan_Invert_Rx_Pins (unsigned char fClkLane, unsigned char fDataLane1, unsigned char fDataLane2, unsigned char fDataLane3, unsigned char fDataLane4);
+unsigned char Yushan_Enter_Standby_Mode (void);
+unsigned char Yushan_Exit_Standby_Mode(Yushan_Init_Struct_t * sInitStruct);
+unsigned char Yushan_Assert_Reset(uint32_t bModuleMask, uint8_t bResetORDeReset);
+unsigned char Yushan_AF_ROI_Update(Yushan_AF_ROI_t  *sYushanAfRoi, uint8_t bNumOfActiveRoi);
+unsigned char	Yushan_PatternGenerator(Yushan_Init_Struct_t * sInitStruct, uint8_t	bPatternReq, unsigned char	bDxoBypassForTestPattern);
 void	Yushan_DCPX_CPX_Enable(void);
 
 
 /* Internal functions */
-bool_t		Yushan_CheckDxoConstraints(uint32_t udwParameters, uint32_t udwMinLimit, uint32_t fpDxo_Clk, uint32_t fpPixel_Clk, uint16_t uwFullLine, uint32_t * pMinValue);
+unsigned char		Yushan_CheckDxoConstraints(uint32_t udwParameters, uint32_t udwMinLimit, uint32_t fpDxo_Clk, uint32_t fpPixel_Clk, uint16_t uwFullLine, uint32_t * pMinValue);
 uint32_t	Yushan_Compute_Pll_Divs(uint32_t fpExternal_Clk, uint32_t fpTarget_PllClk);
 uint32_t	Yushan_ConvertTo16p16FP(uint16_t);
 
 
 /* Status Functions */
-bool_t	Yushan_ContextUpdate_Wrapper(Yushan_New_Context_Config_t	*sYushanNewContextConfig);
-bool_t Yushan_Dxo_Dop_Af_Run(Yushan_AF_ROI_t	*sYushanAfRoi, uint32_t *pAfStatsGreen, uint8_t	bRoiActiveNumber);
+unsigned char	Yushan_ContextUpdate_Wrapper(Yushan_New_Context_Config_t	*sYushanNewContextConfig);
+unsigned char Yushan_Dxo_Dop_Af_Run(Yushan_AF_ROI_t	*sYushanAfRoi, uint32_t *pAfStatsGreen, uint8_t	bRoiActiveNumber);
 int Yushan_get_AFSU(uint32_t *pAfStatsGreen);
 #if 0
-bool_t Yushan_Read_AF_Statistics(uint32_t  *sYushanAFStats);
+unsigned char Yushan_Read_AF_Statistics(uint32_t  *sYushanAFStats);
 #endif
 void Reset_Yushan(void);
 
