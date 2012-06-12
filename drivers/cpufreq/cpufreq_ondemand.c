@@ -817,11 +817,7 @@ static void dbs_refresh_callback(struct work_struct *unused)
 	nr_cpus = num_online_cpus();
 
 	switch (nr_cpus) {
-	/* let edp governor do the limit. no need to limit here again */
 	case 1:
-	case 2:
-	case 3:
-	case 4:
 		if (policy->cur < policy->max) {
 			__cpufreq_driver_target(policy, policy->max,
 				CPUFREQ_RELATION_L);
@@ -829,6 +825,16 @@ static void dbs_refresh_callback(struct work_struct *unused)
 				&this_dbs_info->prev_cpu_wall);
 		}
 		break;
+	case 2:
+		if (policy->cur < policy->max && policy->cur < 1100000) {
+			__cpufreq_driver_target(policy, 1100000,
+				CPUFREQ_RELATION_L);
+			this_dbs_info->prev_cpu_idle = get_cpu_idle_time(0,
+				&this_dbs_info->prev_cpu_wall);
+		}
+		break;
+	case 3:
+	case 4:
 	default:
 		break;
 	}
