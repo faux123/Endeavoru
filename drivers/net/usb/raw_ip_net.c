@@ -841,8 +841,8 @@ static int usb_net_raw_ip_rx_urb_submit(struct baseband_usb *usb)
 
 static void usb_net_raw_ip_rx_urb_comp(struct urb *urb)
 {
-	struct baseband_usb *usb = (struct baseband_usb *) urb->context;
-	int i = usb->baseband_index;
+	struct baseband_usb *usb;
+	int i;
 
 	//+Sophia:0112
 	struct net_device *dev = (struct net_device *) usb_net_raw_ip_dev[i];
@@ -872,6 +872,10 @@ static void usb_net_raw_ip_rx_urb_comp(struct urb *urb)
 		pr_err("no urb\n");
 		return;
 	}
+
+	usb = (struct baseband_usb *)urb->context;
+	i = usb->baseband_index;
+
 	/* 77969-8 patch */
 	switch (urb->status) {
 	case 0:
@@ -1096,7 +1100,9 @@ static void usb_net_raw_ip_tx_urb_work(struct work_struct *work)
 	if (verbose) pr_info("usb_net_raw_ip_tx_urb_work {\n");
 	
 	/* check if tx urb(s) queued */
-	if (!usb->usb.tx_urb && usb_anchor_empty(&usb->usb.tx_urb_deferred)) {
+	if (usb == NULL ||
+		(!usb->usb.tx_urb && 
+		usb_anchor_empty(&usb->usb.tx_urb_deferred))) {
 		pr_debug("%s: nothing to do!\n", __func__);
 		return;
 	}
@@ -1182,7 +1188,7 @@ static void usb_net_raw_ip_tx_urb_work(struct work_struct *work)
 
 static void usb_net_raw_ip_tx_urb_comp(struct urb *urb)
 {
-	struct baseband_usb *usb = (struct baseband_usb *) urb->context;
+	struct baseband_usb *usb;
 
 	if (verbose) pr_debug("usb_net_raw_ip_tx_urb_comp {\n");
 	/* 77969-7 patch */
@@ -1191,6 +1197,7 @@ static void usb_net_raw_ip_tx_urb_comp(struct urb *urb)
 		pr_err("no urb\n");
 		return;
 	}
+	usb = (struct baseband_usb *)urb->context;
 	/* 77969-8 patch */
 	switch (urb->status) {
 	case 0:
