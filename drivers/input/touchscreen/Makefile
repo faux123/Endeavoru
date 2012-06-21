@@ -19,6 +19,7 @@ obj-$(CONFIG_TOUCHSCREEN_NTRIG)    += ntrig_spi.o ntrig_low_msg.o
 obj-$(CONFIG_TOUCHSCREEN_ATMEL_MXT)	+= atmel_mxt_ts.o
 obj-$(CONFIG_TOUCHSCREEN_ATMEL_TSADCC)	+= atmel_tsadcc.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_3k)  += synaptics_3200.o rmi_dev.o
+obj-$(CONFIG_TOUCHSCREEN_CYPRESS_SWEEP2WAKE) += s2w-switch.o
 obj-$(CONFIG_TOUCHSCREEN_BITSY)		+= h3600_ts_input.o
 obj-$(CONFIG_TOUCHSCREEN_BU21013)       += bu21013_ts.o
 obj-$(CONFIG_TOUCHSCREEN_CY8CTMG110)	+= cy8ctmg110_ts.o

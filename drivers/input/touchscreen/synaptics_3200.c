@@ -29,6 +29,10 @@
 #include <asm/gpio.h>
 #include <mach/cable_detect.h>
 #include <linux/input/mt.h>
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_SWEEP2WAKE
+#include <linux/s2w-switch.h>
+#endif
+
 extern int usb_get_connect_type(void);
 
 //#define SYN_SUSPEND_RESUME_POWEROFF
