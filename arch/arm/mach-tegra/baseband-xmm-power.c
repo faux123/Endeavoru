@@ -1223,7 +1223,7 @@ static void baseband_xmm_power_L2_resume(void)
 {
 	struct baseband_power_platform_data *data = baseband_power_driver_data;
 	int value;
-	int delay = 10000; /* maxmum delay in msec */
+	int delay = 1000; /* maxmum delay in msec */
 	unsigned long flags;
 
 
@@ -1799,7 +1799,7 @@ static int baseband_xmm_power_driver_handle_resume(
 	int value;
 	unsigned long flags;
 	unsigned long timeout;
-	int delay = 10000; /* maxmum delay in msec */
+	int delay = 1000; /* maxmum delay in msec */
 
 
 	//pr_debug("%s\n", __func__);
