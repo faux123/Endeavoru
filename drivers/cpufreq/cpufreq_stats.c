@@ -110,7 +110,8 @@ static ssize_t show_total_trans(struct cpufreq_policy *policy, char *buf)
 			per_cpu(cpufreq_stats_table, stat->cpu)->total_trans);
 }
 
-static ssize_t show_overall_total_trans(struct cpufreq_policy *policy, char *buf)
+static ssize_t show_overall_total_trans(struct kobject *kobj,
+				struct attribute *attr, char *buf)
 {
         return sprintf(buf, "%d\n%d\n%d\n%d\n", cpu0_total_trans,
 						cpu1_total_trans,
@@ -134,7 +135,8 @@ static ssize_t show_time_in_state(struct cpufreq_policy *policy, char *buf)
 	return len;
 }
 
-static ssize_t show_overall_time_in_state(struct cpufreq_policy *policy, char *buf)
+static ssize_t show_overall_time_in_state(struct kobject *kobj,
+					struct attribute *attr, char *buf)
 {
 	ssize_t len = 0;
 	int i;
