@@ -1943,8 +1943,10 @@ static int __cpufreq_set_policy(struct cpufreq_policy *data,
 	int ret = 0;
 	unsigned int pmin = policy->min;
 	unsigned int pmax = policy->max;
-	unsigned int qmin = min((int)pm_qos_request(PM_QOS_CPU_FREQ_MIN), (int)data->max);
-	unsigned int qmax = max((int)pm_qos_request(PM_QOS_CPU_FREQ_MAX), (int)data->min);
+	unsigned int qmin = min((int)pm_qos_request(PM_QOS_CPU_FREQ_MIN),
+				(int)data->user_policy.max);
+	unsigned int qmax = max((int)pm_qos_request(PM_QOS_CPU_FREQ_MAX),
+				 (int)data->user_policy.min);
 
 	cpufreq_debug_disable_ratelimit();
 	dprintk("setting new policy for CPU %u: %u - %u (%u - %u) kHz\n",
@@ -1957,7 +1959,8 @@ static int __cpufreq_set_policy(struct cpufreq_policy *data,
 	memcpy(&policy->cpuinfo, &data->cpuinfo,
 				sizeof(struct cpufreq_cpuinfo));
 
-	if (policy->min > data->max || policy->max < data->min) {
+	if (policy->min > data->user_policy.max ||
+	    policy->max < data->user_policy.min) {
 		ret = -EINVAL;
 		goto error_out;
 	}
