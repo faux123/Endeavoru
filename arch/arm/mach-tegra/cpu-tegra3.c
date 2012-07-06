@@ -84,7 +84,7 @@ module_param(idle_bottom_freq, uint, 0644);
 static int mp_overhead = 10;
 module_param(mp_overhead, int, 0644);
 
-static int balance_level = 65;
+static int balance_level = 70;
 module_param(balance_level, int, 0644);
 
 static int up_time = 100;
@@ -275,7 +275,7 @@ enum {
 #define NR_FSHIFT	2
 static unsigned int nr_run_thresholds[] = {
 /*      1,  2,  3,  4 - on-line cpus target */
-	5,  9, 13, UINT_MAX /* avg run threads * 4 (e.g., 9 = 2.25 threads) */
+	5,  7, 9, UINT_MAX /* avg run threads * 4 (e.g., 9 = 2.25 threads) */
 };
 static unsigned int nr_run_hysteresis = 2;	/* 0.5 thread */
 static unsigned int nr_run_last;
