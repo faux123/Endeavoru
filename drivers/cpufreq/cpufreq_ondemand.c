@@ -48,6 +48,7 @@
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
 #define DEF_SAMPLING_RATE			(50000)
 #define DEF_IO_IS_BUSY				(1)
+#define DBS_INPUT_EVENT_MIN_FREQ		(950000)
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -67,6 +68,9 @@ static unsigned int def_sampling_rate;
 #define LATENCY_MULTIPLIER			(1000)
 #define MIN_LATENCY_MULTIPLIER			(100)
 #define TRANSITION_LATENCY_LIMIT		(10 * 1000 * 1000)
+
+#define POWERSAVE_BIAS_MAXLEVEL			(1000)
+#define POWERSAVE_BIAS_MINLEVEL			(-1000)
 
 static void do_dbs_timer(struct work_struct *work);
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
@@ -121,6 +125,10 @@ static unsigned int dbs_enable;	/* number of CPUs using this policy */
  * dbs_mutex protects dbs_enable in governor start/stop.
  */
 static DEFINE_MUTEX(dbs_mutex);
+
+static struct workqueue_struct *input_wq;
+
+static DEFINE_PER_CPU(struct work_struct, dbs_refresh_work);
 
 static struct dbs_tuners {
 	unsigned int sampling_rate;
@@ -347,9 +355,10 @@ static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
-	update_sampling_rate(input);
+	dbs_tuners_ins.sampling_rate = max(input, min_sampling_rate);
 	return count;
 }
+
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
 static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
@@ -818,9 +827,12 @@ static void dbs_refresh_callback(struct work_struct *unused)
 
 	switch (nr_cpus) {
 	case 1:
-		if (policy->cur < policy->max) {
-			__cpufreq_driver_target(policy, policy->max,
-				CPUFREQ_RELATION_L);
+		if (policy->cur < DBS_INPUT_EVENT_MIN_FREQ) {
+		/*
+		pr_info("%s: set cpufreq to DBS_INPUT_EVENT_MIN_FREQ(%d) directly due to input events!\n", 			__func__, DBS_INPUT_EVENT_MIN_FREQ);
+		*/
+		__cpufreq_driver_target(policy, DBS_INPUT_EVENT_MIN_FREQ,
+					CPUFREQ_RELATION_L);
 			this_dbs_info->prev_cpu_idle = get_cpu_idle_time(0,
 				&this_dbs_info->prev_cpu_wall);
 		}
@@ -844,10 +856,24 @@ static void dbs_refresh_callback(struct work_struct *unused)
 
 static DECLARE_WORK(dbs_refresh_work, dbs_refresh_callback);
 
+static unsigned int enable_dbs_input_event = 1;
 static void dbs_input_event(struct input_handle *handle, unsigned int type,
 		unsigned int code, int value)
 {
-	schedule_work(&dbs_refresh_work);
+	int i;
+
+	if (enable_dbs_input_event) {
+
+		if ((dbs_tuners_ins.powersave_bias == POWERSAVE_BIAS_MAXLEVEL) ||
+			(dbs_tuners_ins.powersave_bias == POWERSAVE_BIAS_MINLEVEL)) {
+			/* nothing to do */
+			return;
+		}
+
+		for_each_online_cpu(i) {
+			queue_work_on(i, input_wq, &per_cpu(dbs_refresh_work, i));
+		}
+	}
 }
 
 static int input_dev_filter(const char* input_dev_name)
@@ -1043,6 +1069,7 @@ static int __init cpufreq_gov_dbs_init(void)
 	cputime64_t wall;
 	u64 idle_time;
 	int cpu = get_cpu();
+	int i;
 
 	idle_time = get_cpu_idle_time_us(cpu, &wall);
 	put_cpu();
@@ -1064,6 +1091,15 @@ static int __init cpufreq_gov_dbs_init(void)
 	}
 	def_sampling_rate = DEF_SAMPLING_RATE;
 
+	input_wq = create_workqueue("iewq");
+	if (!input_wq) {
+		printk(KERN_ERR "Failed to create iewq workqueue\n");
+		return -EFAULT;
+	}
+	for_each_possible_cpu(i) {
+		INIT_WORK(&per_cpu(dbs_refresh_work, i), dbs_refresh_callback);
+	}
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	cpufreq_gov_lcd_status = 1;
 
@@ -1082,6 +1118,18 @@ static void __exit cpufreq_gov_dbs_exit(void)
 	cpufreq_unregister_governor(&cpufreq_gov_ondemand);
 }
 
+static int set_enable_dbs_input_event_param(const char *val, struct kernel_param *kp)
+{
+	int ret = 0;
+
+	ret = param_set_uint(val, kp);
+	if (ret)
+		pr_err("%s: error setting value %d\n", __func__, ret);
+
+	return ret;
+}
+module_param_call(enable_dbs_input_event, set_enable_dbs_input_event_param, param_get_uint,
+		&enable_dbs_input_event, S_IWUSR | S_IRUGO);
 
 MODULE_AUTHOR("Venkatesh Pallipadi <venkatesh.pallipadi@intel.com>");
 MODULE_AUTHOR("Alexey Starikovskiy <alexey.y.starikovskiy@intel.com>");
