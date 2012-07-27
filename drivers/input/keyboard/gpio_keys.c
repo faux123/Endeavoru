@@ -56,6 +56,50 @@ extern int resume_from_deep_suspend;
 bool doCheck;
 bool resumeSentPwr;
 DEFINE_SPINLOCK(lock);
+
+static DEFINE_MUTEX(wakeup_mutex);
+static unsigned char wakeup_bitmask;
+static unsigned char set_wakeup;
+static unsigned int vol_up_irq;
+static unsigned int vol_down_irq;
+// for change the volup/voldown wakeup status
+static ssize_t vol_wakeup_store(struct device *dev,
+					 struct device_attribute *attr,
+					 const char *buf, size_t count)
+{
+	unsigned char bitmask = 0;
+	bitmask = simple_strtoull(buf, NULL, 10);
+	mutex_lock(&wakeup_mutex);
+	if (bitmask) {
+		if (bitmask == 127)
+			wakeup_bitmask &= bitmask;
+		else if (bitmask > 128)
+			wakeup_bitmask &= bitmask;
+		else
+			wakeup_bitmask |= bitmask;
+	}
+
+	if (wakeup_bitmask && (!set_wakeup)) {
+		enable_irq_wake(vol_up_irq);
+		enable_irq_wake(vol_down_irq);
+		set_wakeup = 1;
+		printk(KERN_INFO "%s:change to wake up function(%d, %d)\n", __func__, vol_up_irq, vol_down_irq);
+	} else if ((!wakeup_bitmask) && set_wakeup){
+		disable_irq_wake(vol_up_irq);
+		disable_irq_wake(vol_down_irq);
+		set_wakeup = 0;
+		printk(KERN_INFO "%s:change to non-wake up function(%d, %d)\n", __func__, vol_up_irq, vol_down_irq);
+	}
+	mutex_unlock(&wakeup_mutex);
+	return count;
+}
+static ssize_t vol_wakeup_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%x\n", wakeup_bitmask);
+}
+
+static DEVICE_ATTR(vol_wakeup, 0664, vol_wakeup_show, vol_wakeup_store);
 /*
  * SYSFS interface for enabling/disabling keys and switches:
  *
@@ -438,6 +482,13 @@ static int __devinit gpio_keys_setup_key(struct platform_device *pdev,
 		goto fail3;
 	}
 
+	if (button->code == KEY_VOLUMEUP ||
+            button->code == KEY_VOLUMEDOWN ) {
+		if (button->code == KEY_VOLUMEUP)
+			vol_up_irq = irq;
+		else
+			vol_down_irq = irq;
+	}
 	irqflags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING;
 	/*
 	 * If platform has specified that the button can be disabled,
@@ -484,6 +535,7 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 	struct input_dev *input;
 	int i, error;
 	int wakeup = 0;
+	struct kobject *keyboard_kobj;
 	doCheck = true;
 
 	ddata = kzalloc(sizeof(struct gpio_keys_drvdata) +
@@ -551,6 +603,16 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 			error);
 		goto fail2;
 	}
+
+	keyboard_kobj = kobject_create_and_add("keyboard", NULL);
+	if (keyboard_kobj == NULL) {
+		printk(KERN_ERR "[KEY] KEY_ERR: %s: subsystem_register failed\n", __func__);
+		return -ENOMEM;
+	}
+	if (sysfs_create_file(keyboard_kobj, &dev_attr_vol_wakeup.attr))
+		pr_err("%s: sysfs_create_file error", __func__);
+	wakeup_bitmask = 0;
+	set_wakeup = 0;
 
 	error = input_register_device(input);
 	if (error) {
