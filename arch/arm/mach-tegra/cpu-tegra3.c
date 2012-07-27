@@ -35,6 +35,7 @@
 #include <linux/pm_qos_params.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <linux/cpu_debug.h>
 
 #include "pm.h"
 #include "cpu-tegra.h"
@@ -62,7 +63,7 @@ static struct mutex *tegra3_cpu_lock;
 static struct workqueue_struct *hotplug_wq;
 static struct delayed_work hotplug_work;
 
-static struct workqueue_struct *cpuplug_wq;
+struct workqueue_struct *cpuplug_wq;
 static struct work_struct cpuplug_work;
 static bool is_plugging;
 
@@ -190,7 +191,7 @@ static int hp_state_set(const char *arg, const struct kernel_param *kp)
 			pr_info(CPU_HOTPLUG_TAG" Tegra auto hotplug disabled\n");
 		} else if (hp_state != TEGRA_HP_DISABLED) {
 			if (old_state == TEGRA_HP_DISABLED) {
-				pr_info("Tegra auto-hotplug enabled\n");
+				pr_info(CPU_HOTPLUG_TAG" Tegra auto-hotplug enabled\n");
 				hp_init_stats();
 			}
 			active_start_time = ktime_get();
@@ -378,6 +379,7 @@ static void tegra_auto_hotplug_work_func(struct work_struct *work)
 			   ((now - last_change_time) >= down_delay) &&
 			   !pm_qos_request(PM_QOS_MIN_ONLINE_CPUS)) {
 			if(!clk_set_parent(cpu_clk, cpu_lp_clk)) {
+				CPU_DEBUG_PRINTK(CPU_DEBUG_HOTPLUG, " enter LPCPU");
 				hp_stats_update(CONFIG_NR_CPUS, true);
 				hp_stats_update(0, false);
 				/* catch-up with governor target speed */
@@ -391,6 +393,8 @@ static void tegra_auto_hotplug_work_func(struct work_struct *work)
 	case TEGRA_HP_UP:
 		if (is_lp_cluster() && !no_lp) {
 			if(!clk_set_parent(cpu_clk, cpu_g_clk)) {
+				CPU_DEBUG_PRINTK(CPU_DEBUG_HOTPLUG,
+						 " leave LPCPU (%s)", __func__);
 				last_change_time = now;
 				hp_stats_update(CONFIG_NR_CPUS, false);
 				hp_stats_update(0, true);
@@ -475,6 +479,7 @@ static void tegra_auto_cpuplug_work_func(struct work_struct *work)
 				hp_stats_update(cpu, false);
 			} else if (!is_lp_cluster() && !no_lp) {
 				if (!clk_set_parent(cpu_clk, cpu_lp_clk)) {
+					CPU_DEBUG_PRINTK(CPU_DEBUG_HOTPLUG, " ENTER LPCPU");
 					hp_stats_update(CONFIG_NR_CPUS, true);
 					hp_stats_update(0, false);
 					/* catch-up with governor target speed */
@@ -529,6 +534,7 @@ static int mp_decision(void)
 	total_time += this_time;
 
 	rq_depth = get_rq_info();
+	CPU_DEBUG_PRINTK(CPU_DEBUG_HOTPLUG, " rq_deptch = %u", rq_depth);
 	nr_cpu_online = num_online_cpus();
 
 	if (nr_cpu_online) {
@@ -695,6 +701,8 @@ void tegra_auto_hotplug_governor(unsigned int cpu_freq, bool suspend)
 		/* Switch to G-mode if suspend rate is high enough */
 		if (is_lp_cluster() && (cpu_freq >= idle_bottom_freq)) {
 			if (!clk_set_parent(cpu_clk, cpu_g_clk)) {
+				CPU_DEBUG_PRINTK(CPU_DEBUG_HOTPLUG,
+						 " leave LPCPU (%s)", __func__);
 				hp_stats_update(CONFIG_NR_CPUS, false);
 				hp_stats_update(0, true);
 			}

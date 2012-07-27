@@ -33,6 +33,7 @@ static char media_boost = 'N';
 static unsigned int orig_user_cap = 0;
 
 static int is_in_power_save = 0;
+static int is_power_save_policy = 0;
 
 DEFINE_MUTEX(poke_mutex);
 
@@ -216,6 +217,9 @@ static ssize_t power_save_show(struct kobject *kobj,
 	if(is_in_power_save)
 		value = 'Y';
 
+	if(is_power_save_policy)
+		value = 'T';
+
 	return sprintf(buf, "%c\n", value);
 }
 
@@ -245,6 +249,14 @@ static ssize_t power_save_store(struct kobject *kobj,
 			is_in_power_save = 1;
 		}
 		break;
+	case 't':
+	case 'T':
+		if(!is_power_save_policy) {
+			pr_info("[Poke] set policy cap");
+			pm_qos_update_request(&cap_cpu_req, (s32)640000);
+			is_power_save_policy = 1;
+		}
+		break;
 	default:
 		pr_info("[Poke] Default, return;");
 		break;
@@ -255,6 +267,42 @@ static ssize_t power_save_store(struct kobject *kobj,
 
 poke_attr(power_save);
 
+/* For JNI power save policy */
+static struct kobj_attribute power_save_policy_attr = {
+	.attr	= {
+		.name = __stringify(power_save_policy),
+		.mode = 0644,
+	},
+	.show	= power_save_show,
+	.store	= power_save_store,
+};
+
+static unsigned int cpu_debug_on = 0;
+
+static ssize_t cpu_debug_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", cpu_debug_on);
+}
+
+static ssize_t cpu_debug_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int value;
+
+	sscanf(buf, "%u", &value);
+	cpu_debug_on = value;
+
+	return count;
+}
+
+poke_attr(cpu_debug);
+
+unsigned int get_cpu_debug(void)
+{
+	return cpu_debug_on;
+}
+EXPORT_SYMBOL(get_cpu_debug);
 
 static void validatefreq(unsigned int *freq)
 {
@@ -347,19 +395,17 @@ static void poke_work_fn(struct work_struct *poke_work)
 
 void restoreCap(int on)
 {
-	if (!on) {
-		pr_info("[Poke] Not first touch!");
-		goto finish;
+	if (is_power_save_policy) {
+		if (is_in_power_save) {
+			pm_qos_update_request(&cap_cpu_req, (s32)1000000);
+		} else {
+			pm_qos_update_request(&cap_cpu_req,
+						(s32)PM_QOS_CPU_FREQ_MAX_DEFAULT_VALUE);
+		}
+		is_power_save_policy = 0;
 	}
-	if (is_in_power_save) {
-		pr_info("[Poke] restore user_cap");
-		htc_set_cpu_user_cap(orig_user_cap);
-		is_in_power_save = 0;
-	}
-finish:
-	return;
-
 }
+EXPORT_SYMBOL(restoreCap);
 
 void speedupCPU(int on)
 {
@@ -399,6 +445,8 @@ static struct attribute * g[] = {
 	&media_boost_freq_attr.attr,
 	&cpu_temp_attr.attr,
 	&power_save_attr.attr,
+	&cpu_debug_attr.attr,
+	&power_save_policy_attr.attr,
 	NULL,
 };
 

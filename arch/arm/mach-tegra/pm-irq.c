@@ -238,6 +238,9 @@ static void tegra_pm_irq_syscore_resume_helper(
 		pr_info("Resume caused by WAKE%d, %s\n", (wake + 32 * index),
 			desc->action->name);
 		global_wakeup_state = (wake + 32 * index);
+		pr_info("global_wakeup_state is %d, wake_status is %d\n",
+				global_wakeup_state, wake_status);
+
 		tegra_wake_irq_count[wake + 32 * index]++;
 
 		generic_handle_irq(irq);

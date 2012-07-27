@@ -329,6 +329,12 @@ int __cpuinit cpu_up(unsigned int cpu)
 {
 	int err = 0;
 
+	if(cpu_online(cpu))
+	{
+		printk(KERN_INFO "[Stability] CPU_%d has already on \n",cpu);
+		return err;
+	}
+
 #ifdef	CONFIG_MEMORY_HOTPLUG
 	int nid;
 	pg_data_t	*pgdat;

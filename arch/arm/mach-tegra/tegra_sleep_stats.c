@@ -32,13 +32,13 @@
 #include <linux/workqueue.h>
 #include <linux/sched.h>
 #include <linux/spinlock.h>
+#include <linux/cpu_debug.h>
 
 #include "cpuidle.h"
 
 struct rq_data {
 	unsigned int rq_avg;
 	unsigned int rq_poll_ms;
-	unsigned int rq_debug;
 	unsigned int def_timer_ms;
 	unsigned int def_interval;
 	int64_t last_time;
@@ -54,23 +54,17 @@ static struct rq_data rq_info;
 static DEFINE_SPINLOCK(rq_lock);
 static struct workqueue_struct *rq_wq;
 
-
 unsigned int get_rq_info(void)
 {
-	unsigned int flags = 0;
+	unsigned long flags = 0;
 	unsigned int rq = 0;
-	unsigned int debug = 0;
 
 	spin_lock_irqsave(&rq_lock, flags);
 
 	rq = rq_info.rq_avg;
 	rq_info.rq_avg = 0;
-	debug = rq_info.rq_debug;
 
 	spin_unlock_irqrestore(&rq_lock, flags);
-
-	if (debug)
-		pr_info("get rq_avg is %u\n", rq);
 
 	return rq;
 }
@@ -117,7 +111,6 @@ static void rq_work_fn(struct work_struct *work)
 	int64_t time_diff = 0;
 	int64_t rq_avg = 0;
 	unsigned long flags = 0;
-	unsigned int debug = 0;
 
 	spin_lock_irqsave(&rq_lock, flags);
 
@@ -137,7 +130,6 @@ static void rq_work_fn(struct work_struct *work)
 	}
 
 	rq_info.rq_avg =  (unsigned int)rq_avg;
-	debug = rq_info.rq_debug;
 
 	/* Set the next poll */
 	if (rq_info.rq_poll_ms)
@@ -149,8 +141,9 @@ static void rq_work_fn(struct work_struct *work)
 
 	spin_unlock_irqrestore(&rq_lock, flags);
 
-	if (debug)
-		pr_info("func rq_avg is %u, total_time=%lld\n", (unsigned int)rq_avg, rq_info.total_time);
+	CPU_DEBUG_PRINTK(CPU_DEBUG_RQ,
+			 " func rq_avg is %u, total_time=%lld",
+			 (unsigned int)rq_avg, rq_info.total_time);
 }
 
 static void def_work_fn(struct work_struct *work)
@@ -214,33 +207,6 @@ static ssize_t store_run_queue_poll_ms(struct kobject *kobj,
 				msecs_to_jiffies(val));
 
 	mutex_unlock(&lock_poll_ms);
-
-	return count;
-}
-
-static ssize_t show_run_queue_debug(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
-{
-	int ret = 0;
-	unsigned long flags = 0;
-
-	spin_lock_irqsave(&rq_lock, flags);
-	ret = sprintf(buf, "%u\n", rq_info.rq_debug);
-	spin_unlock_irqrestore(&rq_lock, flags);
-
-	return ret;
-}
-
-static ssize_t store_run_queue_debug(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int val = 0;
-	unsigned long flags = 0;
-
-	spin_lock_irqsave(&rq_lock, flags);
-	sscanf(buf, "%u", &val);
-	rq_info.rq_debug = val;
-	spin_unlock_irqrestore(&rq_lock, flags);
 
 	return count;
 }
@@ -311,13 +277,11 @@ static int init_rq_attribs(void)
 
 	rq_info.rq_avg = 0;
 	rq_info.rq_poll_ms = 0;
-	rq_info.rq_debug = 0;
 
 	attribs[0] = MSM_SLEEP_RW_ATTRIB(def_timer_ms);
 	attribs[1] = MSM_SLEEP_RO_ATTRIB(run_queue_avg);
 	attribs[2] = MSM_SLEEP_RW_ATTRIB(run_queue_poll_ms);
-	attribs[3] = MSM_SLEEP_RW_ATTRIB(run_queue_debug);
-	attribs[4] = NULL;
+	attribs[3] = NULL;
 
 	for (i = 0; i < attr_count - 1 ; i++) {
 		if (!attribs[i])
