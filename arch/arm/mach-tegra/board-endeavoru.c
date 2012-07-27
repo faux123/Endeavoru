@@ -920,8 +920,13 @@ static struct headset_adc_config htc_headset_mgr_config_xe[] = {
 		.adc_min = 1500,
 	},
 	{
-		.type = HEADSET_NO_MIC,
+		.type = HEADSET_MIC,
 		.adc_max = 1499,
+		.adc_min = 1150,
+	},
+	{
+		.type = HEADSET_NO_MIC,
+		.adc_max = 1149,
 		.adc_min = 0,
 	},
 };
