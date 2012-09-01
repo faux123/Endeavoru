@@ -143,8 +143,8 @@ static int _add_switch(struct hda_codec *codec, hda_nid_t nid, const char *pfx,
 	int type = dir ? HDA_INPUT : HDA_OUTPUT;
 	struct snd_kcontrol_new knew =
 		HDA_CODEC_MUTE_MONO(namestr, nid, chan, 0, type);
-	sprintf(namestr, "%s %s Switch", pfx, dirstr[dir]);
 	struct snd_kcontrol *SND_CTL = snd_ctl_new1(&knew, codec);
+	sprintf(namestr, "%s %s Switch", pfx, dirstr[dir]);
 	if(!SND_CTL)
 		return -1;
 	return snd_hda_ctl_add(codec, nid, SND_CTL);
@@ -157,8 +157,8 @@ static int _add_volume(struct hda_codec *codec, hda_nid_t nid, const char *pfx,
 	int type = dir ? HDA_INPUT : HDA_OUTPUT;
 	struct snd_kcontrol_new knew =
 		HDA_CODEC_VOLUME_MONO(namestr, nid, chan, 0, type);
-	sprintf(namestr, "%s %s Volume", pfx, dirstr[dir]);
 	struct snd_kcontrol *SND_CTL = snd_ctl_new1(&knew, codec);
+	sprintf(namestr, "%s %s Volume", pfx, dirstr[dir]);
 	if(!SND_CTL)
 		return -1;
 	return snd_hda_ctl_add(codec, nid, SND_CTL);

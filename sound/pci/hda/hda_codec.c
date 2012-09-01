@@ -2744,10 +2744,11 @@ static struct snd_kcontrol_new spdif_share_sw = {
 int snd_hda_create_spdif_share_sw(struct hda_codec *codec,
 				  struct hda_multi_out *mout)
 {
+	struct snd_kcontrol *SND_KCTL;
 	if (!mout->dig_out_nid)
 		return 0;
 	/* ATTENTION: here mout is passed as private_data, instead of codec */
-	struct snd_kcontrol *SND_KCTL = snd_ctl_new1(&spdif_share_sw, mout);
+	SND_KCTL = snd_ctl_new1(&spdif_share_sw, mout);
 	if(!SND_KCTL)
 		return 0;
 	return snd_hda_ctl_add(codec, mout->dig_out_nid, SND_KCTL);

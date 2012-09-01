@@ -537,14 +537,16 @@ static void fix_volume_caps(struct hda_codec *codec, hda_nid_t dac)
 
 static int add_vmaster(struct hda_codec *codec, hda_nid_t dac)
 {
-	if(!codec)
-		return -1;
-	struct cs_spec *spec = codec->spec;
-	if(!spec)
-		return -1;
+	struct cs_spec *spec;
 	unsigned int tlv[4];
 	int err;
 
+	if(!codec)
+		return -1;
+
+	spec = codec->spec;
+	if(!spec)
+		return -1;
 	spec->vmaster_sw =
 		snd_ctl_make_virtual_master("Master Playback Switch", NULL);
 	if(!spec->vmaster_sw)
@@ -567,11 +569,7 @@ static int add_vmaster(struct hda_codec *codec, hda_nid_t dac)
 static int add_output(struct hda_codec *codec, hda_nid_t dac, int idx,
 		      int num_ctls, int type)
 {
-	if(!codec)
-		return -1;
-	struct cs_spec *spec = codec->spec;
-	if(!spec)
-		return -1;
+	struct cs_spec *spec;
 	const char *name;
 	int err, index;
 	struct snd_kcontrol *kctl;
@@ -582,6 +580,11 @@ static int add_output(struct hda_codec *codec, hda_nid_t dac, int idx,
 		"Front Line-Out", "Surround Line-Out", "Bass Line-Out"
 	};
 
+	if(!codec)
+		return -1;
+	spec = codec->spec;
+	if(!spec)
+		return -1;
 	fix_volume_caps(codec, dac);
 	if (!spec->vmaster_sw) {
 		err = add_vmaster(codec, dac);

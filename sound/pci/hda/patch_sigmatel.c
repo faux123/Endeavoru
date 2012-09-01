@@ -1072,6 +1072,7 @@ static int stac92xx_build_controls(struct hda_codec *codec)
 	hda_nid_t nid;
 	int err;
 	int i;
+	struct snd_kcontrol *SND_CTL;
 
 	if (spec->mixer) {
 		err = snd_hda_add_new_ctls(codec, spec->mixer);
@@ -1101,7 +1102,7 @@ static int stac92xx_build_controls(struct hda_codec *codec)
 			spec->spdif_mute = 1;
 		}
 		stac_smux_mixer.count = spec->num_smuxes;
-		struct snd_kcontrol *SND_CTL = snd_ctl_new1(&stac_smux_mixer, codec);
+		SND_CTL = snd_ctl_new1(&stac_smux_mixer, codec);
 		if(!SND_CTL)
 			return -1;
 		err = snd_hda_ctl_add(codec, 0, SND_CTL);

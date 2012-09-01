@@ -646,7 +646,7 @@ static void spi_aic3008_allow_sleep(void)
 }
 
 /* Access function pointed by ctl_ops to call control operations */
-static int aic3008_config(CODEC_SPI_CMD *cmds, int size)
+int aic3008_config(CODEC_SPI_CMD *cmds, int size)
 {
 	int i, retry, ret;
 	unsigned char data;
