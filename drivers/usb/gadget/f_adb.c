@@ -31,6 +31,7 @@
 
 #define ADB_IOCTL_MAGIC 's'
 #define ADB_ERR_PAYLOAD_STUCK       _IOW(ADB_IOCTL_MAGIC, 0, unsigned)
+#define ADB_ATS_ENABLE       		_IOR(ADB_IOCTL_MAGIC, 1, unsigned)
 
 #define ADB_BULK_BUFFER_SIZE           4096
 
@@ -126,6 +127,7 @@ void adb_count_set(int);
 
 /* temporary variable used between adb_open() and adb_gadget_bind() */
 static struct adb_dev *_adb_dev;
+int board_get_usb_ats(void);
 
 static inline struct adb_dev *func_to_adb(struct usb_function *f)
 {
@@ -205,7 +207,7 @@ static void adb_complete_in(struct usb_ep *ep, struct usb_request *req)
 	struct adb_dev *dev = _adb_dev;
 
 	if (req->status != 0) {
-		printk(KERN_INFO "[USB] %s: err (%d)\n", __func__, req->status);
+		printk(KERN_INFO "[USB] %s: %d\n", __func__, req->status);
 		atomic_set(&dev->error, 1);
 	}
 	adb_req_put(dev, &dev->tx_idle, req);
@@ -218,7 +220,7 @@ static void adb_complete_out(struct usb_ep *ep, struct usb_request *req)
 
 	dev->rx_done = 1;
 	if (req->status != 0) {
-		printk(KERN_INFO "[USB] %s: err (%d)\n", __func__, req->status);
+		printk(KERN_INFO "[USB] %s: %d\n", __func__, req->status);
 		atomic_set(&dev->error, 1);
 	}
 	wake_up(&dev->read_wq);
@@ -496,6 +498,11 @@ static long adb_enable_ioctl(struct file *file,
 		printk(KERN_INFO "[USB] adbd read payload stuck (reset ADB)\n");
 		break;
 	}
+	case ADB_ATS_ENABLE: {
+		printk(KERN_INFO "[USB] ATS enable =  %d\n",board_get_usb_ats());
+		rc = put_user(board_get_usb_ats(),(int __user *)arg);
+		break;
+	}
 	default:
 		rc = -EINVAL;
 	}
@@ -687,7 +694,7 @@ static int adb_setup(void)
 //++ htc ++
 	/* mfgkernel mode need this device node
 	 */
-	if ((board_mfg_mode() != 0) /*|| (board_get_usb_ats() == 1)*/) {
+	if ((board_mfg_mode() != BOARD_MFG_MODE_NORMAL) || (board_get_usb_ats() == 1)) {
 		ret = misc_register(&adb_enable_device);
 		if (ret)
 			goto err;
@@ -706,7 +713,7 @@ static void adb_cleanup(void)
 	misc_deregister(&adb_device);
 	/* mfgkernel mode need this device node
 	 */
-	if ((board_mfg_mode() != 0) /*|| (board_get_usb_ats() == 1)*/)
+	if ((board_mfg_mode() != BOARD_MFG_MODE_NORMAL) || (board_get_usb_ats() == 1))
 		misc_deregister(&adb_enable_device);
 
 	kfree(_adb_dev);

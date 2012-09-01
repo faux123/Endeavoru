@@ -863,7 +863,7 @@ static int usb_net_raw_ip_rx_urb_submit(struct baseband_usb *usb)
 	usb->usb.rx_urb = urb;
 	err = usb_submit_urb(urb, GFP_ATOMIC);
 	if (err < 0) {
-		pr_err("usb_submit_urb() failed - err %d\n", err);
+		pr_info("usb_submit_urb() failed - err %d\n", err);
 		usb->usb.rx_urb = (struct urb *) 0;
 		return err;
 	}
@@ -983,6 +983,10 @@ static void usb_net_raw_ip_rx_urb_comp(struct urb *urb)
 
 	/* mark rx urb complete */
 	usb->usb.rx_urb = (struct urb *) 0;
+
+	/* do not submit urb if interface is suspending */
+	if (urb->status == -ENOENT)
+		return;
 
 	/* do not submit urb if interface is suspending */
 	if (urb->status == -ENOENT)

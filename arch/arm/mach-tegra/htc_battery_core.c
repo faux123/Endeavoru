@@ -208,6 +208,13 @@ static ssize_t htc_battery_show_batt_attr(struct device *dev,
 	return battery_core_info.func.func_show_batt_attr(attr, buf);
 }
 
+static ssize_t htc_battery_show_batt_power_meter(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	return battery_core_info.func.func_show_batt_power_meter(attr, buf);
+}
+
 static ssize_t htc_battery_set_delta(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count)
@@ -401,6 +408,7 @@ static struct device_attribute htc_battery_attrs[] = {
 	HTC_BATTERY_ATTR(batt_state),
 
 	__ATTR(batt_attr_text, S_IRUGO, htc_battery_show_batt_attr, NULL),
+	__ATTR(batt_power_meter, S_IRUGO, htc_battery_show_batt_power_meter, NULL),
 };
 
 static struct device_attribute htc_set_delta_attrs[] = {
@@ -689,6 +697,7 @@ int htc_battery_core_update(void)
 		is_send_batt_uevent = 1;
 	}
 
+#if 0	/* note: old mechanism */
 	/* To make sure that device is under over loading scenario, accumulate
 	   variable battery_over_loading only when device has been under charging
 	   and level is decreased. */
@@ -699,6 +708,7 @@ int htc_battery_core_update(void)
 		else
 			battery_over_loading = 0;
 	}
+#endif
 
 	memcpy(&battery_core_info.rep, &new_batt_info_rep, sizeof(struct battery_info_reply));
 #if 0
@@ -720,20 +730,26 @@ int htc_battery_core_update(void)
 		battery_core_info.htc_charge_full = 0;
 	else {
 		if (battery_core_info.htc_charge_full &&
-			(battery_core_info.rep.full_level == 100))
-			battery_core_info.htc_charge_full = 1;
-		else {
+			(battery_core_info.rep.full_level == 100)) {
+			if (battery_core_info.rep.level > 98) {
+				battery_core_info.htc_charge_full = 1;
+				battery_core_info.rep.level = 100;
+			} else
+				battery_core_info.htc_charge_full = 0;
+		} else {
 			if (battery_core_info.rep.level == 100)
 				battery_core_info.htc_charge_full = 1;
 			else
 				battery_core_info.htc_charge_full = 0;
 		}
 
+#if 0	/* note: old mechanism */
 		/* Clear htc_charge_full while over loading is happened. */
 		if (battery_over_loading >= 2) {
 			battery_core_info.htc_charge_full = 0;
 			battery_over_loading = 0;
 		}
+#endif
 	}
 
 	battery_core_info.update_time = jiffies;
@@ -787,6 +803,9 @@ int htc_battery_core_register(struct device *dev,
 	if (htc_battery->func_show_batt_attr)
 		battery_core_info.func.func_show_batt_attr =
 					htc_battery->func_show_batt_attr;
+	if (htc_battery->func_show_batt_power_meter)
+		battery_core_info.func.func_show_batt_power_meter =
+					htc_battery->func_show_batt_power_meter;
 	if (htc_battery->func_get_battery_info)
 		battery_core_info.func.func_get_battery_info =
 					htc_battery->func_get_battery_info;
@@ -839,7 +858,9 @@ int htc_battery_core_register(struct device *dev,
 	/* zero means battey info is not ready */
 	battery_core_info.rep.batt_state = 0;
 
+#if 0	/* note: old mechanism */
 	battery_over_loading = 0;
+#endif
 
 	return 0;
 }

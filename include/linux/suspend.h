@@ -231,6 +231,8 @@ struct platform_hibernation_ops {
 	void (*recover)(void);
 };
 
+u32 get_suspend_time(void);
+
 #ifdef CONFIG_HIBERNATION
 /* kernel/power/snapshot.c */
 extern void __register_nosave_region(unsigned long b, unsigned long e, int km);

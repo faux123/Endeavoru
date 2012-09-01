@@ -340,7 +340,7 @@ int __init cpu_dev_init(void)
 		err = sched_create_sysfs_power_savings_entries(&cpu_sysdev_class);
 #endif
 
-    INIT_WORK(&cpuplug_work, tegra_cpuplug_work_func);
+	INIT_WORK(&cpuplug_work, tegra_cpuplug_work_func);
 
 	return err;
 }

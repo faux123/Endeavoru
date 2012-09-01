@@ -5,6 +5,7 @@
 #include <linux/regulator/consumer.h>
 #include "htc_audio_power.h"
 #include <mach/board_htc.h>
+#include <asm/mach-types.h>
 
 #undef LOG_TAG
 #define LOG_TAG "AUD"
@@ -29,16 +30,12 @@ extern void config_tegra_desk_aud_gpios(bool output, bool out_val);
 
 static void aic3008_powerinit(void)
 {
-	int value = htc_get_pcbid_info();
-
-	if (value >= PROJECT_PHASE_XA) {
-		power_config("AUD_MCLK_EN", TEGRA_GPIO_PX7, INIT_OUTPUT_HIGH);
-		power_config("AUD_MCLK_EN", TEGRA_GPIO_PX7, GPIO_OUTPUT);
-		power_config("AUD_AIC3008_RST#", TEGRA_GPIO_PW5, INIT_OUTPUT_HIGH);
-		power_config("AUD_AIC3008_RST#", TEGRA_GPIO_PW5, GPIO_OUTPUT);
-		power_config("v_aud_a1v8", TEGRA_GPIO_PD2, REGULATOR_METHOD);
-		power_config("v_aud_3v3", TEGRA_GPIO_PB2, REGULATOR_METHOD);
-	} else AUD_ERR("%s: no pcbid satisfy.", __func__);
+	power_config("AUD_MCLK_EN", TEGRA_GPIO_PX7, INIT_OUTPUT_HIGH);
+	power_config("AUD_MCLK_EN", TEGRA_GPIO_PX7, GPIO_OUTPUT);
+	power_config("AUD_AIC3008_RST#", TEGRA_GPIO_PW5, INIT_OUTPUT_HIGH);
+	power_config("AUD_AIC3008_RST#", TEGRA_GPIO_PW5, GPIO_OUTPUT);
+	power_config("v_aud_a1v8", TEGRA_GPIO_PD2, REGULATOR_METHOD);
+	power_config("v_aud_3v3", TEGRA_GPIO_PB2, REGULATOR_METHOD);
 
 	power_config("AUD_MCLK", TEGRA_GPIO_PW4, INIT_OUTPUT_LOW);
 	sfio_deconfig("AUD_MCLK", TEGRA_GPIO_PW4);

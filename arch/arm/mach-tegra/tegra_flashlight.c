@@ -553,7 +553,7 @@ static int flashlight_setup_gpio(struct flashlight_platform_data *flashlight,
 	int ret = 0;
 	if (flashlight->gpio_init)
 		flashlight->gpio_init();
-	// have been config gpio in board-enterprise.c
+	// have been config gpio in board-endeavor*.c
 	if (flashlight->torch) {
 		/*
 		ret = gpio_request(flashlight->torch, "fl_torch");

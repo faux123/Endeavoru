@@ -26,7 +26,6 @@
 #include <linux/tty_flip.h>
 #include <linux/slab.h>
 #include <linux/debugfs.h>
-#include <htc/log.h>
 
 #include "u_serial.h"
 
@@ -670,7 +669,7 @@ static void gs_write_complete(struct usb_ep *ep, struct usb_request *req)
 	switch (req->status) {
 	default:
 		/* presumably a transient fault */
-		sp_pr_warning("%s: unexpected %s status %d\n",
+		pr_warning("%s: unexpected %s status %d\n",
 				__func__, ep->name, req->status);
 		/* FALL THROUGH */
 	case 0:
@@ -681,7 +680,7 @@ static void gs_write_complete(struct usb_ep *ep, struct usb_request *req)
 
 	case -ESHUTDOWN:
 		/* disconnect */
-		sp_pr_debug("%s: %s shutdown\n", __func__, ep->name);
+		pr_vdebug("%s: %s shutdown\n", __func__, ep->name);
 		break;
 	}
 
@@ -1570,7 +1569,7 @@ int gserial_connect(struct gserial *gser, u8 port_num)
 	 * protocol about open/close status (connect/disconnect).
 	 */
 	if (port->open_count) {
-		sp_pr_debug("gserial_connect: start ttyGS%d\n", port->port_num);
+		pr_debug("gserial_connect: start ttyGS%d\n", port->port_num);
 		gs_start_io(port);
 		if (gser->connect)
 			gser->connect(gser);

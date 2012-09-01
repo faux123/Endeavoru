@@ -19,6 +19,7 @@
 #define HTC_BATT_IOCTL_MAGIC		0xba
 
 #define DEBUG_LOG_LENGTH		1024
+#define POWER_METER_LENGTH		16
 
 #define HTC_BATT_IOCTL_READ_SOURCE \
 	_IOR(HTC_BATT_IOCTL_MAGIC, 1, unsigned int)
@@ -38,6 +39,8 @@
 	_IOW(HTC_BATT_IOCTL_MAGIC, 8, struct battery_vol_alarm)
 #define HTC_BATT_IOCTL_SET_ALARM_TIMER_FLAG \
 	_IOW(HTC_BATT_IOCTL_MAGIC, 9, unsigned int)
+#define HTC_BATT_IOCTL_BATT_POWER_METER \
+	_IOW(HTC_BATT_IOCTL_MAGIC, 10, char[POWER_METER_LENGTH])
 
 #define REGULAR_BATTERRY_TIMER		"regular_timer"
 #define CABLE_DETECTION			"cable"

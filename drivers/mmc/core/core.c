@@ -1547,6 +1547,11 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 		/* Do not retry else we can't see errors */
 		err = mmc_wait_for_cmd(card->host, &cmd, 0);
 		if (err || (cmd.resp[0] & 0xFDF92000)) {
+			if (cmd.resp[0] & 0x08000000) {
+				printk(KERN_ERR "Invalid erase parameters: ARG(0x%08x) FROM(0x%08x) TO(0x%08x)\n",
+					arg, from, to);
+			}
+
 			printk(KERN_ERR "error %d requesting status %#x\n",
 				err, cmd.resp[0]);
 			err = -EIO;
@@ -1660,10 +1665,9 @@ EXPORT_SYMBOL(mmc_can_discard);
 
 int mmc_can_secure_erase_trim(struct mmc_card *card)
 {
-/*
 	if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_ER_EN)
 		return 1;
-*/
+
 	return 0;
 }
 EXPORT_SYMBOL(mmc_can_secure_erase_trim);
@@ -1930,11 +1934,11 @@ int mmc_suspend_host(struct mmc_host *host)
 
 	if (mmc_bus_needs_resume(host))
 		return 0;
-
+/*
 	if (mmc_card_mmc(host->card) && mmc_card_doing_bkops(host->card))
 		mmc_interrupt_hpi(host->card);
 	mmc_card_clr_need_bkops(host->card);
-
+*/
 	if (host->caps & MMC_CAP_DISABLE)
 		cancel_delayed_work(&host->disable);
 	cancel_delayed_work(&host->detect);
@@ -2009,7 +2013,7 @@ int mmc_resume_host(struct mmc_host *host)
 			err = 0;
 		}
 	}
-#if defined CONFIG_MACH_ENDEAVORU || defined CONFIG_MACH_ENDEAVORTD
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
     if(host->index==1) {
         host->pm_flags &= ~MMC_PM_KEEP_POWER;
     }

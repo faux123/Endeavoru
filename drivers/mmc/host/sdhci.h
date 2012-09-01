@@ -264,6 +264,8 @@ struct sdhci_ops {
 	int	(*set_uhs_signaling)(struct sdhci_host *host, unsigned int uhs);
 	int	(*switch_signal_voltage)(struct sdhci_host *host,
 				unsigned int signal_voltage);
+	/* Dump irq register for debug usage */
+	void (*dump_irq_reg)(struct sdhci_host *host);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

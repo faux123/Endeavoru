@@ -311,7 +311,8 @@ static int tps65200_dump_register(void)
 	pr_tps_info("regh 0x06=%x, 0x08=%x, regh 0x09=%x, regh 0x0A=%x\n",
 			regh0, regh1, regh2, regh3);
 #else
-	pr_tps_info("regh 0x06=%x\n", regh0);
+	tps65200_i2c_read_byte(&regh3, 0x0A);
+	pr_tps_info("regh 0x06=%x, regh 0x0A=%x\n", regh0, regh3);
 #endif
 
 	return 0;

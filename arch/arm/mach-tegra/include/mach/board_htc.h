@@ -78,6 +78,15 @@ int __init msm_add_serial_devices(unsigned uart);
 #define MFG_BUILD   1
 #define ENG_BUILD   2
 
+enum {
+	BOARD_MFG_MODE_NORMAL = 0,
+	BOARD_MFG_MODE_FACTORY2,
+	BOARD_MFG_MODE_RECOVERY,
+	BOARD_MFG_MODE_CHARGE,
+	BOARD_MFG_MODE_POWERTEST,
+	BOARD_MFG_MODE_OFFMODE_CHARGING,
+};
+
 
 int board_mfg_mode(void);
 int board_zchg_mode(void);
@@ -117,7 +126,7 @@ extern int usb_phy_error;
 extern unsigned long tegra_bootloader_panel_lsb;
 extern unsigned long tegra_bootloader_panel_msb;
 
-extern const int htc_get_pcbid_info(void);
+const int htc_get_pcbid_info(void);
 const bool is_modem_rework_phase(void);
 
 enum {
@@ -139,6 +148,7 @@ enum {
 	PROJECT_PHASE_F   =  0x85,
 	PROJECT_PHASE_G   =  0x86,
 	PROJECT_PHASE_H   =  0x87,
+	PROJECT_PHASE_LATEST =  0xFF,
 };
 
 enum {

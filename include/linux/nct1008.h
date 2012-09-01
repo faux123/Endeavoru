@@ -45,6 +45,7 @@ struct nct1008_platform_data {
 	void (*alarm_fn)(bool raised);
 	void (*probe_callback)(struct nct1008_data *);
 	char *reg_name;
+	unsigned gpio;
 };
 
 struct nct1008_data {

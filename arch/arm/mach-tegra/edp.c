@@ -265,16 +265,12 @@ static struct tegra_edp_limits edp_default_limits[] = {
 	{85, {1000000, 1000000, 1000000, 1000000} },
 };
 
-static struct tegra_edp_limits edp_power_limits[] = {
-	{20, {1450000, 1350000, 1350000, 1350000} },
-	{45, {1500000, 1400000, 1400000, 1400000} },
-	{60, {1200000, 1000000,  880000,  760000} },
-	{65, {1000000,  880000,  760000,  640000} },
-	{75, { 880000,  640000,  640000,  640000} },
-	{85, { 880000,  640000,  640000,  640000} },
-};
-
-
+#define MAX_TEGRA_EDP_LIMITS  (6)
+#define EDP_LIMITS_TABLE_SIZE (sizeof(struct tegra_edp_limits) * MAX_TEGRA_EDP_LIMITS) / sizeof(unsigned int)
+/*
+ * NOTE: the array size will be considered as argument size; keep it unsigned int
+ */
+static unsigned int edp_limits_table[EDP_LIMITS_TABLE_SIZE];
 
 /*
  * Specify regulator current in mA, e.g. 5000mA
@@ -377,6 +373,10 @@ void __init tegra_init_cpu_edp_limits(unsigned int regulator_mA)
 	BUG_ON(!f);
 
 	memcpy(f, e, sizeof(struct tegra_edp_limits) * edp_limits_size);
+
+	BUG_ON(MAX_TEGRA_EDP_LIMITS < edp_limits_size);
+
+	memcpy(edp_limits_table, e, sizeof(struct tegra_edp_limits) * edp_limits_size);
 
 	if (edp_limits != edp_default_limits)
 		kfree(edp_limits);
@@ -560,7 +560,7 @@ static int __init tegra_edp_debugfs_init(void)
 late_initcall(tegra_edp_debugfs_init);
 
 #endif /* CONFIG_DEBUG_FS */
-
+module_param_array(edp_limits_table, uint, NULL, 0644);
 static int edp_ap_limit = 0;
 
 static int edp_ap_limit_set(const char *arg, const struct kernel_param *kp)
@@ -571,15 +571,10 @@ static int edp_ap_limit_set(const char *arg, const struct kernel_param *kp)
 	if (ret == 0) {
 		if (edp_ap_limit_ori != edp_ap_limit) {
 			pr_info("EDP table is changed (%d)", edp_ap_limit);
-			switch (edp_ap_limit) {
-			case 0:
-			default:
+			if (edp_ap_limit > 0)
+				memcpy((void *)edp_limits, edp_limits_table, sizeof(struct tegra_edp_limits) * edp_limits_size);
+			else
 				memcpy((void *)edp_limits, default_table, sizeof(struct tegra_edp_limits) * edp_limits_size);
-				break;
-			case 1:
-				memcpy((void *)edp_limits, edp_power_limits, sizeof(struct tegra_edp_limits) * edp_limits_size);
-				break;
-			}
 		}
 	} else {
 		pr_warn(" %s: unable to set edp_ap_limit %s\n", __func__, arg);

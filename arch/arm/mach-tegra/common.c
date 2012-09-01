@@ -183,6 +183,14 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "hclk",	"sclk",		102000000,	true },
 	{ "pclk",	"hclk",		51000000,	true },
 	{ "cpu.sclk",	NULL,		80000000,	false },
+#ifdef CONFIG_SERIAL_SC8800G
+	{ "sbc1.sclk",	NULL,		40000000,	false},
+	{ "sbc2.sclk",	NULL,		40000000,	false},
+	{ "sbc3.sclk",	NULL,		40000000,	false},
+	{ "sbc4.sclk",	NULL,		40000000,	false},
+	{ "sbc5.sclk",	NULL,		40000000,	false},
+	{ "sbc6.sclk",	NULL,		40000000,	false},
+#endif
 #endif
 #else
 	{ "pll_p",	NULL,		216000000,	true },
@@ -620,7 +628,7 @@ static void tegra_pm_restart(char mode, const char *cmd)
 				set_reboot_battery_level(get_battery_level_cb());
 			break;
 	}
-
+	tegra_pm_flush_console();
 	arm_machine_restart(mode, cmd);
 }
 #else

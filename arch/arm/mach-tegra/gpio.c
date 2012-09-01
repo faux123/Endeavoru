@@ -38,6 +38,7 @@
 #include "gpio-names.h"
 #include "htc-gpio.h"
 #include <mach/board_htc.h>
+#include <asm/mach-types.h>
 
 #define GPIO_BANK(x)		((x) >> 5)
 #define GPIO_PORT(x)		(((x) >> 3) & 0x3)
@@ -362,12 +363,12 @@ static void tegra_gpio_resume(void)
 			__raw_writel(bank->int_enb[p], GPIO_INT_ENB(gpio));
 		}
 	}
-#if defined(CONFIG_MACH_ENDEAVORTD)
-	int projectPhase = htc_get_pcbid_info();
-	if (projectPhase == PROJECT_PHASE_XC){
-		enr_xc_no_owner_gpio_resume();
+	if (machine_is_endeavortd()) {
+		int projectPhase = htc_get_pcbid_info();
+		if (projectPhase == PROJECT_PHASE_XC){
+			enr_xc_no_owner_gpio_resume();
+		}
 	}
-#endif
 	local_irq_restore(flags);
 }
 
@@ -416,7 +417,7 @@ void gpio_dump(void)
 
 		const char** expected_gpio = enr_td_suspend_gpio_config_xc;
 
-#if defined(CONFIG_MACH_VERTEXF)
+		if (machine_is_vertexfp()) {
 			int projectPhase = htc_get_pcbid_info();
 
 			if (projectPhase == PROJECT_PHASE_XA) /* EVT XA */
@@ -427,8 +428,8 @@ void gpio_dump(void)
 				expected_gpio = quo_suspend_gpio_config_xc;
 			else if (projectPhase >= PROJECT_PHASE_XD)
 				expected_gpio = quo_suspend_gpio_config_xd;
+		}
 
-#endif
 
 		for (p = 0; p < ARRAY_SIZE(bank->oe); p++) {
 			unsigned int gpio = (b<<5) | (p<<3);

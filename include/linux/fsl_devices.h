@@ -88,6 +88,11 @@ struct fsl_usb2_platform_data {
 	unsigned	invert_pwr_fault:1;
         void		*phy_config;
 	enum fsl_usb2_phy_types usb_phy_type;
+	int		charger_type;
+	unsigned ur_gpio;		/* UART_USB_SW */
+	unsigned tx_gpio;		/* UART1_DEBUG_TX */
+	unsigned rx_gpio;		/* UART1_DEBUG_RX */
+	unsigned chg_gpio;		/* CHARGER_PIN_REC */
 };
 
 /* Flags in fsl_usb2_mph_platform_data */

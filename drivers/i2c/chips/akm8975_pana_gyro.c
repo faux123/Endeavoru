@@ -579,7 +579,7 @@ akmd_ioctl(struct file *file, unsigned int cmd,
 
 	char msg[RBUFF_SIZE_8975 + 1] = "", rwbuf[RBUFF_SIZE_8975 + 1] = "";
 	int ret = -1, status;
-	short mode, value[12], delay;
+	short mode = 0, value[12] = {0}, delay = 0;
 	short layouts[4][3][3];
 	int i, j, k;
 

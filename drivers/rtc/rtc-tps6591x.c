@@ -161,8 +161,8 @@ static int tps6591x_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	tm->tm_min = buff[1];
 	tm->tm_hour = buff[2];
 	tm->tm_mday = buff[3];
-	tm->tm_mon = buff[4];
-	tm->tm_year = buff[5];
+	tm->tm_mon = buff[4] - 1;
+	tm->tm_year = buff[5] + RTC_YEAR_OFFSET;
 	tm->tm_wday = buff[6];
 	print_time(dev, tm);
 	return tps6591x_rtc_valid_tm(tm);
@@ -249,8 +249,8 @@ static int tps6591x_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	buff[1] = tm->tm_min;
 	buff[2] = tm->tm_hour;
 	buff[3] = tm->tm_mday;
-	buff[4] = tm->tm_mon;
-	buff[5] = tm->tm_year;
+	buff[4] = tm->tm_mon + 1;
+	buff[5] = tm->tm_year % RTC_YEAR_OFFSET;
 	buff[6] = tm->tm_wday;
 
 	print_time(dev, tm);
@@ -308,8 +308,8 @@ static int tps6591x_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	buff[1] = alrm->time.tm_min;
 	buff[2] = alrm->time.tm_hour;
 	buff[3] = alrm->time.tm_mday;
-	buff[4] = alrm->time.tm_mon;
-	buff[5] = alrm->time.tm_year;
+	buff[4] = alrm->time.tm_mon + 1;
+	buff[5] = alrm->time.tm_year % RTC_YEAR_OFFSET;
 	convert_decimal_to_bcd(buff, sizeof(buff));
 	err = tps6591x_write_regs(dev, RTC_ALARM, sizeof(buff), buff);
 	if (err)
@@ -332,8 +332,8 @@ static int tps6591x_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	alrm->time.tm_min = buff[1];
 	alrm->time.tm_hour = buff[2];
 	alrm->time.tm_mday = buff[3];
-	alrm->time.tm_mon = buff[4];
-	alrm->time.tm_year = buff[5];
+	alrm->time.tm_mon = buff[4] - 1;
+	alrm->time.tm_year = buff[5] + RTC_YEAR_OFFSET;
 
 	dev_info(dev->parent, "\n getting alarm time::\n");
 	print_time(dev, &alrm->time);
@@ -468,7 +468,7 @@ static int __devinit tps6591x_rtc_probe(struct platform_device *pdev)
 			pdata->time.tm_year = RTC_YEAR_OFFSET;
 			pdata->time.tm_mday = 1;
 		} else
-		pdata->time.tm_year -= OS_REF_YEAR;
+			pdata->time.tm_year -= OS_REF_YEAR;
 		tps6591x_rtc_set_time(&pdev->dev, &pdata->time);
 	}
 

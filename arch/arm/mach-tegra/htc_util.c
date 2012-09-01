@@ -17,7 +17,6 @@
 #include "pm.h"
 #include <linux/vmalloc.h>
 #include "board.h"
-#include <htc/log.h>
 #if 0
 #include <mach/rpm.h>
 #include <mach/perflock.h>
@@ -355,7 +354,7 @@ void htc_kernel_top(void)
 	/* print most time consuming processes */
 	printk(KERN_INFO "CPU Usage\tPID\t\tName\n");
 	for (i = 0 ; i < NUM_BUSY_THREAD_CHECK ; i++) {
-		sp_pr_info("%lu%%\t\t%d\t\t%s\t\t\t%d\n",
+		printk(KERN_INFO "%lu%%\t\t%d\t\t%s\t\t\t%d\n",
 				curr_proc_delta[top_loading[i]] * 100 / delta_time,
 				top_loading[i],
 				task_ptr_array[top_loading[i]]->comm,
@@ -370,7 +369,7 @@ void htc_kernel_top(void)
 			t = task_ptr_array[top_loading[i]];
 			/* dump all the thread stack of this process */
 			do {
-				sp_pr_info("\n###pid:%d name:%s state:%lu ppid:%d stime:%lu utime:%lu\n",
+				printk(KERN_INFO "\n###pid:%d name:%s state:%lu ppid:%d stime:%lu utime:%lu\n",
 				t->pid, t->comm, t->state, t->real_parent->pid, t->stime, t->utime);
 				show_stack(t, t->stack);
 				t = next_thread(t);

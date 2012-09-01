@@ -26,7 +26,6 @@
 #include <linux/earlysuspend.h>
 #include <linux/leds.h>
 #include <linux/leds-lp5521_htc.h>
-#include "../../arch/arm/mach-tegra/gpio-names.h"
 #include <linux/regulator/consumer.h>
 
 #define LP5521_MAX_LEDS			3	/* Maximum number of LEDs */
@@ -41,6 +40,7 @@
 
 static int led_rw_delay;
 static int current_state, current_blink, current_time;
+static int current_currents, current_lut_coefficient, current_pwm_coefficient;
 static int current_mode, backlight_mode, suspend_mode, offtimer_mode;
 static int amber_mode;
 static struct regulator *regulator;
@@ -1005,7 +1005,7 @@ static ssize_t lp5521_led_off_timer_store(struct device *dev,
 	min = -1;
 	sec = -1;
 	sscanf(buf, "%d %d", &min, &sec);
-	I(" %s +++, min = %d, sec = %d\n" , __func__, min, sec);
+	I(" %s , min = %d, sec = %d\n" , __func__, min, sec);
 	if (min < 0 || min > 255)
 		return -EINVAL;
 	if (sec < 0 || sec > 255)
@@ -1061,7 +1061,7 @@ static ssize_t lp5521_led_blink_store(struct device *dev,
 
 	val = -1;
 	sscanf(buf, "%d", &val);
-	I(" %s +++, val = %d\n" , __func__, val);
+	I(" %s , val = %d\n" , __func__, val);
 	if (val < 0 )
 		val = 0;
 	else if (val > 255)
@@ -1084,7 +1084,7 @@ static ssize_t lp5521_led_blink_store(struct device *dev,
 		} else if (!strcmp(ldata->cdev.name, "button-backlight")) {
 			if ( backlight_mode != 2 )
 				lp5521_led_current_set_for_key(1);
-		} 
+		}
 	} else {
 		if(!strcmp(ldata->cdev.name, "amber"))	 {
 			if( amber_mode == 2 )
@@ -1106,6 +1106,148 @@ static ssize_t lp5521_led_blink_store(struct device *dev,
 
 static DEVICE_ATTR(blink, 0644, lp5521_led_blink_show,
 					lp5521_led_blink_store);
+
+static ssize_t lp5521_led_currents_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", current_currents);
+}
+
+static ssize_t lp5521_led_currents_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct i2c_client *client = private_lp5521_client;
+	struct led_classdev *led_cdev;
+	struct lp5521_led *ldata;
+	uint8_t data = 0x00;
+	int val, ret;
+
+	sscanf(buf, "%d", &val);
+	I(" %s , val = %d\n" , __func__, val);
+	if (val < 0 || val > 255)
+		return -EINVAL;
+	current_currents = val;
+	led_cdev = (struct led_classdev *)dev_get_drvdata(dev);
+	ldata = container_of(led_cdev, struct lp5521_led, cdev);
+
+	mutex_lock(&led_mutex);
+	// === run program with all direct program ===
+	data = 0x3f;
+	ret = i2c_write_block(client, 0x01, &data, 1);
+	udelay(200);
+	data = 0x40;
+	ret = i2c_write_block(client, 0x00, &data, 1);
+	udelay(500);
+	// === set pwm to all ===
+	data = (u8)val;
+	if(!strcmp(ldata->cdev.name, "green"))	 {
+		ret = i2c_write_block(client, 0x06, &data, 1);
+	} else if (!strcmp(ldata->cdev.name, "amber")) {
+		ret = i2c_write_block(client, 0x05, &data, 1);
+	} else if (!strcmp(ldata->cdev.name, "button-backlight")) {
+		ret = i2c_write_block(client, 0x07, &data, 1);
+	}
+	mutex_unlock(&led_mutex);
+
+	return count;
+}
+
+static DEVICE_ATTR(currents, 0644, lp5521_led_currents_show,
+					lp5521_led_currents_store);
+
+static ssize_t lp5521_led_pwm_coefficient_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", current_pwm_coefficient);
+}
+
+static ssize_t lp5521_led_pwm_coefficient_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct i2c_client *client = private_lp5521_client;
+	struct led_classdev *led_cdev;
+	struct lp5521_led *ldata;
+	uint8_t data = 0x00;
+	int val, ret;
+
+	sscanf(buf, "%d", &val);
+	I(" %s , val = %d\n" , __func__, val);
+	if (val < 0 || val > 100)
+		return -EINVAL;
+	current_pwm_coefficient = val;
+	led_cdev = (struct led_classdev *)dev_get_drvdata(dev);
+	ldata = container_of(led_cdev, struct lp5521_led, cdev);
+
+	mutex_lock(&led_mutex);
+	// === run program with all direct program ===
+	data = 0x3f;
+	ret = i2c_write_block(client, 0x01, &data, 1);
+	udelay(200);
+	data = 0x40;
+	ret = i2c_write_block(client, 0x00, &data, 1);
+	udelay(500);
+	// === set current to amber & green ===
+	data = (u8)val*255/100;
+	if(!strcmp(ldata->cdev.name, "green"))	 {
+		ret = i2c_write_block(client, 0x03, &data, 1);
+	} else if (!strcmp(ldata->cdev.name, "amber")) {
+		ret = i2c_write_block(client, 0x02, &data, 1);
+	}
+	mutex_unlock(&led_mutex);
+
+	return count;
+}
+
+static DEVICE_ATTR(pwm_coefficient, 0644, lp5521_led_pwm_coefficient_show,
+					lp5521_led_pwm_coefficient_store);
+
+
+static ssize_t lp5521_led_lut_coefficient_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", current_lut_coefficient);
+}
+
+static ssize_t lp5521_led_lut_coefficient_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct i2c_client *client = private_lp5521_client;
+	struct led_classdev *led_cdev;
+	struct lp5521_led *ldata;
+	uint8_t data = 0x00;
+	int val, ret;
+
+	sscanf(buf, "%d", &val);
+	I(" %s , val = %d\n" , __func__, val);
+	if (val < 0 || val > 100)
+		return -EINVAL;
+	current_lut_coefficient = val;
+	led_cdev = (struct led_classdev *)dev_get_drvdata(dev);
+	ldata = container_of(led_cdev, struct lp5521_led, cdev);
+
+	mutex_lock(&led_mutex);
+	// === run program with all direct program ===
+	data = 0x3f;
+	ret = i2c_write_block(client, 0x01, &data, 1);
+	udelay(200);
+	data = 0x40;
+	ret = i2c_write_block(client, 0x00, &data, 1);
+	udelay(500);
+	// === set current to blue(button) ===
+	data = (u8)val*255/100;
+	if(!strcmp(ldata->cdev.name, "button-backlight")) {
+		ret = i2c_write_block(client, 0x04, &data, 1);
+	}
+	mutex_unlock(&led_mutex);
+
+	return count;
+}
+
+static DEVICE_ATTR(lut_coefficient, 0644, lp5521_led_lut_coefficient_show,
+					lp5521_led_lut_coefficient_store);
 
 static void lp5521_led_early_suspend(struct early_suspend *handler)
 {
@@ -1207,8 +1349,23 @@ static int lp5521_led_probe(struct i2c_client *client
 		}
 		ret = device_create_file(cdata->leds[i].cdev.dev, &dev_attr_off_timer);
 		if (ret < 0) {
-			pr_err("%s: failed on create attr blink [%d]\n", __func__, i);
+			pr_err("%s: failed on create attr off_timer [%d]\n", __func__, i);
 			goto err_register_attr_off_timer;
+		}
+		ret = device_create_file(cdata->leds[i].cdev.dev, &dev_attr_currents);
+		if (ret < 0) {
+			pr_err("%s: failed on create attr currents [%d]\n", __func__, i);
+			goto err_register_attr_currents;
+		}
+		ret = device_create_file(cdata->leds[i].cdev.dev, &dev_attr_pwm_coefficient);
+		if (ret < 0) {
+			pr_err("%s: failed on create attr pwm_coefficient [%d]\n", __func__, i);
+			goto err_register_attr_pwm_coefficient;
+		}
+		ret = device_create_file(cdata->leds[i].cdev.dev, &dev_attr_lut_coefficient);
+		if (ret < 0) {
+			pr_err("%s: failed on create attr lut_coefficient [%d]\n", __func__, i);
+			goto err_register_attr_lut_coefficient;
 		}
 		INIT_WORK(&cdata->leds[i].led_work, led_work_func);
 		alarm_init(&cdata->leds[i].led_alarm,
@@ -1254,13 +1411,25 @@ static int lp5521_led_probe(struct i2c_client *client
 err_fun_init:
 	device_remove_file(&client->dev, &dev_attr_behavior);
 	kfree(cdata);
-err_register_attr_blink:
+err_register_attr_lut_coefficient:
 	for (i = 0; i < pdata->num_leds; i++) {
-		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_blink);
+		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_lut_coefficient);
+	}
+err_register_attr_pwm_coefficient:
+	for (i = 0; i < pdata->num_leds; i++) {
+		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_pwm_coefficient);
+	}
+err_register_attr_currents:
+	for (i = 0; i < pdata->num_leds; i++) {
+		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_currents);
 	}
 err_register_attr_off_timer:
 	for (i = 0; i < pdata->num_leds; i++) {
 		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_off_timer);
+	}
+err_register_attr_blink:
+	for (i = 0; i < pdata->num_leds; i++) {
+		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_blink);
 	}
 err_create_work_queue:
 	kfree(pdata);
@@ -1290,6 +1459,9 @@ static int __devexit lp5521_led_remove(struct i2c_client *client)
 	for (i = 0; i < pdata->num_leds; i++) {
 		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_blink);
 		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_off_timer);
+		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_currents);
+		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_pwm_coefficient);
+		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_lut_coefficient);
 		led_classdev_unregister(&cdata->leds[i].cdev);
 	}
 	destroy_workqueue(g_led_work_queue);

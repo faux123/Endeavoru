@@ -42,6 +42,18 @@
 #include <mach/dma.h>
 #include <mach/clk.h>
 
+#ifdef CONFIG_SERIAL_SC8800G
+#define DEBUG_SPI_MASTER_OOPS
+#define DEBUG_949393
+#define DEBUG_960388
+#define WORKAROUND_949393
+#define SOLUTION_959947
+#define DEBUG_962049
+#define WORKAROUND_962049
+#define SOLUTION_967438
+//#define WORKAROUND_949393_PRINT_LOG
+#endif
+
 #define SLINK_COMMAND		0x000
 #define   SLINK_BIT_LENGTH(x)		(((x) & 0x1f) << 0)
 #define   SLINK_WORD_SIZE(x)		(((x) & 0x1f) << 5)
@@ -178,6 +190,9 @@ struct spi_tegra_data {
 	char			port_name[32];
 
 	struct clk		*clk;
+#ifdef CONFIG_SERIAL_SC8800G
+	struct clk		*sclk;
+#endif
 	void __iomem		*base;
 	phys_addr_t		phys;
 	unsigned		irq;
@@ -246,6 +261,71 @@ struct spi_tegra_data {
 	struct work_struct spi_transfer_work;
 };
 
+#ifdef DEBUG_962049
+static int g_enable_debug_962049 = 0;
+static int g_spi_tegra_transfer_debug_flag = 0;
+static int g_tegra_spi_transfer_work_debug_flag = 0;
+static int g_spi_tegra_curr_transfer_complete_debug_flag = 0;
+static int g_spi_tegra_start_dma_based_transfer_debug_flag = 0;
+static int g_spi_tegra_start_cpu_based_transfer_debug_flag = 0;
+void spi_tegra_962049_debug_set(int enable)
+{
+	if ( g_enable_debug_962049 != enable ) {
+		g_enable_debug_962049 = enable;
+	}
+}
+void spi_tegra_962049_debug_get_info(void)
+{
+	pr_err("[%s] g_enable_debug_962049=[%d][%d][%d][%d][%d][%d]\n", __func__,
+		g_enable_debug_962049, g_spi_tegra_transfer_debug_flag,
+		g_tegra_spi_transfer_work_debug_flag, g_spi_tegra_curr_transfer_complete_debug_flag,
+		g_spi_tegra_start_dma_based_transfer_debug_flag, g_spi_tegra_start_cpu_based_transfer_debug_flag);
+}
+#else
+void spi_tegra_962049_debug_set(int enable){}
+void spi_tegra_962049_debug_get_info(void){}
+#endif
+
+#ifdef DEBUG_960388
+static struct spi_master *tegra_masters[6] = {0};
+static struct device *tegra_master_devices[6] = {0};
+static struct device_private *tegra_master_device_privates[6] = {0};
+static inline void *spi_master_get_devdata_debug(struct spi_master *master)
+{
+	int i = 0;
+	if (master == NULL ) {
+		spi_tegra_962049_debug_get_info();
+		BUG_ON(1);
+	}
+
+	while (i < 6) {
+		if (master != tegra_masters[i]) {
+			i++; /* check next */
+			continue;
+		}
+		if (unlikely(&master->dev != tegra_master_devices[i])) {
+			pr_err("[%s] &master->dev=%p corrupted\n", __func__, &master->dev);
+			pr_err("[%s] it was %p in store\n", __func__, tegra_master_devices[i]);
+			BUG();
+		}
+		if (unlikely(master->dev.p != tegra_master_device_privates[i])) {
+			pr_err("[%s] master->dev.p=%p corrupted\n", __func__, master->dev.p);
+			pr_err("[%s] it was %p in store\n", __func__, tegra_master_devices[i]);
+			BUG();
+		}
+		return spi_master_get_devdata(master);
+	}
+	pr_err("[%s] master %p doesn't match any in store\n", __func__, master);
+	for (i = 0; i < 6; i++) {
+		pr_err("[%s] tegra_masters[%d]=%p\n", __func__, i, tegra_masters[i]);
+	}
+	BUG();
+	return NULL; /* fake for compiler warning */
+}
+#else
+#define spi_master_get_devdata_debug spi_master_get_devdata
+#endif
+
 static inline unsigned long spi_tegra_readl(struct spi_tegra_data *tspi,
 		    unsigned long reg)
 {
@@ -261,6 +341,21 @@ static inline void spi_tegra_writel(struct spi_tegra_data *tspi,
 		BUG();
 	writel(val, tspi->base + reg);
 }
+
+#if defined (DEBUG_949393)
+static inline void print_registers(struct spi_tegra_data *tspi)
+{
+	unsigned addr = 0;
+	unsigned long data[0x20/4];
+	char line[256] = {0};
+	while (addr < 0x20) {
+		data[addr/4] = spi_tegra_readl(tspi, addr);
+		sprintf(line, "%s0x%08X ", line, data[addr/4]);
+		addr += 4;
+	}
+	pr_err("[%s] %s\n", __func__, line);
+}
+#endif
 
 static void spi_tegra_clear_status(struct spi_tegra_data *tspi)
 {
@@ -354,6 +449,12 @@ static unsigned spi_tegra_fill_tx_fifo_from_client_txbuf(
 	unsigned long x;
 	unsigned int written_words;
 
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0 ) {
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s+\n",  __func__);
+	}
+#endif
+
 	fifo_status = spi_tegra_readl(tspi, SLINK_STATUS2);
 	tx_empty_count = SLINK_TX_FIFO_EMPTY_COUNT(fifo_status);
 
@@ -381,6 +482,11 @@ static unsigned spi_tegra_fill_tx_fifo_from_client_txbuf(
 		written_words = max_n_32bit;
 	}
 	tspi->cur_tx_pos += written_words * tspi->bytes_per_word;
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0 ) {
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s-\n",  __func__);
+	}
+#endif
 	return written_words;
 }
 
@@ -394,9 +500,50 @@ static unsigned int spi_tegra_read_rx_fifo_to_client_rxbuf(
 	unsigned long x;
 	unsigned int read_words = 0;
 	unsigned len;
+#if defined (DEBUG_949393)
+	unsigned long dma_ctl;
+	unsigned dma_block_size;
+#if defined (WORKAROUND_949393)
+	unsigned long rx_fifo;
+#endif
+
+	dma_ctl = spi_tegra_readl(tspi, SLINK_DMA_CTL);
+	dma_block_size = SLINK_DMA_BLOCK_SIZE(dma_ctl);
+#endif
 
 	fifo_status = spi_tegra_readl(tspi, SLINK_STATUS2);
 	rx_full_count = SLINK_RX_FIFO_FULL_COUNT(fifo_status);
+
+#if defined (DEBUG_949393)
+	if (tspi->pdev->id == 0 && rx_full_count != (dma_block_size + 1)) {
+		dev_err(&tspi->pdev->dev,
+			"rx_full_count %d, dma_ctl 0x%08X, fifo_status 0x%08X\n",
+			rx_full_count, dma_ctl, fifo_status);
+#ifdef WORKAROUND_949393_PRINT_LOG
+		print_registers(tspi);
+#endif
+#if defined (WORKAROUND_949393)
+		if (tspi->is_packed) {
+			//BUG_ON(1); /* no workaround for packed mode so far */
+		} else {
+			for (i = 0; i < (rx_full_count - (dma_block_size +1)); i++) {
+				/* pop unexpected rx_fifo */
+				rx_fifo = spi_tegra_readl(tspi, SLINK_RX_FIFO);
+				dev_err(&tspi->pdev->dev,
+					"rx_fifo[%i(%d, %d)] 0x%08X\n",
+					i, rx_full_count, dma_block_size, rx_fifo);
+				if ( i > 512 ) {
+					break;
+				}
+			}
+			rx_full_count = (dma_block_size + 1);
+		//	WARN_ON(1);
+		}
+#else
+		//BUG_ON(1);
+#endif
+	}
+#endif
 	dev_dbg(&tspi->pdev->dev, "Rx fifo count %d\n", rx_full_count);
 	if (tspi->is_packed) {
 		len = tspi->curr_dma_words * tspi->bytes_per_word;
@@ -429,6 +576,15 @@ static void spi_tegra_copy_client_txbuf_to_spi_txbuf(
 		struct spi_tegra_data *tspi, struct spi_transfer *t)
 {
 	unsigned len;
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0) {
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s+\n",  __func__);
+	}
+#endif
+#ifdef SOLUTION_959947
+	dma_sync_single_for_cpu(&tspi->pdev->dev, tspi->tx_dma_req.source_addr,
+		tspi->dma_buf_size, DMA_TO_DEVICE);
+#endif
 	if (tspi->is_packed) {
 		len = tspi->curr_dma_words * tspi->bytes_per_word;
 		memcpy(tspi->tx_buf, t->tx_buf + tspi->cur_pos, len);
@@ -448,13 +604,25 @@ static void spi_tegra_copy_client_txbuf_to_spi_txbuf(
 		}
 	}
 	tspi->cur_tx_pos += tspi->curr_dma_words * tspi->bytes_per_word;
+#ifdef SOLUTION_959947
+	dma_sync_single_for_device(&tspi->pdev->dev, tspi->tx_dma_req.source_addr,
+		tspi->dma_buf_size, DMA_TO_DEVICE);
+#endif
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0) {
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s-\n",  __func__);
+	}
+#endif
 }
 
 static void spi_tegra_copy_spi_rxbuf_to_client_rxbuf(
 		struct spi_tegra_data *tspi, struct spi_transfer *t)
 {
 	unsigned len;
-
+#ifdef SOLUTION_959947
+	dma_sync_single_for_cpu(&tspi->pdev->dev, tspi->rx_dma_req.dest_addr,
+		tspi->dma_buf_size, DMA_FROM_DEVICE);
+#endif
 	if (tspi->is_packed) {
 		len = tspi->curr_dma_words * tspi->bytes_per_word;
 		memcpy(t->rx_buf + tspi->cur_rx_pos, tspi->rx_buf, len);
@@ -477,7 +645,25 @@ static void spi_tegra_copy_spi_rxbuf_to_client_rxbuf(
 		}
 	}
 	tspi->cur_rx_pos += tspi->curr_dma_words * tspi->bytes_per_word;
+#ifdef SOLUTION_959947
+	dma_sync_single_for_device(&tspi->pdev->dev, tspi->rx_dma_req.dest_addr,
+		tspi->dma_buf_size, DMA_FROM_DEVICE);
+#endif
 }
+
+#ifdef SOLUTION_959947
+static void spi_tegra_init_rx_buf(struct spi_tegra_data *tspi)
+{
+	int i;
+	unsigned char *data = (unsigned char *)tspi->rx_buf;
+	dma_sync_single_for_cpu(&tspi->pdev->dev, tspi->rx_dma_req.dest_addr,
+		tspi->dma_buf_size, DMA_TO_DEVICE);
+	for (i = 0; i < tspi->dma_buf_size; i++)
+		data[i] = 0x5a;
+	dma_sync_single_for_device(&tspi->pdev->dev, tspi->rx_dma_req.dest_addr,
+		tspi->dma_buf_size, DMA_TO_DEVICE);
+ }
+#endif
 
 static int spi_tegra_start_dma_based_transfer(
 		struct spi_tegra_data *tspi, struct spi_transfer *t)
@@ -487,6 +673,27 @@ static int spi_tegra_start_dma_based_transfer(
 	unsigned int len;
 	int ret = 0;
 
+#ifdef WORKAROUND_962049
+	u64 usec_start = 0;
+	u32 usec_total = 0;
+	int spi_tegra_readl_count = 0;
+	static int spi_962049_resend_count = 0;
+#endif
+
+#if defined (DEBUG_949393)
+#ifdef WORKAROUND_949393_PRINT_LOG
+	unsigned long status2;
+	unsigned long rx_fifo_full_count;
+	unsigned long tx_fifo_empty_count;
+
+	status2 = spi_tegra_readl(tspi, SLINK_STATUS2);
+	rx_fifo_full_count = SLINK_RX_FIFO_FULL_COUNT(status2);
+	tx_fifo_empty_count = SLINK_TX_FIFO_EMPTY_COUNT(status2);
+#endif
+#endif
+#ifdef DEBUG_962049
+	g_spi_tegra_start_dma_based_transfer_debug_flag = 1;
+#endif
 	INIT_COMPLETION(tspi->rx_dma_complete);
 	INIT_COMPLETION(tspi->tx_dma_complete);
 
@@ -511,29 +718,105 @@ static int spi_tegra_start_dma_based_transfer(
 	if (tspi->cur_direction & DATA_DIR_RX)
 		val |= SLINK_IE_RXC;
 
+#ifdef DEBUG_962049
+	g_spi_tegra_start_dma_based_transfer_debug_flag = 2;
+#endif
+
 	spi_tegra_writel(tspi, val, SLINK_DMA_CTL);
 	tspi->dma_control_reg = val;
 
+#ifdef DEBUG_962049
+	g_spi_tegra_start_dma_based_transfer_debug_flag = 3;
+#endif
+
 	if (tspi->cur_direction & DATA_DIR_TX) {
 		spi_tegra_copy_client_txbuf_to_spi_txbuf(tspi, t);
+#ifdef DEBUG_962049
+		g_spi_tegra_start_dma_based_transfer_debug_flag = 4;
+#endif
 		wmb();
+#ifdef DEBUG_962049
+		g_spi_tegra_start_dma_based_transfer_debug_flag = 5;
+#endif
 		tspi->tx_dma_req.size = len;
 		ret = tegra_dma_enqueue_req(tspi->tx_dma, &tspi->tx_dma_req);
+#ifdef DEBUG_962049
+		g_spi_tegra_start_dma_based_transfer_debug_flag = 6;
+#endif
 		if (ret < 0) {
 			dev_err(&tspi->pdev->dev, "Error in starting tx dma "
 						" error = %d\n", ret);
 			return ret;
 		}
 
+#ifdef DEBUG_962049
+		g_spi_tegra_start_dma_based_transfer_debug_flag = 7;
+#endif
+
 		/* Wait for tx fifo to be fill before starting slink */
 		test_val = spi_tegra_readl(tspi, SLINK_STATUS);
+#ifdef DEBUG_962049
+		g_spi_tegra_start_dma_based_transfer_debug_flag = 8;
+#endif
+#ifdef WORKAROUND_962049
+		usec_start = cpu_clock(UINT_MAX);
+		while (!(test_val & SLINK_TX_FULL)) {
+			test_val = spi_tegra_readl(tspi, SLINK_STATUS);
+
+			usec_total = ((u32)(cpu_clock(UINT_MAX) - usec_start) / 1000);
+
+			if ( spi_tegra_readl_count > 1000 && usec_total > (500 * 1000) ) {
+				/*over 500ms, trigger workaround*/
+				pr_err("[%s] SLINK_TX_FULL debug message=[%d][%d][%d][%d]\n", __func__, usec_total, spi_tegra_readl_count, tspi->master->bus_num, tspi->status_reg);
+				print_registers(tspi);
+
+				tegra_dma_dequeue_req(tspi->tx_dma, &tspi->tx_dma_req);
+
+				tegra_periph_reset_assert(tspi->clk);
+				udelay(2);
+				tegra_periph_reset_deassert(tspi->clk);
+				WARN_ON(1);
+
+				if ( spi_962049_resend_count > 10 ) {
+					pr_err("[%s] SLINK_TX_FULL debug EIO=[%d]\n", __func__, spi_962049_resend_count);
+					return -EIO;
+				} else {
+					pr_err("[%s] SLINK_TX_FULL debug return EIO(%d)\n", __func__, spi_962049_resend_count);
+#if 0/*enable resend*/
+					spi_962049_resend_count++;
+					/*enable resend*/
+					return -EAGAIN;
+#else
+					return -EIO;
+#endif
+				}
+			}
+			spi_tegra_readl_count++;
+
+		}
+		spi_962049_resend_count = 0;
+#else
 		while (!(test_val & SLINK_TX_FULL))
 			test_val = spi_tegra_readl(tspi, SLINK_STATUS);
+#endif
+
+#ifdef DEBUG_962049
+		g_spi_tegra_start_dma_based_transfer_debug_flag = 9;
+#endif
 	}
 
 	if (tspi->cur_direction & DATA_DIR_RX) {
+#ifdef SOLUTION_959947
+		spi_tegra_init_rx_buf(tspi);
+#endif
+#ifdef DEBUG_962049
+		g_spi_tegra_start_dma_based_transfer_debug_flag = 10;
+#endif
 		tspi->rx_dma_req.size = len;
 		ret = tegra_dma_enqueue_req(tspi->rx_dma, &tspi->rx_dma_req);
+#ifdef DEBUG_962049
+		g_spi_tegra_start_dma_based_transfer_debug_flag = 11;
+#endif
 		if (ret < 0) {
 			dev_err(&tspi->pdev->dev, "Error in starting rx dma "
 						" error = %d\n", ret);
@@ -543,16 +826,44 @@ static int spi_tegra_start_dma_based_transfer(
 			return ret;
 		}
 	}
+#ifdef DEBUG_962049
+	g_spi_tegra_start_dma_based_transfer_debug_flag = 12;
+#endif
 	tspi->is_curr_dma_xfer = true;
 	if (tspi->is_packed) {
 		val |= SLINK_PACKED;
+#ifdef DEBUG_962049
+		g_spi_tegra_start_dma_based_transfer_debug_flag = 13;
+#endif
 		spi_tegra_writel(tspi, val, SLINK_DMA_CTL);
 		udelay(1);
+#ifdef DEBUG_962049
+		g_spi_tegra_start_dma_based_transfer_debug_flag = 14;
+#endif
 		wmb();
 	}
+#ifdef DEBUG_962049
+	g_spi_tegra_start_dma_based_transfer_debug_flag = 15;
+#endif
 
 	val |= SLINK_DMA_EN;
+#if defined (DEBUG_949393)
+#ifdef WORKAROUND_949393_PRINT_LOG
+	if ( tspi->pdev->id == 0
+		&& ((rx_fifo_full_count != 0) || (tx_fifo_empty_count != 0x20))) {
+		dev_err(&tspi->pdev->dev, "[%s] before setting DMA_EN val=0x%08X\n",
+			__func__, val);
+		print_registers(tspi);
+	}
+#endif
+#endif
+#ifdef DEBUG_962049
+	g_spi_tegra_start_dma_based_transfer_debug_flag = 16;
+#endif
 	spi_tegra_writel(tspi, val, SLINK_DMA_CTL);
+#ifdef DEBUG_962049
+	g_spi_tegra_start_dma_based_transfer_debug_flag = 17;
+#endif
 	return ret;
 }
 
@@ -561,7 +872,20 @@ static int spi_tegra_start_cpu_based_transfer(
 {
 	unsigned long val;
 	unsigned curr_words;
+#if defined (DEBUG_949393)
+#ifdef WORKAROUND_949393_PRINT_LOG
+	unsigned long status2;
+	unsigned long rx_fifo_full_count;
+	unsigned long tx_fifo_empty_count;
 
+	status2 = spi_tegra_readl(tspi, SLINK_STATUS2);
+	rx_fifo_full_count = SLINK_RX_FIFO_FULL_COUNT(status2);
+	tx_fifo_empty_count = SLINK_TX_FIFO_EMPTY_COUNT(status2);
+#endif
+#endif
+#ifdef DEBUG_962049
+	g_spi_tegra_start_cpu_based_transfer_debug_flag = 1;
+#endif
 	val = tspi->packed_size;
 	if (tspi->cur_direction & DATA_DIR_TX)
 		val |= SLINK_IE_TXC;
@@ -571,24 +895,65 @@ static int spi_tegra_start_cpu_based_transfer(
 
 	spi_tegra_writel(tspi, val, SLINK_DMA_CTL);
 	tspi->dma_control_reg = val;
+#ifdef DEBUG_962049
+	g_spi_tegra_start_cpu_based_transfer_debug_flag = 2;
+#endif
 
-	if (tspi->cur_direction & DATA_DIR_TX)
+	if (tspi->cur_direction & DATA_DIR_TX) {
+#ifdef DEBUG_962049
+		g_spi_tegra_start_cpu_based_transfer_debug_flag = 3;
+#endif
 		curr_words = spi_tegra_fill_tx_fifo_from_client_txbuf(tspi, t);
-	else
+#ifdef DEBUG_962049
+		g_spi_tegra_start_cpu_based_transfer_debug_flag = 4;
+#endif
+	} else {
 		curr_words = tspi->curr_dma_words;
+	}
+#ifdef DEBUG_962049
+	g_spi_tegra_start_cpu_based_transfer_debug_flag = 5;
+#endif
 	val |= SLINK_DMA_BLOCK_SIZE(curr_words - 1);
 	spi_tegra_writel(tspi, val, SLINK_DMA_CTL);
 	tspi->dma_control_reg = val;
+#ifdef DEBUG_962049
+	g_spi_tegra_start_cpu_based_transfer_debug_flag = 6;
+#endif
 
 	tspi->is_curr_dma_xfer = false;
 	if (tspi->is_packed) {
 		val |= SLINK_PACKED;
+#ifdef DEBUG_962049
+		g_spi_tegra_start_cpu_based_transfer_debug_flag = 7;
+#endif
 		spi_tegra_writel(tspi, val, SLINK_DMA_CTL);
 		udelay(1);
+#ifdef DEBUG_962049
+		g_spi_tegra_start_cpu_based_transfer_debug_flag = 8;
+#endif
 		wmb();
 	}
+#ifdef DEBUG_962049
+	g_spi_tegra_start_cpu_based_transfer_debug_flag = 9;
+#endif
 	val |= SLINK_DMA_EN;
+#if defined (DEBUG_949393)
+#ifdef WORKAROUND_949393_PRINT_LOG
+	if ( tspi->pdev->id == 0
+		&& ((rx_fifo_full_count != 0) || (tx_fifo_empty_count != 0x20))) {
+		dev_err(&tspi->pdev->dev, "[%s] before setting DMA_EN val=0x%08X\n",
+			__func__, val);
+		print_registers(tspi);
+	}
+#endif
+#endif
+#ifdef DEBUG_962049
+	g_spi_tegra_start_cpu_based_transfer_debug_flag = 10;
+#endif
 	spi_tegra_writel(tspi, val, SLINK_DMA_CTL);
+#ifdef DEBUG_962049
+	g_spi_tegra_start_cpu_based_transfer_debug_flag = 11;
+#endif
 	return 0;
 }
 
@@ -650,16 +1015,28 @@ static void set_best_clk_source(struct spi_tegra_data *tspi,
 	}
 }
 
+#ifdef WORKAROUND_962049
+static void spi_tegra_curr_transfer_complete(struct spi_tegra_data *tspi, unsigned err, unsigned cur_xfer_size, unsigned long *irq_flags);
+#endif
+
 static void spi_tegra_start_transfer(struct spi_device *spi,
 		    struct spi_transfer *t, bool is_first_of_msg,
 		    bool is_single_xfer)
 {
+#ifdef DEBUG_SPI_MASTER_OOPS
+	struct spi_tegra_data *tspi = NULL;
+#else
 	struct spi_tegra_data *tspi = spi_master_get_devdata(spi->master);
+#endif
 	u32 speed;
 	u8 bits_per_word;
 	unsigned total_fifo_words;
 	int ret;
+#ifdef DEBUG_SPI_MASTER_OOPS
+	struct tegra_spi_device_controller_data *cdata = NULL;
+#else
 	struct tegra_spi_device_controller_data *cdata = spi->controller_data;
+#endif
 	unsigned long command;
 	unsigned long command2;
 #ifndef CONFIG_ARCH_TEGRA_2x_SOC
@@ -674,6 +1051,29 @@ static void spi_tegra_start_transfer(struct spi_device *spi,
 			SLINK_CS_POLARITY2,
 			SLINK_CS_POLARITY3,
 	};
+
+#ifdef DEBUG_SPI_MASTER_OOPS
+	/* For SPI master Oops debug */
+	if ( spi == NULL ) {
+		printk("[SPI_TEGRA] spi == NULL\n");
+		BUG_ON(1);
+	}
+
+	if ( spi->master == NULL ) {
+		dev_info(&spi->dev, "[SPI_TEGRA] spi->master == NULL, [0x%x][0x%x][0x%x]\n", spi, spi->master, spi->dev);
+		dev_info(&spi->dev, "[SPI_TEGRA] [%s],[%d],[%d]\n", spi->modalias, spi->max_speed_hz, spi->chip_select);
+#ifndef DEBUG_960388
+		BUG_ON(1);
+#endif
+	}
+
+#ifdef DEBUG_960388
+	tspi = spi_master_get_devdata_debug(spi->master);
+#else
+	tspi = spi_master_get_devdata(spi->master);
+#endif
+	cdata = spi->controller_data;
+#endif
 
 	bits_per_word = t->bits_per_word ? t->bits_per_word :
 					spi->bits_per_word;
@@ -771,8 +1171,22 @@ static void spi_tegra_start_transfer(struct spi_device *spi,
 	spi_tegra_writel(tspi, command2, SLINK_COMMAND2);
 	tspi->command2_reg = command2;
 
+#ifdef WORKAROUND_962049
+	if (total_fifo_words > SPI_FIFO_DEPTH) {
+		ret = spi_tegra_start_dma_based_transfer(tspi, t);
+
+		 if ( ret == -EIO ) {
+			unsigned long flags;
+			pr_err("[%s] SLINK_TX_FULL debug ret=[%d]\n", __func__, ret);
+			spin_lock_irqsave(&tspi->lock, flags);
+			spi_tegra_curr_transfer_complete(tspi, true, t->len, &flags);
+			spin_unlock_irqrestore(&tspi->lock, flags);
+		}
+	}
+#else
 	if (total_fifo_words > SPI_FIFO_DEPTH)
 		ret = spi_tegra_start_dma_based_transfer(tspi, t);
+#endif
 	else
 		ret = spi_tegra_start_cpu_based_transfer(tspi, t);
 	WARN_ON(ret < 0);
@@ -780,7 +1194,11 @@ static void spi_tegra_start_transfer(struct spi_device *spi,
 
 static int spi_tegra_setup(struct spi_device *spi)
 {
+#ifdef DEBUG_960388
+	struct spi_tegra_data *tspi = spi_master_get_devdata_debug(spi->master);
+#else
 	struct spi_tegra_data *tspi = spi_master_get_devdata(spi->master);
+#endif
 	unsigned long cs_bit;
 	unsigned long val;
 	unsigned long flags;
@@ -848,39 +1266,86 @@ static void tegra_spi_transfer_work(struct work_struct *work)
 
 	tspi = container_of(work, struct spi_tegra_data, spi_transfer_work);
 
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s+\n",  __func__);
+
+	g_tegra_spi_transfer_work_debug_flag = 1;
+#endif
+
 	spin_lock_irqsave(&tspi->lock, flags);
+#ifdef DEBUG_962049
+	g_tegra_spi_transfer_work_debug_flag = 2;
+#endif
 
 	if (tspi->is_transfer_in_progress || tspi->is_suspended) {
 		spin_unlock_irqrestore(&tspi->lock, flags);
+#ifdef DEBUG_962049
+		if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+			dev_info(&tspi->pdev->dev, "[debug_962049]%s-, tspi->is_transfer_in_progress=[%d],tspi->is_suspended=[%d]\n",  __func__, tspi->is_transfer_in_progress, tspi->is_suspended);
+		g_tegra_spi_transfer_work_debug_flag = 3;
+#endif
 		return;
 	}
 	if (list_empty(&tspi->queue)) {
+#ifdef DEBUG_962049
+		if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+			dev_info(&tspi->pdev->dev, "[debug_962049]%s-, list_empty\n",  __func__);
+		g_tegra_spi_transfer_work_debug_flag = 4;
+#endif
 		spin_unlock_irqrestore(&tspi->lock, flags);
 		return;
 	}
 
 	m = list_first_entry(&tspi->queue, struct spi_message, queue);
+#ifdef DEBUG_962049
+	g_tegra_spi_transfer_work_debug_flag = 5;
+#endif
 	spi = m->state;
 	single_xfer = list_is_singular(&m->transfers);
 	m->actual_length = 0;
 	m->status = 0;
 	t = list_first_entry(&m->transfers, struct spi_transfer, transfer_list);
 	tspi->is_transfer_in_progress = true;
-
+#ifdef DEBUG_962049
+	g_tegra_spi_transfer_work_debug_flag = 6;
+#endif
 	spin_unlock_irqrestore(&tspi->lock, flags);
+#ifdef DEBUG_962049
+	g_tegra_spi_transfer_work_debug_flag = 7;
+#endif
 	spi_tegra_start_transfer(spi, t, true, single_xfer);
+#ifdef DEBUG_962049
+	g_tegra_spi_transfer_work_debug_flag = 8;
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s-\n",  __func__);
+#endif
 }
 
 static int spi_tegra_transfer(struct spi_device *spi, struct spi_message *m)
 {
+#ifdef DEBUG_960388
+	struct spi_tegra_data *tspi = spi_master_get_devdata_debug(spi->master);
+#else
 	struct spi_tegra_data *tspi = spi_master_get_devdata(spi->master);
+#endif
 	struct spi_transfer *t;
 	unsigned long flags;
 	int was_empty;
 	int bytes_per_word;
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s+\n",  __func__);
+
+	g_spi_tegra_transfer_debug_flag = 1;
+#endif
 
 	if (list_empty(&m->transfers) || !m->complete)
 		return -EINVAL;
+
+#ifdef DEBUG_962049
+	g_spi_tegra_transfer_debug_flag = 2;
+#endif
 
 	list_for_each_entry(t, &m->transfers, transfer_list) {
 		if (t->bits_per_word > 32) // t->bits_per_word never < 0
@@ -902,20 +1367,50 @@ static int spi_tegra_transfer(struct spi_device *spi, struct spi_message *m)
 			return -EINVAL;
 	}
 
+#ifdef DEBUG_962049
+	g_spi_tegra_transfer_debug_flag = 3;
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s: lock\n",  __func__);
+#endif
+
 	spin_lock_irqsave(&tspi->lock, flags);
+
+#ifdef DEBUG_962049
+	g_spi_tegra_transfer_debug_flag = 4;
+#endif
 
 	if (WARN_ON(tspi->is_suspended)) {
 		spin_unlock_irqrestore(&tspi->lock, flags);
+#ifdef DEBUG_962049
+		if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+			dev_info(&tspi->pdev->dev, "[debug_962049]%s-, tspi->is_suspended\n",  __func__);
+
+		g_spi_tegra_transfer_debug_flag = 5;
+#endif
 		return -EBUSY;
 	}
 
 	m->state = spi;
 	was_empty = list_empty(&tspi->queue);
 	list_add_tail(&m->queue, &tspi->queue);
+
+#ifdef DEBUG_962049
+	g_spi_tegra_transfer_debug_flag = 6;
+#endif
+
 	if (was_empty)
 		queue_work(tspi->spi_workqueue, &tspi->spi_transfer_work);
 
+#ifdef DEBUG_962049
+	g_spi_tegra_transfer_debug_flag = 7;
+#endif
+
 	spin_unlock_irqrestore(&tspi->lock, flags);
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s-\n",  __func__);
+	g_spi_tegra_transfer_debug_flag = 8;
+#endif
 	return 0;
 }
 
@@ -927,11 +1422,25 @@ static void spi_tegra_curr_transfer_complete(struct spi_tegra_data *tspi,
 	struct spi_transfer *t;
 	int single_xfer = 0;
 
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s+\n",  __func__);
+	g_spi_tegra_curr_transfer_complete_debug_flag = 1;
+#endif
+
 	/* Check if CS need to be toggele here */
 	if (tspi->cur && tspi->cur->cs_change &&
 				tspi->cur->delay_usecs) {
 		udelay(tspi->cur->delay_usecs);
 	}
+
+#ifdef SOLUTION_967438
+	/* Check queue list to make sure it is not empty */
+	if( list_empty(&tspi->queue) ) {
+		pr_err("[%s] list_empty(&tspi->queue)\n", __func__);
+		return;
+	}
+#endif
 
 	m = list_first_entry(&tspi->queue, struct spi_message, queue);
 	if (err)
@@ -941,13 +1450,26 @@ static void spi_tegra_curr_transfer_complete(struct spi_tegra_data *tspi,
 	m->actual_length += cur_xfer_size;
 
 	if ( (tspi->cur != NULL) && (!list_is_last(&tspi->cur->transfer_list, &m->transfers)) ) {
+#ifdef DEBUG_962049
+		g_spi_tegra_curr_transfer_complete_debug_flag = 2;
+#endif
 		tspi->cur = list_first_entry(&tspi->cur->transfer_list,
 			struct spi_transfer, transfer_list);
 		spin_unlock_irqrestore(&tspi->lock, *irq_flags);
+#ifdef DEBUG_962049
+		g_spi_tegra_curr_transfer_complete_debug_flag = 3;
+#endif
 		spi_tegra_start_transfer(spi, tspi->cur, false, 0);
+#ifdef DEBUG_962049
+		g_spi_tegra_curr_transfer_complete_debug_flag = 4;
+#endif
 		spin_lock_irqsave(&tspi->lock, *irq_flags);
+#ifdef DEBUG_962049
+		g_spi_tegra_curr_transfer_complete_debug_flag = 5;
+#endif
 	} else {
 		list_del(&m->queue);
+		tspi->cur = 0;
 		m->complete(m->context);
 		if (!list_empty(&tspi->queue)) {
 			if (tspi->is_suspended) {
@@ -956,6 +1478,12 @@ static void spi_tegra_curr_transfer_complete(struct spi_tegra_data *tspi,
 				spi_tegra_writel(tspi, tspi->def_command2_reg,
 						SLINK_COMMAND2);
 				tspi->is_transfer_in_progress = false;
+#ifdef DEBUG_962049
+				if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+					dev_info(&tspi->pdev->dev, "[debug_962049]%s-, tspi->is_suspended\n",  __func__);
+
+				g_spi_tegra_curr_transfer_complete_debug_flag = 6;
+#endif
 				return;
 			}
 			m = list_first_entry(&tspi->queue, struct spi_message,
@@ -967,34 +1495,69 @@ static void spi_tegra_curr_transfer_complete(struct spi_tegra_data *tspi,
 
 			t = list_first_entry(&m->transfers, struct spi_transfer,
 						transfer_list);
+#ifdef DEBUG_962049
+			g_spi_tegra_curr_transfer_complete_debug_flag = 7;
+#endif
 			spin_unlock_irqrestore(&tspi->lock, *irq_flags);
+#ifdef DEBUG_962049
+			g_spi_tegra_curr_transfer_complete_debug_flag = 8;
+#endif
 			spi_tegra_start_transfer(spi, t, true, single_xfer);
+#ifdef DEBUG_962049
+			g_spi_tegra_curr_transfer_complete_debug_flag = 9;
+#endif
 			spin_lock_irqsave(&tspi->lock, *irq_flags);
+#ifdef DEBUG_962049
+			g_spi_tegra_curr_transfer_complete_debug_flag = 10;
+#endif
 		} else {
 			spi_tegra_writel(tspi, tspi->def_command_reg,
 								SLINK_COMMAND);
 			spi_tegra_writel(tspi, tspi->def_command2_reg,
 								SLINK_COMMAND2);
+#ifdef DEBUG_962049
+			g_spi_tegra_curr_transfer_complete_debug_flag = 11;
+#endif
 			if (!tspi->is_clkon_always) {
 				if (tspi->clk_state) {
 					/* Provide delay to stablize the signal
 					   state */
+#ifdef DEBUG_962049
+					g_spi_tegra_curr_transfer_complete_debug_flag = 12;
+#endif
 					spin_unlock_irqrestore(&tspi->lock,
 							*irq_flags);
 					udelay(10);
+#ifdef DEBUG_962049
+					g_spi_tegra_curr_transfer_complete_debug_flag = 13;
+#endif
 					pm_runtime_put_sync(&tspi->pdev->dev);
+#ifdef DEBUG_962049
+					g_spi_tegra_curr_transfer_complete_debug_flag = 14;
+#endif
 					spin_lock_irqsave(&tspi->lock,
 							*irq_flags);
+#ifdef DEBUG_962049
+					g_spi_tegra_curr_transfer_complete_debug_flag = 15;
+#endif
 					tspi->clk_state = 0;
 				}
 			}
 			tspi->is_transfer_in_progress = false;
+#ifdef DEBUG_962049
+			g_spi_tegra_curr_transfer_complete_debug_flag = 16;
+#endif
 			/* Check if any new request has come between
 			 * clock disable */
 			queue_work(tspi->spi_workqueue,
 					&tspi->spi_transfer_work);
 		}
 	}
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s-\n",  __func__);
+	g_spi_tegra_curr_transfer_complete_debug_flag = 17;
+#endif
 	return;
 }
 
@@ -1002,12 +1565,20 @@ static void tegra_spi_tx_dma_complete(struct tegra_dma_req *req)
 {
 	struct spi_tegra_data *tspi = req->dev;
 	//dump_stack();
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s\n",  __func__);
+#endif
 	complete(&tspi->tx_dma_complete);
 }
 
 static void tegra_spi_rx_dma_complete(struct tegra_dma_req *req)
 {
 	struct spi_tegra_data *tspi = req->dev;
+#ifdef DEBUG_962049
+	if ( g_enable_debug_962049 && tspi->pdev->id == 0)
+		dev_info(&tspi->pdev->dev, "[debug_962049]%s\n",  __func__);
+#endif
 	complete(&tspi->rx_dma_complete);
 }
 
@@ -1066,6 +1637,9 @@ static irqreturn_t spi_tegra_isr_thread(int irq, void *context_data)
 	int err = 0;
 	unsigned total_fifo_words;
 	unsigned long flags;
+
+	if (t == NULL)
+		return IRQ_HANDLED;
 
 	if (!tspi->is_curr_dma_xfer) {
 		handle_cpu_based_xfer(context_data);
@@ -1191,6 +1765,16 @@ static int __init spi_tegra_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+#ifdef DEBUG_SPI_MASTER_OOPS
+	dev_info(&pdev->dev, "master=[0x%x]\n", master);
+#endif
+
+#ifdef DEBUG_960388
+	tegra_masters[pdev->id] = master;
+	tegra_master_devices[pdev->id] = &master->dev;
+	tegra_master_device_privates[pdev->id] = master->dev.p;
+#endif
+
 	/* the spi->mode bits understood by this driver: */
 	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_CS_HIGH;
 
@@ -1202,7 +1786,11 @@ static int __init spi_tegra_probe(struct platform_device *pdev)
 	master->num_chipselect = MAX_CHIP_SELECT;
 
 	dev_set_drvdata(&pdev->dev, master);
+#ifdef DEBUG_960388
+	tspi = spi_master_get_devdata_debug(master);
+#else
 	tspi = spi_master_get_devdata(master);
+#endif
 	tspi->master = master;
 	tspi->pdev = pdev;
 	tspi->is_transfer_in_progress = false;
@@ -1239,7 +1827,7 @@ static int __init spi_tegra_probe(struct platform_device *pdev)
 
 	sprintf(tspi->port_name, "tegra_spi_%d", pdev->id);
 	ret = request_threaded_irq(tspi->irq, spi_tegra_isr,
-			spi_tegra_isr_thread, IRQF_DISABLED,
+			spi_tegra_isr_thread, IRQF_ONESHOT,
 			tspi->port_name, tspi);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to register ISR for IRQ %d\n",
@@ -1247,13 +1835,26 @@ static int __init spi_tegra_probe(struct platform_device *pdev)
 		goto fail_irq_req;
 	}
 
+#ifdef CONFIG_SERIAL_SC8800G
+	tspi->clk = clk_get(&pdev->dev, "spi");
+#else
 	tspi->clk = clk_get(&pdev->dev, NULL);
+#endif
+
 	if (IS_ERR(tspi->clk)) {
 		dev_err(&pdev->dev, "can not get clock\n");
 		ret = PTR_ERR(tspi->clk);
 		goto fail_clk_get;
 	}
 
+#ifdef CONFIG_SERIAL_SC8800G
+	tspi->sclk = clk_get(&pdev->dev, "sclk");
+	if (IS_ERR(tspi->sclk)) {
+		dev_err(&pdev->dev, "can not get sclock\n");
+		ret = PTR_ERR(tspi->sclk);
+		goto fail_sclk_get;
+	}
+#endif
 	INIT_LIST_HEAD(&tspi->queue);
 
 	if (pdata) {
@@ -1384,6 +1985,7 @@ skip_dma_alloc:
 
 	INIT_WORK(&tspi->spi_transfer_work, tegra_spi_transfer_work);
 
+	printk(KERN_INFO "[SPI] %s, tegra_spi_%d done \n", __func__, pdev->id);
 	return ret;
 
 fail_workqueue:
@@ -1405,6 +2007,10 @@ fail_rx_buf_alloc:
 		tegra_dma_free_channel(tspi->rx_dma);
 fail_rx_dma_alloc:
 	pm_runtime_disable(&pdev->dev);
+#ifdef CONFIG_SERIAL_SC8800G
+	clk_put(tspi->sclk);
+fail_sclk_get:
+#endif
 	clk_put(tspi->clk);
 fail_clk_get:
 	free_irq(tspi->irq, tspi);
@@ -1414,6 +2020,7 @@ fail_io_map:
 	release_mem_region(r->start, (r->end - r->start) + 1);
 fail_no_mem:
 	spi_master_put(master);
+	printk(KERN_INFO "[SPI] %s, tegra_spi_%d error \n", __func__, pdev->id);
 	return ret;
 }
 
@@ -1424,7 +2031,15 @@ static int __devexit spi_tegra_remove(struct platform_device *pdev)
 	struct resource		*r;
 
 	master = dev_get_drvdata(&pdev->dev);
+#ifdef DEBUG_960388
+	tspi = spi_master_get_devdata_debug(master);
+#else
 	tspi = spi_master_get_devdata(master);
+#endif
+
+#ifdef DEBUG_SPI_MASTER_OOPS
+	dev_info(&pdev->dev, "[SPI_TEGRA] spi_tegra_remove~\n");
+#endif
 
 	if (tspi->tx_buf)
 		dma_free_coherent(&pdev->dev, tspi->dma_buf_size,
@@ -1442,6 +2057,9 @@ static int __devexit spi_tegra_remove(struct platform_device *pdev)
 		tspi->clk_state = 0;
 	}
 	pm_runtime_disable(&pdev->dev);
+#ifdef CONFIG_SERIAL_SC8800G
+	clk_put(tspi->sclk);
+#endif
 	clk_put(tspi->clk);
 	iounmap(tspi->base);
 
@@ -1465,7 +2083,11 @@ static int spi_tegra_suspend(struct platform_device *pdev, pm_message_t state)
 	unsigned long flags;
 
 	master = dev_get_drvdata(&pdev->dev);
+#ifdef DEBUG_960388
+	tspi = spi_master_get_devdata_debug(master);
+#else
 	tspi = spi_master_get_devdata(master);
+#endif
 	spin_lock_irqsave(&tspi->lock, flags);
 
 	/* Wait for all transfer completes */
@@ -1521,7 +2143,11 @@ static int spi_tegra_resume(struct platform_device *pdev)
 	unsigned long flags;
 
 	master = dev_get_drvdata(&pdev->dev);
+#ifdef DEBUG_960388
+	tspi = spi_master_get_devdata_debug(master);
+#else
 	tspi = spi_master_get_devdata(master);
+#endif
 
 	pm_runtime_get_sync(&pdev->dev);
 	tspi->clk_state = 1;
@@ -1560,9 +2186,16 @@ static int tegra_spi_runtime_idle(struct device *dev)
 	struct spi_master	*master;
 	struct spi_tegra_data	*tspi;
 	master = dev_get_drvdata(dev);
+#ifdef DEBUG_960388
+	tspi = spi_master_get_devdata_debug(master);
+#else
 	tspi = spi_master_get_devdata(master);
+#endif
 
 	clk_disable(tspi->clk);
+#ifdef CONFIG_SERIAL_SC8800G
+	clk_disable(tspi->sclk);
+#endif
 	return 0;
 }
 
@@ -1571,8 +2204,15 @@ static int tegra_spi_runtime_resume(struct device *dev)
 	struct spi_master	*master;
 	struct spi_tegra_data	*tspi;
 	master = dev_get_drvdata(dev);
+#ifdef DEBUG_960388
+	tspi = spi_master_get_devdata_debug(master);
+#else
 	tspi = spi_master_get_devdata(master);
+#endif
 
+#ifdef CONFIG_SERIAL_SC8800G
+	clk_enable(tspi->sclk);
+#endif
 	clk_enable(tspi->clk);
 	return 0;
 }

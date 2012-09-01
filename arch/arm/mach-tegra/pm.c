@@ -1151,7 +1151,7 @@ out:
 
 	/* Always enable CPU power request; just normal polarity is supported */
 //#ifndef CONFIG_MACH_ENDEAVORU || CONFIG_MACH_ENDEAVORUTD
-#if !defined(CONFIG_MACH_ENDEAVORU) && !defined(CONFIG_MACH_ENDEAVORTD)
+#if !defined(CONFIG_MACH_ENDEAVORU) && !defined(CONFIG_MACH_ENDEAVORTD) && !defined(CONFIG_MACH_ERAU)
 	reg = readl(pmc + PMC_CTRL);
 	BUG_ON(reg & TEGRA_POWER_CPU_PWRREQ_POLARITY);
 	reg |= TEGRA_POWER_CPU_PWRREQ_OE;

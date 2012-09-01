@@ -12,7 +12,6 @@ obj-$(CONFIG_TOUCHSCREEN_AD7879)	+= ad7879.o
 obj-$(CONFIG_TOUCHSCREEN_AD7879_I2C)	+= ad7879-i2c.o
 obj-$(CONFIG_TOUCHSCREEN_AD7879_SPI)	+= ad7879-spi.o
 obj-$(CONFIG_TOUCHSCREEN_ADS7846)	+= ads7846.o
-#obj-$(CONFIG_TOUCHSCREEN_NTRIG)    += ntrig.o
 #obj-$(CONFIG_TOUCHSCREEN_NTRIG)    += ntrig_G4.o
 obj-$(CONFIG_TOUCHSCREEN_NTRIG)		+= ntrig-common.o ntrig-dispatcher.o ntrig-quirk-driver.o ntrig-dispatcher-sysfs.o ntrig-ncp-driver.o ntrig-dispatcher-sys-depend-android.o ntrig-direct-event-driver.o
 obj-$(CONFIG_TOUCHSCREEN_NTRIG)    += ntrig_spi.o ntrig_low_msg.o

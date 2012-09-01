@@ -641,6 +641,7 @@ static int tps80031_vbus_enable(struct regulator_dev *rdev)
 	struct tps80031_regulator *ri = rdev_get_drvdata(rdev);
 	struct device *parent = to_tps80031_dev(rdev);
 	int ret;
+
 	if (ri->platform_flags & VBUS_SW_ONLY) {
 		WARN_ON(1);
 		return 0;
@@ -666,6 +667,7 @@ static int tps80031_vbus_disable(struct regulator_dev *rdev)
 	struct tps80031_regulator *ri = rdev_get_drvdata(rdev);
 	struct device *parent = to_tps80031_dev(rdev);
 	int ret = 0;
+
 	if (ri->platform_flags & VBUS_SW_ONLY) {
 		WARN_ON(1);
 		if (ri->platform_flags & VBUS_DISCHRG_EN_PDN)

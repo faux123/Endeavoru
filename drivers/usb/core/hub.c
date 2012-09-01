@@ -30,9 +30,9 @@
 
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
-#include <htc/log.h>
 
 #include "usb.h"
+#include "../../../arch/arm/mach-tegra/baseband-xmm-power.h"
 
 /* HTC */
 #define MODULE_NAME "[USBHHUB] "
@@ -883,7 +883,7 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)
 					msecs_to_jiffies(delay));
 			return;		/* Continues at init3: below */
 		} else {
-			if (board_mfg_mode() == 2 /* recovery mode */) { /* htc */
+			if (board_mfg_mode() == BOARD_MFG_MODE_RECOVERY /* recovery mode */) { /* htc */
 				pr_info(MODULE_NAME "%s: debounce msleep(%d)\n", __func__, delay);
 				msleep(delay);
 			}
@@ -1529,7 +1529,7 @@ void usb_set_device_state(struct usb_device *udev,
 	/* HTC comment: all pr_deubg in this func is added by htc bert for debugging purpose */
 	spin_lock_irqsave(&device_state_lock, flags);
 	if (udev->state == USB_STATE_NOTATTACHED) {
-		sp_pr_debug(MODULE_NAME "%s, udev->state USB_STATE_NOTATTACHED", __func__);
+		pr_debug(MODULE_NAME "%s, udev->state USB_STATE_NOTATTACHED", __func__);
 	}
 	else if (new_state != USB_STATE_NOTATTACHED) {
 
@@ -1554,7 +1554,7 @@ void usb_set_device_state(struct usb_device *udev,
 			udev->active_duration += jiffies;
 		udev->state = new_state;
 	} else {
-		sp_pr_debug(MODULE_NAME "%s, recursively_mark_NOTATTACHED", __func__);
+		pr_debug(MODULE_NAME "%s, recursively_mark_NOTATTACHED", __func__);
 		recursively_mark_NOTATTACHED(udev);
 	}
 	spin_unlock_irqrestore(&device_state_lock, flags);
@@ -2070,7 +2070,7 @@ static int hub_port_wait_reset(struct usb_hub *hub, int port1,
 	for (delay_time = 0;
 			delay_time < HUB_RESET_TIMEOUT;
 			delay_time += delay) {
-		if (board_mfg_mode() == 2 /* recovery mode */) { /* htc */
+		if (board_mfg_mode() == BOARD_MFG_MODE_RECOVERY /* recovery mode */) { /* htc */
 			/* wait to give the device a chance to reset */
 			pr_info(MODULE_NAME "%s: msleep(%d)\n", __func__, delay);
 			msleep(delay);
@@ -2154,7 +2154,7 @@ static int hub_port_reset(struct usb_hub *hub, int port1,
 		switch (status) {
 		case 0:
 			/* TRSTRCY = 10 ms; plus some extra */
-			if (board_mfg_mode() == 2 /* recovery mode */) { /* htc */
+			if (board_mfg_mode() == BOARD_MFG_MODE_RECOVERY /* recovery mode */) { /* htc */
 				pr_info(MODULE_NAME "%s: msleep(50)\n", __func__);
 				msleep(50);
 			}
@@ -3004,6 +3004,9 @@ pr_info("%s (b) hub_set_address- %d\n", __func__, __LINE__);
 				dev_err(&udev->dev,
 					"device not accepting address %d, error %d\n",
 					devnum, retval);
+
+				debug_gpio_dump(NULL,NULL,NULL,0);
+				//trigger_radio_fatal_get_coredump();
 				goto fail;
 			}
 			if (udev->speed == USB_SPEED_SUPER) {

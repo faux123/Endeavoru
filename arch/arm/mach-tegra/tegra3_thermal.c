@@ -194,7 +194,7 @@ void tegra_thermal_alert(void *data)
 #ifdef CONFIG_TEGRA_THERMAL_SYSFS
 	if (thermal->thz) {
 		if (!thermal->thz->passive) {
-			printk(KERN_INFO "[TMS] throttle start");
+			printk(KERN_INFO "[TMS] throttle start\n");
 			thermal_zone_device_update(thermal->thz);
 		}
 	}

@@ -1254,7 +1254,7 @@ static int __init tegra_emc_debug_init(void)
 		goto err_out;
 
 	if (!debugfs_create_file(
-		"eack_state", S_IWUSR | S_IRUGO, emc_debugfs_root, NULL, &eack_state_fops))
+		"eack_state", S_IWUSR | S_IRUGO | S_IWGRP, emc_debugfs_root, NULL, &eack_state_fops))
 		goto err_out;
 
 	if (!debugfs_create_file("dram_temperature", S_IRUGO, emc_debugfs_root,

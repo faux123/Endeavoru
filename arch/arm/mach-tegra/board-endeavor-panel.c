@@ -51,13 +51,13 @@
 #define DSI_PANEL_RESET 1
 
 #ifdef CONFIG_TEGRA_DC
-static struct regulator *enterprise_dsi_reg = NULL;
+static struct regulator *endeavor_dsi_reg = NULL;
 static struct regulator *v_lcm_3v3 = NULL;
 static struct regulator *v_lcmio_1v8 = NULL;
 
-static struct regulator *enterprise_hdmi_reg = NULL;
-static struct regulator *enterprise_hdmi_pll = NULL;
-static struct regulator *enterprise_hdmi_vddio = NULL;
+static struct regulator *endeavor_hdmi_reg = NULL;
+static struct regulator *endeavor_hdmi_pll = NULL;
+static struct regulator *endeavor_hdmi_vddio = NULL;
 #endif
 
 #define LCM_TE			TEGRA_GPIO_PJ1
@@ -90,7 +90,7 @@ static struct gpio panel_init_gpios[] = {
     {MHL_3V3_EN,    GPIOF_OUT_INIT_HIGH,    "mhl_3v3_en"},
 };
 
-static struct gpio enterprise_gpios[] = {
+static struct gpio endeavor_gpios[] = {
 	{MHL_1V2_EN,	GPIOF_OUT_INIT_LOW,	"mhl_1v2_en"},
 	{MHL_3V3_EN,	GPIOF_OUT_INIT_LOW,	"mhl_3v3_en"},
 };
@@ -103,8 +103,8 @@ static bool g_display_on = true;
 static void mhl_gpio_switch(int on)
 {
 	int i = 0;
-	for(i = 0 ; i < ARRAY_SIZE(enterprise_gpios) ; i++)
-		gpio_set_value(enterprise_gpios[i].gpio, on);
+	for(i = 0 ; i < ARRAY_SIZE(endeavor_gpios) ; i++)
+		gpio_set_value(endeavor_gpios[i].gpio, on);
 }
 
 #define BACKLIGHT_MAX 255
@@ -121,9 +121,13 @@ static void mhl_gpio_switch(int on)
 #define MAP_SONY_DEF 90
 #define MAP_SONY_MIN 7
 
-static int min_pwm = MAP_SHARP_MAX;
+#define MAP_AUO_MAX 255
+#define MAP_AUO_DEF 90
+#define MAP_AUO_MIN 7
+
+static int max_pwm = MAP_SHARP_MAX;
 static int def_pwm = MAP_SHARP_DEF;
-static int max_pwm = MAP_SHARP_MIN;
+static int min_pwm = MAP_SHARP_MIN;
 
 static unsigned char shrink_pwm(int val)
 {
@@ -139,13 +143,13 @@ static unsigned char shrink_pwm(int val)
 	shrink_br = def_pwm +
 	(val-ORIG_PWM_DEF)*(max_pwm-def_pwm)/(ORIG_PWM_MAX-ORIG_PWM_DEF);
 
-	pr_info("brightness orig = %d, transformed=%d\n", val, shrink_br);
+	//pr_info("brightness orig = %d, transformed=%d\n", val, shrink_br);
 
 	return shrink_br;
 }
 
 
-static int enterprise_backlight_notify(struct device *unused, int brightness)
+static int endeavor_backlight_notify(struct device *unused, int brightness)
 {
 	int cur_sd_brightness = atomic_read(&sd_brightness);
 
@@ -155,7 +159,7 @@ static int enterprise_backlight_notify(struct device *unused, int brightness)
 	return brightness;
 }
 
-static int enterprise_disp1_check_fb(struct device *dev, struct fb_info *info);
+static int endeavor_disp1_check_fb(struct device *dev, struct fb_info *info);
 
 /*
  * In case which_pwm is TEGRA_PWM_PM0,
@@ -163,67 +167,69 @@ static int enterprise_disp1_check_fb(struct device *dev, struct fb_info *info);
  * In case which_pwm is TEGRA_PWM_PM1,
  * gpio_conf_to_sfio should be TEGRA_GPIO_PW1: set LCD_M1 pin to SFIO
  */
-static struct platform_tegra_pwm_backlight_data enterprise_disp1_backlight_data = {
+static struct platform_tegra_pwm_backlight_data endeavor_disp1_backlight_data = {
 	.which_dc		= 0,
 	.which_pwm		= TEGRA_PWM_PM1,
 	.gpio_conf_to_sfio	= TEGRA_GPIO_PW1,
 	.switch_to_sfio		= &tegra_gpio_disable,
 	.max_brightness		= 255,
 	.dft_brightness		= 255,
-	.notify		= enterprise_backlight_notify,
+	.notify		= endeavor_backlight_notify,
 	.period			= 0xFF,
 	.clk_div		= 20,
 	.clk_select		= 0,
 	.backlight_mode = MIPI_BACKLIGHT,	//Set MIPI_BACKLIGHT as default
 	/* Only toggle backlight on fb blank notifications for disp1 */
-	.check_fb	= enterprise_disp1_check_fb,
+	.check_fb	= endeavor_disp1_check_fb,
+	.backlight_status	= BACKLIGHT_ENABLE,
+	.lcm_source = NOVATEK,
 };
 
-static struct platform_device enterprise_disp1_backlight_device = {
+static struct platform_device endeavor_disp1_backlight_device = {
 	.name	= "tegra-pwm-bl",
 	.id	= -1,
 	.dev	= {
-		.platform_data = &enterprise_disp1_backlight_data,
+		.platform_data = &endeavor_disp1_backlight_data,
 	},
 };
 
 #ifdef CONFIG_TEGRA_DC
-static int enterprise_hdmi_vddio_enable(void)
+static int endeavor_hdmi_vddio_enable(void)
 {
 	return 0;
 }
 
-static int enterprise_hdmi_vddio_disable(void)
+static int endeavor_hdmi_vddio_disable(void)
 {
 	return 0;
 }
 
-static int enterprise_hdmi_enable(void)
+static int endeavor_hdmi_enable(void)
 {
-	REGULATOR_GET(enterprise_hdmi_reg, "avdd_hdmi");
-	regulator_enable(enterprise_hdmi_reg);
+	REGULATOR_GET(endeavor_hdmi_reg, "avdd_hdmi");
+	regulator_enable(endeavor_hdmi_reg);
 
-	REGULATOR_GET(enterprise_hdmi_pll, "avdd_hdmi_pll");
-	regulator_enable(enterprise_hdmi_pll);
+	REGULATOR_GET(endeavor_hdmi_pll, "avdd_hdmi_pll");
+	regulator_enable(endeavor_hdmi_pll);
 
 failed:
 	return 0;
 }
 
-static int enterprise_hdmi_disable(void)
+static int endeavor_hdmi_disable(void)
 {
 
-	regulator_disable(enterprise_hdmi_reg);
-	regulator_put(enterprise_hdmi_reg);
-	enterprise_hdmi_reg = NULL;
+	regulator_disable(endeavor_hdmi_reg);
+	regulator_put(endeavor_hdmi_reg);
+	endeavor_hdmi_reg = NULL;
 
-	regulator_disable(enterprise_hdmi_pll);
-	regulator_put(enterprise_hdmi_pll);
-	enterprise_hdmi_pll = NULL;
+	regulator_disable(endeavor_hdmi_pll);
+	regulator_put(endeavor_hdmi_pll);
+	endeavor_hdmi_pll = NULL;
 
 	return 0;
 }
-static struct resource enterprise_disp1_resources[] = {
+static struct resource endeavor_disp1_resources[] = {
 	{
 		.name	= "irq",
 		.start	= INT_DISPLAY_GENERAL,
@@ -238,8 +244,8 @@ static struct resource enterprise_disp1_resources[] = {
 	},
 	{
 		.name	= "fbmem",
-		.start	= 0,	/* Filled in by enterprise_panel_init() */
-		.end	= 0,	/* Filled in by enterprise_panel_init() */
+		.start	= 0,	/* Filled in by endeavor_panel_init() */
+		.end	= 0,	/* Filled in by endeavor_panel_init() */
 		.flags	= IORESOURCE_MEM,
 	},
 	{
@@ -250,7 +256,7 @@ static struct resource enterprise_disp1_resources[] = {
 	},
 };
 
-static struct resource enterprise_disp2_resources[] = {
+static struct resource endeavor_disp2_resources[] = {
 	{
 		.name	= "irq",
 		.start	= INT_DISPLAY_B_GENERAL,
@@ -277,12 +283,12 @@ static struct resource enterprise_disp2_resources[] = {
 	},
 };
 
-static struct tegra_dc_sd_settings enterprise_sd_settings = {
+static struct tegra_dc_sd_settings endeavor_sd_settings = {
 	.enable = 0, /* Normal mode operation */
-	.bl_device = &enterprise_disp1_backlight_device,
+	.bl_device = &endeavor_disp1_backlight_device,
 };
 
-static struct tegra_fb_data enterprise_hdmi_fb_data = {
+static struct tegra_fb_data endeavor_hdmi_fb_data = {
 	.win		= 0,
 	.xres		= 1366,
 	.yres		= 768,
@@ -290,7 +296,7 @@ static struct tegra_fb_data enterprise_hdmi_fb_data = {
 	.flags		= TEGRA_FB_FLIP_ON_PROBE,
 };
 
-static struct tegra_dc_out enterprise_disp2_out = {
+static struct tegra_dc_out endeavor_disp2_out = {
 	.type		= TEGRA_DC_OUT_HDMI,
 	.flags		= TEGRA_DC_OUT_HOTPLUG_HIGH,
 	.parent_clk     = "pll_d2_out0",
@@ -303,20 +309,20 @@ static struct tegra_dc_out enterprise_disp2_out = {
 	.align		= TEGRA_DC_ALIGN_MSB,
 	.order		= TEGRA_DC_ORDER_RED_BLUE,
 
-	.enable		= enterprise_hdmi_enable,
-	.disable	= enterprise_hdmi_disable,
-	.postsuspend	= enterprise_hdmi_vddio_disable,
-	.hotplug_init	= enterprise_hdmi_vddio_enable,
+	.enable		= endeavor_hdmi_enable,
+	.disable	= endeavor_hdmi_disable,
+	.postsuspend	= endeavor_hdmi_vddio_disable,
+	.hotplug_init	= endeavor_hdmi_vddio_enable,
 };
 
-static struct tegra_dc_platform_data enterprise_disp2_pdata = {
+static struct tegra_dc_platform_data endeavor_disp2_pdata = {
 	.flags		= 0,
-	.default_out	= &enterprise_disp2_out,
-	.fb		= &enterprise_hdmi_fb_data,
+	.default_out	= &endeavor_disp2_out,
+	.fb		= &endeavor_hdmi_fb_data,
 	.emc_clk_rate	= 300000000,
 };
 
-static int enterprise_dsi_panel_enable(void)
+static int endeavor_dsi_panel_enable(void)
 {
 	/*TODO the power-on sequence move to bridge_reset*/
 	return 0;
@@ -342,8 +348,8 @@ static int bridge_reset(void)
 	/*TODO: workaround to prevent panel off during dc_probe, remove it later*/
 	if(g_display_on)
 	{
-		REGULATOR_GET(enterprise_dsi_reg, "avdd_dsi_csi");
-		regulator_enable(enterprise_dsi_reg);
+		REGULATOR_GET(endeavor_dsi_reg, "avdd_dsi_csi");
+		regulator_enable(endeavor_dsi_reg);
 
 		REGULATOR_GET(v_lcm_3v3, "v_lcm_3v3");
 		REGULATOR_GET(v_lcmio_1v8, "v_lcmio_1v8");
@@ -356,8 +362,8 @@ static int bridge_reset(void)
 		return 0;
 	}
 
-	REGULATOR_GET(enterprise_dsi_reg, "avdd_dsi_csi");
-	regulator_enable(enterprise_dsi_reg);
+	REGULATOR_GET(endeavor_dsi_reg, "avdd_dsi_csi");
+	regulator_enable(endeavor_dsi_reg);
 
 	REGULATOR_GET(v_lcm_3v3, "v_lcm_3v3");
 	REGULATOR_GET(v_lcmio_1v8, "v_lcmio_1v8");
@@ -418,7 +424,7 @@ success:
 	return err;
 }
 
-static int enterprise_dsi_panel_disable(void)
+static int endeavor_dsi_panel_disable(void)
 {
 	int err = 0;
 
@@ -439,8 +445,8 @@ static int enterprise_dsi_panel_disable(void)
 	regulator_disable(v_lcmio_1v8);
 
 
-	REGULATOR_GET(enterprise_dsi_reg, "avdd_dsi_csi");
-	regulator_disable(enterprise_dsi_reg);
+	REGULATOR_GET(endeavor_dsi_reg, "avdd_dsi_csi");
+	regulator_disable(endeavor_dsi_reg);
 
 	/*change LCM_TE & LCM_PWM to GPIO*/
 	//tegra_gpio_enable(LCM_PWM);
@@ -456,32 +462,32 @@ failed:
 }
 #endif
 
-static void enterprise_stereo_set_mode(int mode)
+static void endeavor_stereo_set_mode(int mode)
 {
 	switch (mode) {
 	case TEGRA_DC_STEREO_MODE_2D:
-		/*gpio_set_value(TEGRA_GPIO_PH1, ENTERPRISE_STEREO_2D);*/
+		/*gpio_set_value(TEGRA_GPIO_PH1, ENDEAVOR_STEREO_2D);*/
 		break;
 	case TEGRA_DC_STEREO_MODE_3D:
-		/*gpio_set_value(TEGRA_GPIO_PH1, ENTERPRISE_STEREO_3D);*/
+		/*gpio_set_value(TEGRA_GPIO_PH1, ENDEAVOR_STEREO_3D);*/
 		break;
 	}
 }
 
-static void enterprise_stereo_set_orientation(int mode)
+static void endeavor_stereo_set_orientation(int mode)
 {
 	switch (mode) {
 	case TEGRA_DC_STEREO_LANDSCAPE:
-		/*gpio_set_value(TEGRA_GPIO_PH2, ENTERPRISE_STEREO_LANDSCAPE);*/
+		/*gpio_set_value(TEGRA_GPIO_PH2, ENDEAVOR_STEREO_LANDSCAPE);*/
 		break;
 	case TEGRA_DC_STEREO_PORTRAIT:
-		/*gpio_set_value(TEGRA_GPIO_PH2, ENTERPRISE_STEREO_PORTRAIT);*/
+		/*gpio_set_value(TEGRA_GPIO_PH2, ENDEAVOR_STEREO_PORTRAIT);*/
 		break;
 	}
 }
 
 #ifdef CONFIG_TEGRA_DC
-static int enterprise_dsi_panel_postsuspend(void)
+static int endeavor_dsi_panel_postsuspend(void)
 {
 	int err = 0;
 
@@ -497,6 +503,19 @@ static u8 ptbf_cmd[] = {0xBF,0x05,0x60,0x02};
 static u8 pwm_freq_hx[] = {0xC9,0x1F,0x01};
 static u8 porch[] = {0x3B,0x03,0x03,0x07,0x02,0x02};
 static u8 flash_issue[] = {0xC6,0x35,0x00,0x00,0x04};
+static u8 dsi_set[] = {0xBA,0x11,0x83,0x00,0xD6,0xC6,0x00,0x0A};
+static u8 stba[] = {0xC0,0x01,0x94};
+static u8 gamma_pwr[] = {0xB1,0x7C,0x00,0x44,0x26,0x00,0x0E,0x0E,0x27,0x1E,0x23,0x1B,0x42,0x72};
+static u8 ltps[] = {0xB4, 0x00, 0x00, 0x05, 0x00, 0xA1, 0x05, 0x06, 0x92, 0x00, 0x01, 0x06, 0x00, 0x02, 0x02, 0x00, 0x1D, 0x08, 0x0D, 0x0D, 0x01, 0x00, 0x07, 0x7A};
+static u8 gamma_r[] = {0xE0,0x24,0x2B,0x26,0x21,0x20,0x36,0x27,0x3E,0x06,0x09,0x0F,0x12,0x15,0x18,0x13,0x0B,0x16,0x24,0x28,0x2A,0x2F,0x29,0x3D,0x28,0x42,0x05,0x0E,0x0D,0x10,0x13,0x0F,0x13,0x0C,0x17};
+
+static u8 gamma_g[] = {0xE1,0x1A,0x21,0x23,0x26,0x25,0x37,0x25,0x3D,0x04,0x09,0x0F,0x13,0x15,0x14,0x15,0x0B,0x15,0x1C,0x24,0x26,0x2E,0x2D,0x3E,0x26,0x41,0x04,0x0B,0x0E,0x11,0x14,0x13,0x14,0x0A,0x15};
+
+static u8 gamma_b[] = {0xE2,0x00,0x10,0x12,0x2F,0x36,0x37,0x20,0x3E,0x07,0x0C,0x10,0x14,0x16,0x15,0x14,0x08,0x10,0x00,0x10,0x14,0x37,0x3F,0x3E,0x21,0x41,0x07,0x0D,0x0F,0x12,0x16,0x15,0x14,0x09,0x10};
+static u8 ce_de[] = {0xE5,0x00,0x04,0x0B,0x05,0x05,0x00,0x80,0x20,0x80,0x10,0x00,0x07,0x07,0x07,0x07,0x07,0x80,0x0A};
+static u8 cabc[] = {0xCA,0x28,0x26,0x24,0x23,0x22,0x21,0x20,0x20,0x20};
+static u8 pwm_setting[] = {0xC9,0x1F,0x01,0x1E,0x3F,0x00,0x80};
+static u8 data_gain[] = {0xCE,0x00,0x00,0x00,0x01,0x01,0x01,0x02,0x02,0x02,0x03,0x03,0x03};
 
 static struct tegra_dsi_cmd osc_off_cmd[]= {
 	DSI_DLY_MS(2),
@@ -543,6 +562,37 @@ static struct tegra_dsi_cmd dsi_init_sharp_hx_c4_cmd[]= {
 	DSI_DLY_MS(42),
 	DSI_CMD_SHORT(0x15, 0x53, 0x24),
 	DSI_CMD_SHORT(0x15, 0x5E, 0x07),
+};
+
+static struct tegra_dsi_cmd dsi_init_sharp_hx_c5_cmd[]= {
+	DSI_CMD_SHORT(0x05, 0x11, 0x00),
+	DSI_DLY_MS(120),
+	DSI_CMD_LONG(0x39, init_cmd),
+	DSI_CMD_SHORT(0x15, 0xD4, 0x00),
+	DSI_CMD_LONG(0x39, dsi_set),
+	DSI_CMD_LONG(0x39, stba),
+	DSI_CMD_LONG(0x39, gamma_pwr),
+	DSI_CMD_LONG(0x39, ltps),
+	DSI_CMD_LONG(0x39, gamma_r),
+	DSI_CMD_LONG(0x39, gamma_g),
+	DSI_CMD_LONG(0x39, gamma_b),
+	DSI_CMD_LONG(0x39, flash_issue),
+	DSI_CMD_LONG(0x39, eq_cmd),
+	DSI_CMD_LONG(0x39, ptbf_cmd),
+	DSI_CMD_SHORT(0x15, 0x35, 0x00),
+	DSI_CMD_SHORT(0x15, 0xC2, 0x08),
+	DSI_CMD_SHORT(0x15, 0xE3, 0x01),
+	DSI_CMD_LONG(0x39, ce_de),
+	DSI_CMD_SHORT(0x05, 0x29, 0x00),
+	DSI_DLY_MS(42),
+	DSI_CMD_SHORT(0x15, 0x53, 0x24),
+	DSI_CMD_SHORT(0x15, 0x55, 0x03),
+	DSI_CMD_SHORT(0x15, 0x5E, 0x07),
+	DSI_DLY_MS(5),
+	DSI_CMD_LONG(0x39, cabc),
+	DSI_CMD_LONG(0x39, pwm_setting),
+	DSI_CMD_LONG(0x39, data_gain),
+
 };
 
 static struct tegra_dsi_cmd dsi_init_sony_nt_c1_cmd[]= {
@@ -971,16 +1021,6 @@ static struct tegra_dsi_cmd dsi_init_sony_nt_c1_cmd[]= {
 	DSI_CMD_SHORT(0x15, 0xFF, 0x04),
 	DSI_CMD_SHORT(0x15, 0x0A, 0x07),
 	DSI_CMD_SHORT(0x15, 0x09, 0x20),
-	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
-
-	DSI_CMD_SHORT(0x15, 0xFF, 0x01),
-	DSI_CMD_SHORT(0x15, 0xFE, 0x02),
-	DSI_CMD_SHORT(0x15, 0x71, 0x2C),
-	DSI_CMD_SHORT(0x15, 0x08, 0x26),
-	DSI_CMD_SHORT(0x15, 0x09, 0x86),
-	DSI_CMD_SHORT(0x15, 0x0E, 0x2B),
-	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
-	DSI_CMD_SHORT(0x15, 0xFE, 0x01),
 	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
 
 	DSI_CMD_SHORT(0x05, 0x29, 0x00),
@@ -1432,17 +1472,6 @@ static struct tegra_dsi_cmd dsi_init_sony_nt_c2_cmd[]= {
 	DSI_CMD_SHORT(0x15, 0xFF, 0x04),
 	DSI_CMD_SHORT(0x15, 0x0A, 0x07),
 	DSI_CMD_SHORT(0x15, 0x09, 0x20),
-	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
-
-	DSI_CMD_SHORT(0x15, 0xFF, 0x01),
-	DSI_CMD_SHORT(0x15, 0xFE, 0x02),
-	DSI_CMD_SHORT(0x15, 0x71, 0x2C),
-	DSI_CMD_SHORT(0x15, 0x08, 0x26),
-	DSI_CMD_SHORT(0x15, 0x09, 0x86),
-	DSI_CMD_SHORT(0x15, 0x0E, 0x2B),
-	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
-	DSI_CMD_SHORT(0x15, 0xFE, 0x01),
-	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
 	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
 
 	DSI_CMD_SHORT(0x05, 0x29, 0x00),
@@ -2414,6 +2443,12 @@ static struct tegra_dsi_cmd dsi_init_sharp_nt_c2_9a_cmd[]= {
 	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
 	DSI_CMD_SHORT(0x15, 0xFE, 0x01),
 
+	DSI_CMD_SHORT(0x15, 0xFF, 0x05),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0x28, 0x01),
+	DSI_CMD_SHORT(0x15, 0x2F, 0x02),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+
 	DSI_CMD_SHORT(0x05, 0x11, 0x00),
 	DSI_DLY_MS(105),
 
@@ -2885,6 +2920,914 @@ static struct tegra_dsi_cmd dsi_init_sharp_unknow_cmd[]= {
 	DSI_CMD_SHORT(0x15, 0x5E, 0x06),
 };
 
+static struct tegra_dsi_cmd dsi_init_auo_nt_c2_cmd[]= {
+	DSI_CMD_SHORT(0x15, 0xC2, 0x08),
+
+        /*color enhancement 2.2*/
+        DSI_CMD_SHORT(0x15, 0xFF, 0x03),
+        DSI_CMD_SHORT(0x15, 0xFE, 0x08),
+        DSI_CMD_SHORT(0x15, 0x18, 0x00),
+        DSI_CMD_SHORT(0x15, 0x19, 0x00),
+        DSI_CMD_SHORT(0x15, 0x1A, 0x00),
+        DSI_CMD_SHORT(0x15, 0x25, 0x26),
+
+        DSI_CMD_SHORT(0x15, 0x00, 0x00),
+        DSI_CMD_SHORT(0x15, 0x01, 0x07),
+        DSI_CMD_SHORT(0x15, 0x02, 0x0B),
+        DSI_CMD_SHORT(0x15, 0x03, 0x11),
+        DSI_CMD_SHORT(0x15, 0x04, 0x18),
+        DSI_CMD_SHORT(0x15, 0x05, 0x20),
+        DSI_CMD_SHORT(0x15, 0x06, 0x27),
+        DSI_CMD_SHORT(0x15, 0x07, 0x2A),
+        DSI_CMD_SHORT(0x15, 0x08, 0x2E),
+        DSI_CMD_SHORT(0x15, 0x09, 0x2F),
+        DSI_CMD_SHORT(0x15, 0x0A, 0x2C),
+        DSI_CMD_SHORT(0x15, 0x0B, 0x24),
+        DSI_CMD_SHORT(0x15, 0x0C, 0x1B),
+        DSI_CMD_SHORT(0x15, 0x0D, 0x13),
+        DSI_CMD_SHORT(0x15, 0x0E, 0x0C),
+        DSI_CMD_SHORT(0x15, 0x0F, 0x07),
+
+        DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+        DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+        DSI_CMD_SHORT(0x15, 0xFE, 0x01),
+
+	/*frame rate 60HZ*/
+	DSI_CMD_SHORT(0x15, 0xFF, 0x05),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0x02, 0x8E),
+	DSI_CMD_SHORT(0x15, 0x03, 0x8E),
+	DSI_CMD_SHORT(0x15, 0x04, 0x8E),
+
+	/*gamma V3.5*/
+	DSI_CMD_SHORT(0x15, 0xFF, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0x01, 0x33),
+	DSI_CMD_SHORT(0x15, 0x02, 0x53),
+	DSI_CMD_SHORT(0x15, 0x75, 0x00),
+	DSI_CMD_SHORT(0x15, 0x76, 0xEA),
+	DSI_CMD_SHORT(0x15, 0x77, 0x00),
+	DSI_CMD_SHORT(0x15, 0x78, 0xF1),
+	DSI_CMD_SHORT(0x15, 0x79, 0x00),
+	DSI_CMD_SHORT(0x15, 0x7A, 0xF9),
+	DSI_CMD_SHORT(0x15, 0x7B, 0x01),
+	DSI_CMD_SHORT(0x15, 0x7C, 0x04),
+	DSI_CMD_SHORT(0x15, 0x7D, 0x01),
+	DSI_CMD_SHORT(0x15, 0x7E, 0x0F),
+	DSI_CMD_SHORT(0x15, 0x7F, 0x01),
+	DSI_CMD_SHORT(0x15, 0x80, 0x17),
+	DSI_CMD_SHORT(0x15, 0x81, 0x01),
+	DSI_CMD_SHORT(0x15, 0x82, 0x1E),
+	DSI_CMD_SHORT(0x15, 0x83, 0x01),
+	DSI_CMD_SHORT(0x15, 0x84, 0x29),
+	DSI_CMD_SHORT(0x15, 0x85, 0x01),
+	DSI_CMD_SHORT(0x15, 0x86, 0x32),
+	DSI_CMD_SHORT(0x15, 0x87, 0x01),
+	DSI_CMD_SHORT(0x15, 0x88, 0x50),
+	DSI_CMD_SHORT(0x15, 0x89, 0x01),
+	DSI_CMD_SHORT(0x15, 0x8A, 0x69),
+	DSI_CMD_SHORT(0x15, 0x8B, 0x01),
+	DSI_CMD_SHORT(0x15, 0x8C, 0x98),
+	DSI_CMD_SHORT(0x15, 0x8D, 0x01),
+	DSI_CMD_SHORT(0x15, 0x8E, 0xBD),
+	DSI_CMD_SHORT(0x15, 0x8F, 0x01),
+	DSI_CMD_SHORT(0x15, 0x90, 0xFD),
+	DSI_CMD_SHORT(0x15, 0x91, 0x02),
+	DSI_CMD_SHORT(0x15, 0x92, 0x2E),
+	DSI_CMD_SHORT(0x15, 0x93, 0x02),
+	DSI_CMD_SHORT(0x15, 0x94, 0x30),
+	DSI_CMD_SHORT(0x15, 0x95, 0x02),
+	DSI_CMD_SHORT(0x15, 0x96, 0x5D),
+	DSI_CMD_SHORT(0x15, 0x97, 0x02),
+	DSI_CMD_SHORT(0x15, 0x98, 0x91),
+	DSI_CMD_SHORT(0x15, 0x99, 0x02),
+	DSI_CMD_SHORT(0x15, 0x9A, 0xB2),
+	DSI_CMD_SHORT(0x15, 0x9B, 0x02),
+	DSI_CMD_SHORT(0x15, 0x9C, 0xDF),
+	DSI_CMD_SHORT(0x15, 0x9D, 0x02),
+	DSI_CMD_SHORT(0x15, 0x9E, 0xFF),
+	DSI_CMD_SHORT(0x15, 0x9F, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA0, 0x29),
+	DSI_CMD_SHORT(0x15, 0xA2, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA3, 0x38),
+	DSI_CMD_SHORT(0x15, 0xA4, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA5, 0x48),
+	DSI_CMD_SHORT(0x15, 0xA6, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA7, 0x59),
+	DSI_CMD_SHORT(0x15, 0xA9, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAA, 0x66),
+	DSI_CMD_SHORT(0x15, 0xAB, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAC, 0x88),
+	DSI_CMD_SHORT(0x15, 0xAD, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAE, 0x97),
+	DSI_CMD_SHORT(0x15, 0xAF, 0x03),
+	DSI_CMD_SHORT(0x15, 0xB0, 0xC2),
+	DSI_CMD_SHORT(0x15, 0xB1, 0x03),
+	DSI_CMD_SHORT(0x15, 0xB2, 0xCB),
+	DSI_CMD_SHORT(0x15, 0xB3, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB4, 0xEA),
+	DSI_CMD_SHORT(0x15, 0xB5, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB6, 0xF1),
+	DSI_CMD_SHORT(0x15, 0xB7, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB8, 0xF9),
+	DSI_CMD_SHORT(0x15, 0xB9, 0x01),
+	DSI_CMD_SHORT(0x15, 0xBA, 0x04),
+	DSI_CMD_SHORT(0x15, 0xBB, 0x01),
+	DSI_CMD_SHORT(0x15, 0xBC, 0x0F),
+	DSI_CMD_SHORT(0x15, 0xBD, 0x01),
+	DSI_CMD_SHORT(0x15, 0xBE, 0x17),
+	DSI_CMD_SHORT(0x15, 0xBF, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC0, 0x1E),
+	DSI_CMD_SHORT(0x15, 0xC1, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC2, 0x29),
+	DSI_CMD_SHORT(0x15, 0xC3, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC4, 0x32),
+	DSI_CMD_SHORT(0x15, 0xC5, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC6, 0x50),
+	DSI_CMD_SHORT(0x15, 0xC7, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC8, 0x69),
+	DSI_CMD_SHORT(0x15, 0xC9, 0x01),
+	DSI_CMD_SHORT(0x15, 0xCA, 0x98),
+	DSI_CMD_SHORT(0x15, 0xCB, 0x01),
+	DSI_CMD_SHORT(0x15, 0xCC, 0xBD),
+	DSI_CMD_SHORT(0x15, 0xCD, 0x01),
+	DSI_CMD_SHORT(0x15, 0xCE, 0xFD),
+	DSI_CMD_SHORT(0x15, 0xCF, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD0, 0x2E),
+	DSI_CMD_SHORT(0x15, 0xD1, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD2, 0x30),
+	DSI_CMD_SHORT(0x15, 0xD3, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD4, 0x5D),
+	DSI_CMD_SHORT(0x15, 0xD5, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD6, 0x91),
+	DSI_CMD_SHORT(0x15, 0xD7, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD8, 0xB2),
+	DSI_CMD_SHORT(0x15, 0xD9, 0x02),
+	DSI_CMD_SHORT(0x15, 0xDA, 0xDF),
+	DSI_CMD_SHORT(0x15, 0xDB, 0x02),
+	DSI_CMD_SHORT(0x15, 0xDC, 0xFF),
+	DSI_CMD_SHORT(0x15, 0xDD, 0x03),
+	DSI_CMD_SHORT(0x15, 0xDE, 0x29),
+	DSI_CMD_SHORT(0x15, 0xDF, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE0, 0x38),
+	DSI_CMD_SHORT(0x15, 0xE1, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE2, 0x48),
+	DSI_CMD_SHORT(0x15, 0xE3, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE4, 0x59),
+	DSI_CMD_SHORT(0x15, 0xE5, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE6, 0x66),
+	DSI_CMD_SHORT(0x15, 0xE7, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE8, 0x88),
+	DSI_CMD_SHORT(0x15, 0xE9, 0x03),
+	DSI_CMD_SHORT(0x15, 0xEA, 0x97),
+	DSI_CMD_SHORT(0x15, 0xEB, 0x03),
+	DSI_CMD_SHORT(0x15, 0xEC, 0xC2),
+	DSI_CMD_SHORT(0x15, 0xED, 0x03),
+	DSI_CMD_SHORT(0x15, 0xEE, 0xCB),
+	DSI_CMD_SHORT(0x15, 0xEF, 0x01),
+	DSI_CMD_SHORT(0x15, 0xF0, 0x00),
+	DSI_CMD_SHORT(0x15, 0xF1, 0x01),
+	DSI_CMD_SHORT(0x15, 0xF2, 0x06),
+	DSI_CMD_SHORT(0x15, 0xF3, 0x01),
+	DSI_CMD_SHORT(0x15, 0xF4, 0x10),
+	DSI_CMD_SHORT(0x15, 0xF5, 0x01),
+	DSI_CMD_SHORT(0x15, 0xF6, 0x16),
+	DSI_CMD_SHORT(0x15, 0xF7, 0x01),
+	DSI_CMD_SHORT(0x15, 0xF8, 0x1E),
+	DSI_CMD_SHORT(0x15, 0xF9, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFA, 0x26),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x02),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0x00, 0x01),
+	DSI_CMD_SHORT(0x15, 0x01, 0x2E),
+	DSI_CMD_SHORT(0x15, 0x02, 0x01),
+	DSI_CMD_SHORT(0x15, 0x03, 0x35),
+	DSI_CMD_SHORT(0x15, 0x04, 0x01),
+	DSI_CMD_SHORT(0x15, 0x05, 0x3C),
+	DSI_CMD_SHORT(0x15, 0x06, 0x01),
+	DSI_CMD_SHORT(0x15, 0x07, 0x57),
+	DSI_CMD_SHORT(0x15, 0x08, 0x01),
+	DSI_CMD_SHORT(0x15, 0x09, 0x70),
+	DSI_CMD_SHORT(0x15, 0x0A, 0x01),
+	DSI_CMD_SHORT(0x15, 0x0B, 0x99),
+	DSI_CMD_SHORT(0x15, 0x0C, 0x01),
+	DSI_CMD_SHORT(0x15, 0x0D, 0xBE),
+	DSI_CMD_SHORT(0x15, 0x0E, 0x01),
+	DSI_CMD_SHORT(0x15, 0x0F, 0xFA),
+	DSI_CMD_SHORT(0x15, 0x10, 0x02),
+	DSI_CMD_SHORT(0x15, 0x11, 0x2B),
+	DSI_CMD_SHORT(0x15, 0x12, 0x02),
+	DSI_CMD_SHORT(0x15, 0x13, 0x2D),
+	DSI_CMD_SHORT(0x15, 0x14, 0x02),
+	DSI_CMD_SHORT(0x15, 0x15, 0x5B),
+	DSI_CMD_SHORT(0x15, 0x16, 0x02),
+	DSI_CMD_SHORT(0x15, 0x17, 0x8F),
+	DSI_CMD_SHORT(0x15, 0x18, 0x02),
+	DSI_CMD_SHORT(0x15, 0x19, 0xB1),
+	DSI_CMD_SHORT(0x15, 0x1A, 0x02),
+	DSI_CMD_SHORT(0x15, 0x1B, 0xDF),
+	DSI_CMD_SHORT(0x15, 0x1C, 0x02),
+	DSI_CMD_SHORT(0x15, 0x1D, 0xFF),
+	DSI_CMD_SHORT(0x15, 0x1E, 0x03),
+	DSI_CMD_SHORT(0x15, 0x1F, 0x28),
+	DSI_CMD_SHORT(0x15, 0x20, 0x03),
+	DSI_CMD_SHORT(0x15, 0x21, 0x35),
+	DSI_CMD_SHORT(0x15, 0x22, 0x03),
+	DSI_CMD_SHORT(0x15, 0x23, 0x43),
+	DSI_CMD_SHORT(0x15, 0x24, 0x03),
+	DSI_CMD_SHORT(0x15, 0x25, 0x52),
+	DSI_CMD_SHORT(0x15, 0x26, 0x03),
+	DSI_CMD_SHORT(0x15, 0x27, 0x63),
+	DSI_CMD_SHORT(0x15, 0x28, 0x03),
+	DSI_CMD_SHORT(0x15, 0x29, 0x76),
+	DSI_CMD_SHORT(0x15, 0x2A, 0x03),
+	DSI_CMD_SHORT(0x15, 0x2B, 0x87),
+	DSI_CMD_SHORT(0x15, 0x2D, 0x03),
+	DSI_CMD_SHORT(0x15, 0x2F, 0x9A),
+	DSI_CMD_SHORT(0x15, 0x30, 0x03),
+	DSI_CMD_SHORT(0x15, 0x31, 0xCB),
+	DSI_CMD_SHORT(0x15, 0x32, 0x01),
+	DSI_CMD_SHORT(0x15, 0x33, 0x00),
+	DSI_CMD_SHORT(0x15, 0x34, 0x01),
+	DSI_CMD_SHORT(0x15, 0x35, 0x06),
+	DSI_CMD_SHORT(0x15, 0x36, 0x01),
+	DSI_CMD_SHORT(0x15, 0x37, 0x10),
+	DSI_CMD_SHORT(0x15, 0x38, 0x01),
+	DSI_CMD_SHORT(0x15, 0x39, 0x16),
+	DSI_CMD_SHORT(0x15, 0x3A, 0x01),
+	DSI_CMD_SHORT(0x15, 0x3B, 0x1E),
+	DSI_CMD_SHORT(0x15, 0x3D, 0x01),
+	DSI_CMD_SHORT(0x15, 0x3F, 0x26),
+	DSI_CMD_SHORT(0x15, 0x40, 0x01),
+	DSI_CMD_SHORT(0x15, 0x41, 0x2E),
+	DSI_CMD_SHORT(0x15, 0x42, 0x01),
+	DSI_CMD_SHORT(0x15, 0x43, 0x35),
+	DSI_CMD_SHORT(0x15, 0x44, 0x01),
+	DSI_CMD_SHORT(0x15, 0x45, 0x3C),
+	DSI_CMD_SHORT(0x15, 0x46, 0x01),
+	DSI_CMD_SHORT(0x15, 0x47, 0x57),
+	DSI_CMD_SHORT(0x15, 0x48, 0x01),
+	DSI_CMD_SHORT(0x15, 0x49, 0x70),
+	DSI_CMD_SHORT(0x15, 0x4A, 0x01),
+	DSI_CMD_SHORT(0x15, 0x4B, 0x99),
+	DSI_CMD_SHORT(0x15, 0x4C, 0x01),
+	DSI_CMD_SHORT(0x15, 0x4D, 0xBE),
+	DSI_CMD_SHORT(0x15, 0x4E, 0x01),
+	DSI_CMD_SHORT(0x15, 0x4F, 0xFA),
+	DSI_CMD_SHORT(0x15, 0x50, 0x02),
+	DSI_CMD_SHORT(0x15, 0x51, 0x2B),
+	DSI_CMD_SHORT(0x15, 0x52, 0x02),
+	DSI_CMD_SHORT(0x15, 0x53, 0x2D),
+	DSI_CMD_SHORT(0x15, 0x54, 0x02),
+	DSI_CMD_SHORT(0x15, 0x55, 0x5B),
+	DSI_CMD_SHORT(0x15, 0x56, 0x02),
+	DSI_CMD_SHORT(0x15, 0x58, 0x8F),
+	DSI_CMD_SHORT(0x15, 0x59, 0x02),
+	DSI_CMD_SHORT(0x15, 0x5A, 0xB1),
+	DSI_CMD_SHORT(0x15, 0x5B, 0x02),
+	DSI_CMD_SHORT(0x15, 0x5C, 0xDF),
+	DSI_CMD_SHORT(0x15, 0x5D, 0x02),
+	DSI_CMD_SHORT(0x15, 0x5E, 0xFF),
+	DSI_CMD_SHORT(0x15, 0x5F, 0x03),
+	DSI_CMD_SHORT(0x15, 0x60, 0x28),
+	DSI_CMD_SHORT(0x15, 0x61, 0x03),
+	DSI_CMD_SHORT(0x15, 0x62, 0x35),
+	DSI_CMD_SHORT(0x15, 0x63, 0x03),
+	DSI_CMD_SHORT(0x15, 0x64, 0x43),
+	DSI_CMD_SHORT(0x15, 0x65, 0x03),
+	DSI_CMD_SHORT(0x15, 0x66, 0x52),
+	DSI_CMD_SHORT(0x15, 0x67, 0x03),
+	DSI_CMD_SHORT(0x15, 0x68, 0x63),
+	DSI_CMD_SHORT(0x15, 0x69, 0x03),
+	DSI_CMD_SHORT(0x15, 0x6A, 0x76),
+	DSI_CMD_SHORT(0x15, 0x6B, 0x03),
+	DSI_CMD_SHORT(0x15, 0x6C, 0x87),
+	DSI_CMD_SHORT(0x15, 0x6D, 0x03),
+	DSI_CMD_SHORT(0x15, 0x6E, 0x9A),
+	DSI_CMD_SHORT(0x15, 0x6F, 0x03),
+	DSI_CMD_SHORT(0x15, 0x70, 0xCB),
+	DSI_CMD_SHORT(0x15, 0x71, 0x00),
+	DSI_CMD_SHORT(0x15, 0x72, 0x00),
+	DSI_CMD_SHORT(0x15, 0x73, 0x00),
+	DSI_CMD_SHORT(0x15, 0x74, 0x2F),
+	DSI_CMD_SHORT(0x15, 0x75, 0x00),
+	DSI_CMD_SHORT(0x15, 0x76, 0x4F),
+	DSI_CMD_SHORT(0x15, 0x77, 0x00),
+	DSI_CMD_SHORT(0x15, 0x78, 0x5F),
+	DSI_CMD_SHORT(0x15, 0x79, 0x00),
+	DSI_CMD_SHORT(0x15, 0x7A, 0x72),
+	DSI_CMD_SHORT(0x15, 0x7B, 0x00),
+	DSI_CMD_SHORT(0x15, 0x7C, 0x89),
+	DSI_CMD_SHORT(0x15, 0x7D, 0x00),
+	DSI_CMD_SHORT(0x15, 0x7E, 0x9A),
+	DSI_CMD_SHORT(0x15, 0x7F, 0x00),
+	DSI_CMD_SHORT(0x15, 0x80, 0xAC),
+	DSI_CMD_SHORT(0x15, 0x81, 0x00),
+	DSI_CMD_SHORT(0x15, 0x82, 0xBD),
+	DSI_CMD_SHORT(0x15, 0x83, 0x00),
+	DSI_CMD_SHORT(0x15, 0x84, 0xEF),
+	DSI_CMD_SHORT(0x15, 0x85, 0x01),
+	DSI_CMD_SHORT(0x15, 0x86, 0x19),
+	DSI_CMD_SHORT(0x15, 0x87, 0x01),
+	DSI_CMD_SHORT(0x15, 0x88, 0x5A),
+	DSI_CMD_SHORT(0x15, 0x89, 0x01),
+	DSI_CMD_SHORT(0x15, 0x8A, 0x8D),
+	DSI_CMD_SHORT(0x15, 0x8B, 0x01),
+	DSI_CMD_SHORT(0x15, 0x8C, 0xDC),
+	DSI_CMD_SHORT(0x15, 0x8D, 0x02),
+	DSI_CMD_SHORT(0x15, 0x8E, 0x17),
+	DSI_CMD_SHORT(0x15, 0x8F, 0x02),
+	DSI_CMD_SHORT(0x15, 0x90, 0x19),
+	DSI_CMD_SHORT(0x15, 0x91, 0x02),
+	DSI_CMD_SHORT(0x15, 0x92, 0x4D),
+	DSI_CMD_SHORT(0x15, 0x93, 0x02),
+	DSI_CMD_SHORT(0x15, 0x94, 0x84),
+	DSI_CMD_SHORT(0x15, 0x95, 0x02),
+	DSI_CMD_SHORT(0x15, 0x96, 0xA7),
+	DSI_CMD_SHORT(0x15, 0x97, 0x02),
+	DSI_CMD_SHORT(0x15, 0x98, 0xD5),
+	DSI_CMD_SHORT(0x15, 0x99, 0x02),
+	DSI_CMD_SHORT(0x15, 0x9A, 0xF5),
+	DSI_CMD_SHORT(0x15, 0x9B, 0x03),
+	DSI_CMD_SHORT(0x15, 0x9C, 0x20),
+	DSI_CMD_SHORT(0x15, 0x9D, 0x03),
+	DSI_CMD_SHORT(0x15, 0x9E, 0x2E),
+	DSI_CMD_SHORT(0x15, 0x9F, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA0, 0x3A),
+	DSI_CMD_SHORT(0x15, 0xA2, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA3, 0x4A),
+	DSI_CMD_SHORT(0x15, 0xA4, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA5, 0x60),
+	DSI_CMD_SHORT(0x15, 0xA6, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA7, 0x71),
+	DSI_CMD_SHORT(0x15, 0xA9, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAA, 0x95),
+	DSI_CMD_SHORT(0x15, 0xAB, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAC, 0xAA),
+	DSI_CMD_SHORT(0x15, 0xAD, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAE, 0xCB),
+	DSI_CMD_SHORT(0x15, 0xAF, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB0, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB1, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB2, 0x2F),
+	DSI_CMD_SHORT(0x15, 0xB3, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB4, 0x4F),
+	DSI_CMD_SHORT(0x15, 0xB5, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB6, 0x5F),
+	DSI_CMD_SHORT(0x15, 0xB7, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB8, 0x72),
+	DSI_CMD_SHORT(0x15, 0xB9, 0x00),
+	DSI_CMD_SHORT(0x15, 0xBA, 0x89),
+	DSI_CMD_SHORT(0x15, 0xBB, 0x00),
+	DSI_CMD_SHORT(0x15, 0xBC, 0x9A),
+	DSI_CMD_SHORT(0x15, 0xBD, 0x00),
+	DSI_CMD_SHORT(0x15, 0xBE, 0xAC),
+	DSI_CMD_SHORT(0x15, 0xBF, 0x00),
+	DSI_CMD_SHORT(0x15, 0xC0, 0xBD),
+	DSI_CMD_SHORT(0x15, 0xC1, 0x00),
+	DSI_CMD_SHORT(0x15, 0xC2, 0xEF),
+	DSI_CMD_SHORT(0x15, 0xC3, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC4, 0x19),
+	DSI_CMD_SHORT(0x15, 0xC5, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC6, 0x5A),
+	DSI_CMD_SHORT(0x15, 0xC7, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC8, 0x8D),
+	DSI_CMD_SHORT(0x15, 0xC9, 0x01),
+	DSI_CMD_SHORT(0x15, 0xCA, 0xDC),
+	DSI_CMD_SHORT(0x15, 0xCB, 0x02),
+	DSI_CMD_SHORT(0x15, 0xCC, 0x17),
+	DSI_CMD_SHORT(0x15, 0xCD, 0x02),
+	DSI_CMD_SHORT(0x15, 0xCE, 0x19),
+	DSI_CMD_SHORT(0x15, 0xCF, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD0, 0x4D),
+	DSI_CMD_SHORT(0x15, 0xD1, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD2, 0x84),
+	DSI_CMD_SHORT(0x15, 0xD3, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD4, 0xA7),
+	DSI_CMD_SHORT(0x15, 0xD5, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD6, 0xD5),
+	DSI_CMD_SHORT(0x15, 0xD7, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD8, 0xF5),
+	DSI_CMD_SHORT(0x15, 0xD9, 0x03),
+	DSI_CMD_SHORT(0x15, 0xDA, 0x20),
+	DSI_CMD_SHORT(0x15, 0xDB, 0x03),
+	DSI_CMD_SHORT(0x15, 0xDC, 0x2E),
+	DSI_CMD_SHORT(0x15, 0xDD, 0x03),
+	DSI_CMD_SHORT(0x15, 0xDE, 0x3A),
+	DSI_CMD_SHORT(0x15, 0xDF, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE0, 0x4A),
+	DSI_CMD_SHORT(0x15, 0xE1, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE2, 0x60),
+	DSI_CMD_SHORT(0x15, 0xE3, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE4, 0x71),
+	DSI_CMD_SHORT(0x15, 0xE5, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE6, 0x95),
+	DSI_CMD_SHORT(0x15, 0xE7, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE8, 0xAA),
+	DSI_CMD_SHORT(0x15, 0xE9, 0x03),
+	DSI_CMD_SHORT(0x15, 0xEA, 0xCB),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x02),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x04),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+
+	/*pwm frequency adjust*/
+	DSI_CMD_SHORT(0x15, 0xFF, 0x04),
+	DSI_CMD_SHORT(0x15, 0x0A, 0x07),
+	DSI_CMD_SHORT(0x15, 0x09, 0x20),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+
+	DSI_CMD_SHORT(0x05, 0x11, 0x00),
+	DSI_DLY_MS(105),
+
+	DSI_CMD_SHORT(0x15, 0x35, 0x00),
+
+	DSI_CMD_SHORT(0x15, 0xFF, 0xEE),
+	DSI_CMD_SHORT(0x15, 0x12, 0x50),
+	DSI_CMD_SHORT(0x15, 0x13, 0x02),
+	DSI_CMD_SHORT(0x15, 0x6A, 0x60),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+	DSI_CMD_SHORT(0x05, 0x29, 0x00),
+	DSI_DLY_MS(42),
+	DSI_CMD_SHORT(0x15, 0xBA, 0x01),
+
+        /*CABC setting*/
+        DSI_CMD_SHORT(0x15, 0xFF, 0x04),
+        DSI_CMD_SHORT(0x15, 0x05, 0x2D),
+        DSI_CMD_SHORT(0x15, 0x21, 0xFF),
+        DSI_CMD_SHORT(0x15, 0x22, 0xF7),
+        DSI_CMD_SHORT(0x15, 0x23, 0xEF),
+        DSI_CMD_SHORT(0x15, 0x24, 0xE7),
+        DSI_CMD_SHORT(0x15, 0x25, 0xDF),
+        DSI_CMD_SHORT(0x15, 0x26, 0xD7),
+        DSI_CMD_SHORT(0x15, 0x27, 0xCF),
+        DSI_CMD_SHORT(0x15, 0x28, 0xC7),
+        DSI_CMD_SHORT(0x15, 0x29, 0xBF),
+        DSI_CMD_SHORT(0x15, 0x2A, 0xB7),
+        DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+
+	DSI_CMD_SHORT(0x15, 0x53, 0x2C),
+	DSI_CMD_SHORT(0x15, 0x55, 0x83),
+	DSI_CMD_SHORT(0x15, 0x5E, 0x06),
+};
+
+static struct tegra_dsi_cmd dsi_init_auo_nt_x7_cmd[]= {
+	DSI_CMD_SHORT(0x15, 0xC2, 0x08),
+
+        /*color enhancement 2.2*/
+        DSI_CMD_SHORT(0x15, 0xFF, 0x03),
+        DSI_CMD_SHORT(0x15, 0xFE, 0x08),
+        DSI_CMD_SHORT(0x15, 0x18, 0x00),
+        DSI_CMD_SHORT(0x15, 0x19, 0x00),
+        DSI_CMD_SHORT(0x15, 0x1A, 0x00),
+        DSI_CMD_SHORT(0x15, 0x25, 0x26),
+
+        DSI_CMD_SHORT(0x15, 0x00, 0x00),
+        DSI_CMD_SHORT(0x15, 0x01, 0x07),
+        DSI_CMD_SHORT(0x15, 0x02, 0x0B),
+        DSI_CMD_SHORT(0x15, 0x03, 0x11),
+        DSI_CMD_SHORT(0x15, 0x04, 0x18),
+        DSI_CMD_SHORT(0x15, 0x05, 0x20),
+        DSI_CMD_SHORT(0x15, 0x06, 0x27),
+        DSI_CMD_SHORT(0x15, 0x07, 0x2A),
+        DSI_CMD_SHORT(0x15, 0x08, 0x2E),
+        DSI_CMD_SHORT(0x15, 0x09, 0x2F),
+        DSI_CMD_SHORT(0x15, 0x0A, 0x2C),
+        DSI_CMD_SHORT(0x15, 0x0B, 0x24),
+        DSI_CMD_SHORT(0x15, 0x0C, 0x1B),
+        DSI_CMD_SHORT(0x15, 0x0D, 0x13),
+        DSI_CMD_SHORT(0x15, 0x0E, 0x0C),
+        DSI_CMD_SHORT(0x15, 0x0F, 0x07),
+
+        DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+        DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+        DSI_CMD_SHORT(0x15, 0xFE, 0x01),
+
+	/*frame rate 60HZ*/
+	DSI_CMD_SHORT(0x15, 0xFF, 0x05),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0x02, 0x8E),
+	DSI_CMD_SHORT(0x15, 0x03, 0x8E),
+	DSI_CMD_SHORT(0x15, 0x04, 0x8E),
+
+	/*gamma V3.6*/
+	DSI_CMD_SHORT(0x15, 0xFF, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0x01, 0x33),
+	DSI_CMD_SHORT(0x15, 0x02, 0x53),
+	DSI_CMD_SHORT(0x15, 0x75, 0x01),
+	DSI_CMD_SHORT(0x15, 0x76, 0x29),
+	DSI_CMD_SHORT(0x15, 0x77, 0x01),
+	DSI_CMD_SHORT(0x15, 0x78, 0x2D),
+	DSI_CMD_SHORT(0x15, 0x79, 0x01),
+	DSI_CMD_SHORT(0x15, 0x7A, 0x31),
+	DSI_CMD_SHORT(0x15, 0x7B, 0x01),
+	DSI_CMD_SHORT(0x15, 0x7C, 0x3E),
+	DSI_CMD_SHORT(0x15, 0x7D, 0x01),
+	DSI_CMD_SHORT(0x15, 0x7E, 0x44),
+	DSI_CMD_SHORT(0x15, 0x7F, 0x01),
+	DSI_CMD_SHORT(0x15, 0x80, 0x4A),
+	DSI_CMD_SHORT(0x15, 0x81, 0x01),
+	DSI_CMD_SHORT(0x15, 0x82, 0x52),
+	DSI_CMD_SHORT(0x15, 0x83, 0x01),
+	DSI_CMD_SHORT(0x15, 0x84, 0x57),
+	DSI_CMD_SHORT(0x15, 0x85, 0x01),
+	DSI_CMD_SHORT(0x15, 0x86, 0x5F),
+	DSI_CMD_SHORT(0x15, 0x87, 0x01),
+	DSI_CMD_SHORT(0x15, 0x88, 0x77),
+	DSI_CMD_SHORT(0x15, 0x89, 0x01),
+	DSI_CMD_SHORT(0x15, 0x8A, 0x8C),
+	DSI_CMD_SHORT(0x15, 0x8B, 0x01),
+	DSI_CMD_SHORT(0x15, 0x8C, 0xB8),
+	DSI_CMD_SHORT(0x15, 0x8D, 0x01),
+	DSI_CMD_SHORT(0x15, 0x8E, 0xD6),
+	DSI_CMD_SHORT(0x15, 0x8F, 0x02),
+	DSI_CMD_SHORT(0x15, 0x90, 0x0F),
+	DSI_CMD_SHORT(0x15, 0x91, 0x02),
+	DSI_CMD_SHORT(0x15, 0x92, 0x3B),
+	DSI_CMD_SHORT(0x15, 0x93, 0x02),
+	DSI_CMD_SHORT(0x15, 0x94, 0x3C),
+	DSI_CMD_SHORT(0x15, 0x95, 0x02),
+	DSI_CMD_SHORT(0x15, 0x96, 0x69),
+	DSI_CMD_SHORT(0x15, 0x97, 0x02),
+	DSI_CMD_SHORT(0x15, 0x98, 0x9B),
+	DSI_CMD_SHORT(0x15, 0x99, 0x02),
+	DSI_CMD_SHORT(0x15, 0x9A, 0xBC),
+	DSI_CMD_SHORT(0x15, 0x9B, 0x02),
+	DSI_CMD_SHORT(0x15, 0x9C, 0xE8),
+	DSI_CMD_SHORT(0x15, 0x9D, 0x03),
+	DSI_CMD_SHORT(0x15, 0x9E, 0x09),
+	DSI_CMD_SHORT(0x15, 0x9F, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA0, 0x34),
+	DSI_CMD_SHORT(0x15, 0xA2, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA3, 0x3E),
+	DSI_CMD_SHORT(0x15, 0xA4, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA5, 0x4A),
+	DSI_CMD_SHORT(0x15, 0xA6, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA7, 0x5A),
+	DSI_CMD_SHORT(0x15, 0xA9, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAA, 0x67),
+	DSI_CMD_SHORT(0x15, 0xAB, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAC, 0x7A),
+	DSI_CMD_SHORT(0x15, 0xAD, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAE, 0x8B),
+	DSI_CMD_SHORT(0x15, 0xAF, 0x03),
+	DSI_CMD_SHORT(0x15, 0xB0, 0x9C),
+	DSI_CMD_SHORT(0x15, 0xB1, 0x03),
+	DSI_CMD_SHORT(0x15, 0xB2, 0xD1),
+	DSI_CMD_SHORT(0x15, 0xB3, 0x01),
+	DSI_CMD_SHORT(0x15, 0xB4, 0x29),
+	DSI_CMD_SHORT(0x15, 0xB5, 0x01),
+	DSI_CMD_SHORT(0x15, 0xB6, 0x2D),
+	DSI_CMD_SHORT(0x15, 0xB7, 0x01),
+	DSI_CMD_SHORT(0x15, 0xB8, 0x31),
+	DSI_CMD_SHORT(0x15, 0xB9, 0x01),
+	DSI_CMD_SHORT(0x15, 0xBA, 0x3E),
+	DSI_CMD_SHORT(0x15, 0xBB, 0x01),
+	DSI_CMD_SHORT(0x15, 0xBC, 0x44),
+	DSI_CMD_SHORT(0x15, 0xBD, 0x01),
+	DSI_CMD_SHORT(0x15, 0xBE, 0x4A),
+	DSI_CMD_SHORT(0x15, 0xBF, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC0, 0x52),
+	DSI_CMD_SHORT(0x15, 0xC1, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC2, 0x57),
+	DSI_CMD_SHORT(0x15, 0xC3, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC4, 0x5F),
+	DSI_CMD_SHORT(0x15, 0xC5, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC6, 0x77),
+	DSI_CMD_SHORT(0x15, 0xC7, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC8, 0x8C),
+	DSI_CMD_SHORT(0x15, 0xC9, 0x01),
+	DSI_CMD_SHORT(0x15, 0xCA, 0xB8),
+	DSI_CMD_SHORT(0x15, 0xCB, 0x01),
+	DSI_CMD_SHORT(0x15, 0xCC, 0xD6),
+	DSI_CMD_SHORT(0x15, 0xCD, 0x02),
+	DSI_CMD_SHORT(0x15, 0xCE, 0x0F),
+	DSI_CMD_SHORT(0x15, 0xCF, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD0, 0x3B),
+	DSI_CMD_SHORT(0x15, 0xD1, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD2, 0x3C),
+	DSI_CMD_SHORT(0x15, 0xD3, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD4, 0x69),
+	DSI_CMD_SHORT(0x15, 0xD5, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD6, 0x9B),
+	DSI_CMD_SHORT(0x15, 0xD7, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD8, 0xBC),
+	DSI_CMD_SHORT(0x15, 0xD9, 0x02),
+	DSI_CMD_SHORT(0x15, 0xDA, 0xE8),
+	DSI_CMD_SHORT(0x15, 0xDB, 0x03),
+	DSI_CMD_SHORT(0x15, 0xDC, 0x09),
+	DSI_CMD_SHORT(0x15, 0xDD, 0x03),
+	DSI_CMD_SHORT(0x15, 0xDE, 0x34),
+	DSI_CMD_SHORT(0x15, 0xDF, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE0, 0x3E),
+	DSI_CMD_SHORT(0x15, 0xE1, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE2, 0x4A),
+	DSI_CMD_SHORT(0x15, 0xE3, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE4, 0x5A),
+	DSI_CMD_SHORT(0x15, 0xE5, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE6, 0x67),
+	DSI_CMD_SHORT(0x15, 0xE7, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE8, 0x7A),
+	DSI_CMD_SHORT(0x15, 0xE9, 0x03),
+	DSI_CMD_SHORT(0x15, 0xEA, 0x8B),
+	DSI_CMD_SHORT(0x15, 0xEB, 0x03),
+	DSI_CMD_SHORT(0x15, 0xEC, 0x9C),
+	DSI_CMD_SHORT(0x15, 0xED, 0x03),
+	DSI_CMD_SHORT(0x15, 0xEE, 0xD1),
+	DSI_CMD_SHORT(0x15, 0xEF, 0x01),
+	DSI_CMD_SHORT(0x15, 0xF0, 0x35),
+	DSI_CMD_SHORT(0x15, 0xF1, 0x01),
+	DSI_CMD_SHORT(0x15, 0xF2, 0x38),
+	DSI_CMD_SHORT(0x15, 0xF3, 0x01),
+	DSI_CMD_SHORT(0x15, 0xF4, 0x3F),
+	DSI_CMD_SHORT(0x15, 0xF5, 0x01),
+	DSI_CMD_SHORT(0x15, 0xF6, 0x45),
+	DSI_CMD_SHORT(0x15, 0xF7, 0x01),
+	DSI_CMD_SHORT(0x15, 0xF8, 0x4C),
+	DSI_CMD_SHORT(0x15, 0xF9, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFA, 0x52),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x02),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0x00, 0x01),
+	DSI_CMD_SHORT(0x15, 0x01, 0x58),
+	DSI_CMD_SHORT(0x15, 0x02, 0x01),
+	DSI_CMD_SHORT(0x15, 0x03, 0x5E),
+	DSI_CMD_SHORT(0x15, 0x04, 0x01),
+	DSI_CMD_SHORT(0x15, 0x05, 0x64),
+	DSI_CMD_SHORT(0x15, 0x06, 0x01),
+	DSI_CMD_SHORT(0x15, 0x07, 0x7A),
+	DSI_CMD_SHORT(0x15, 0x08, 0x01),
+	DSI_CMD_SHORT(0x15, 0x09, 0x8E),
+	DSI_CMD_SHORT(0x15, 0x0A, 0x01),
+	DSI_CMD_SHORT(0x15, 0x0B, 0xB2),
+	DSI_CMD_SHORT(0x15, 0x0C, 0x01),
+	DSI_CMD_SHORT(0x15, 0x0D, 0xD1),
+	DSI_CMD_SHORT(0x15, 0x0E, 0x02),
+	DSI_CMD_SHORT(0x15, 0x0F, 0x06),
+	DSI_CMD_SHORT(0x15, 0x10, 0x02),
+	DSI_CMD_SHORT(0x15, 0x11, 0x34),
+	DSI_CMD_SHORT(0x15, 0x12, 0x02),
+	DSI_CMD_SHORT(0x15, 0x13, 0x35),
+	DSI_CMD_SHORT(0x15, 0x14, 0x02),
+	DSI_CMD_SHORT(0x15, 0x15, 0x61),
+	DSI_CMD_SHORT(0x15, 0x16, 0x02),
+	DSI_CMD_SHORT(0x15, 0x17, 0x93),
+	DSI_CMD_SHORT(0x15, 0x18, 0x02),
+	DSI_CMD_SHORT(0x15, 0x19, 0xB5),
+	DSI_CMD_SHORT(0x15, 0x1A, 0x02),
+	DSI_CMD_SHORT(0x15, 0x1B, 0xE2),
+	DSI_CMD_SHORT(0x15, 0x1C, 0x03),
+	DSI_CMD_SHORT(0x15, 0x1D, 0x02),
+	DSI_CMD_SHORT(0x15, 0x1E, 0x03),
+	DSI_CMD_SHORT(0x15, 0x1F, 0x2B),
+	DSI_CMD_SHORT(0x15, 0x20, 0x03),
+	DSI_CMD_SHORT(0x15, 0x21, 0x37),
+	DSI_CMD_SHORT(0x15, 0x22, 0x03),
+	DSI_CMD_SHORT(0x15, 0x23, 0x44),
+	DSI_CMD_SHORT(0x15, 0x24, 0x03),
+	DSI_CMD_SHORT(0x15, 0x25, 0x52),
+	DSI_CMD_SHORT(0x15, 0x26, 0x03),
+	DSI_CMD_SHORT(0x15, 0x27, 0x63),
+	DSI_CMD_SHORT(0x15, 0x28, 0x03),
+	DSI_CMD_SHORT(0x15, 0x29, 0x76),
+	DSI_CMD_SHORT(0x15, 0x2A, 0x03),
+	DSI_CMD_SHORT(0x15, 0x2B, 0x87),
+	DSI_CMD_SHORT(0x15, 0x2D, 0x03),
+	DSI_CMD_SHORT(0x15, 0x2F, 0x9A),
+	DSI_CMD_SHORT(0x15, 0x30, 0x03),
+	DSI_CMD_SHORT(0x15, 0x31, 0xCB),
+	DSI_CMD_SHORT(0x15, 0x32, 0x01),
+	DSI_CMD_SHORT(0x15, 0x33, 0x35),
+	DSI_CMD_SHORT(0x15, 0x34, 0x01),
+	DSI_CMD_SHORT(0x15, 0x35, 0x38),
+	DSI_CMD_SHORT(0x15, 0x36, 0x01),
+	DSI_CMD_SHORT(0x15, 0x37, 0x3F),
+	DSI_CMD_SHORT(0x15, 0x38, 0x01),
+	DSI_CMD_SHORT(0x15, 0x39, 0x45),
+	DSI_CMD_SHORT(0x15, 0x3A, 0x01),
+	DSI_CMD_SHORT(0x15, 0x3B, 0x4C),
+	DSI_CMD_SHORT(0x15, 0x3D, 0x01),
+	DSI_CMD_SHORT(0x15, 0x3F, 0x52),
+	DSI_CMD_SHORT(0x15, 0x40, 0x01),
+	DSI_CMD_SHORT(0x15, 0x41, 0x58),
+	DSI_CMD_SHORT(0x15, 0x42, 0x01),
+	DSI_CMD_SHORT(0x15, 0x43, 0x5E),
+	DSI_CMD_SHORT(0x15, 0x44, 0x01),
+	DSI_CMD_SHORT(0x15, 0x45, 0x64),
+	DSI_CMD_SHORT(0x15, 0x46, 0x01),
+	DSI_CMD_SHORT(0x15, 0x47, 0x7A),
+	DSI_CMD_SHORT(0x15, 0x48, 0x01),
+	DSI_CMD_SHORT(0x15, 0x49, 0x8E),
+	DSI_CMD_SHORT(0x15, 0x4A, 0x01),
+	DSI_CMD_SHORT(0x15, 0x4B, 0xB2),
+	DSI_CMD_SHORT(0x15, 0x4C, 0x01),
+	DSI_CMD_SHORT(0x15, 0x4D, 0xD1),
+	DSI_CMD_SHORT(0x15, 0x4E, 0x02),
+	DSI_CMD_SHORT(0x15, 0x4F, 0x06),
+	DSI_CMD_SHORT(0x15, 0x50, 0x02),
+	DSI_CMD_SHORT(0x15, 0x51, 0x34),
+	DSI_CMD_SHORT(0x15, 0x52, 0x02),
+	DSI_CMD_SHORT(0x15, 0x53, 0x35),
+	DSI_CMD_SHORT(0x15, 0x54, 0x02),
+	DSI_CMD_SHORT(0x15, 0x55, 0x61),
+	DSI_CMD_SHORT(0x15, 0x56, 0x02),
+	DSI_CMD_SHORT(0x15, 0x58, 0x93),
+	DSI_CMD_SHORT(0x15, 0x59, 0x02),
+	DSI_CMD_SHORT(0x15, 0x5A, 0xB5),
+	DSI_CMD_SHORT(0x15, 0x5B, 0x02),
+	DSI_CMD_SHORT(0x15, 0x5C, 0xE2),
+	DSI_CMD_SHORT(0x15, 0x5D, 0x03),
+	DSI_CMD_SHORT(0x15, 0x5E, 0x02),
+	DSI_CMD_SHORT(0x15, 0x5F, 0x03),
+	DSI_CMD_SHORT(0x15, 0x60, 0x2B),
+	DSI_CMD_SHORT(0x15, 0x61, 0x03),
+	DSI_CMD_SHORT(0x15, 0x62, 0x37),
+	DSI_CMD_SHORT(0x15, 0x63, 0x03),
+	DSI_CMD_SHORT(0x15, 0x64, 0x44),
+	DSI_CMD_SHORT(0x15, 0x65, 0x03),
+	DSI_CMD_SHORT(0x15, 0x66, 0x52),
+	DSI_CMD_SHORT(0x15, 0x67, 0x03),
+	DSI_CMD_SHORT(0x15, 0x68, 0x63),
+	DSI_CMD_SHORT(0x15, 0x69, 0x03),
+	DSI_CMD_SHORT(0x15, 0x6A, 0x76),
+	DSI_CMD_SHORT(0x15, 0x6B, 0x03),
+	DSI_CMD_SHORT(0x15, 0x6C, 0x87),
+	DSI_CMD_SHORT(0x15, 0x6D, 0x03),
+	DSI_CMD_SHORT(0x15, 0x6E, 0x9A),
+	DSI_CMD_SHORT(0x15, 0x6F, 0x03),
+	DSI_CMD_SHORT(0x15, 0x70, 0xCB),
+	DSI_CMD_SHORT(0x15, 0x71, 0x00),
+	DSI_CMD_SHORT(0x15, 0x72, 0x00),
+	DSI_CMD_SHORT(0x15, 0x73, 0x00),
+	DSI_CMD_SHORT(0x15, 0x74, 0x2F),
+	DSI_CMD_SHORT(0x15, 0x75, 0x00),
+	DSI_CMD_SHORT(0x15, 0x76, 0x4F),
+	DSI_CMD_SHORT(0x15, 0x77, 0x00),
+	DSI_CMD_SHORT(0x15, 0x78, 0x5F),
+	DSI_CMD_SHORT(0x15, 0x79, 0x00),
+	DSI_CMD_SHORT(0x15, 0x7A, 0x76),
+	DSI_CMD_SHORT(0x15, 0x7B, 0x00),
+	DSI_CMD_SHORT(0x15, 0x7C, 0x8D),
+	DSI_CMD_SHORT(0x15, 0x7D, 0x00),
+	DSI_CMD_SHORT(0x15, 0x7E, 0x9C),
+	DSI_CMD_SHORT(0x15, 0x7F, 0x00),
+	DSI_CMD_SHORT(0x15, 0x80, 0xB0),
+	DSI_CMD_SHORT(0x15, 0x81, 0x00),
+	DSI_CMD_SHORT(0x15, 0x82, 0xC1),
+	DSI_CMD_SHORT(0x15, 0x83, 0x00),
+	DSI_CMD_SHORT(0x15, 0x84, 0xF3),
+	DSI_CMD_SHORT(0x15, 0x85, 0x01),
+	DSI_CMD_SHORT(0x15, 0x86, 0x1B),
+	DSI_CMD_SHORT(0x15, 0x87, 0x01),
+	DSI_CMD_SHORT(0x15, 0x88, 0x5F),
+	DSI_CMD_SHORT(0x15, 0x89, 0x01),
+	DSI_CMD_SHORT(0x15, 0x8A, 0x8F),
+	DSI_CMD_SHORT(0x15, 0x8B, 0x01),
+	DSI_CMD_SHORT(0x15, 0x8C, 0xDD),
+	DSI_CMD_SHORT(0x15, 0x8D, 0x02),
+	DSI_CMD_SHORT(0x15, 0x8E, 0x19),
+	DSI_CMD_SHORT(0x15, 0x8F, 0x02),
+	DSI_CMD_SHORT(0x15, 0x90, 0x1A),
+	DSI_CMD_SHORT(0x15, 0x91, 0x02),
+	DSI_CMD_SHORT(0x15, 0x92, 0x4D),
+	DSI_CMD_SHORT(0x15, 0x93, 0x02),
+	DSI_CMD_SHORT(0x15, 0x94, 0x83),
+	DSI_CMD_SHORT(0x15, 0x95, 0x02),
+	DSI_CMD_SHORT(0x15, 0x96, 0xA6),
+	DSI_CMD_SHORT(0x15, 0x97, 0x02),
+	DSI_CMD_SHORT(0x15, 0x98, 0xD3),
+	DSI_CMD_SHORT(0x15, 0x99, 0x02),
+	DSI_CMD_SHORT(0x15, 0x9A, 0xF3),
+	DSI_CMD_SHORT(0x15, 0x9B, 0x03),
+	DSI_CMD_SHORT(0x15, 0x9C, 0x1E),
+	DSI_CMD_SHORT(0x15, 0x9D, 0x03),
+	DSI_CMD_SHORT(0x15, 0x9E, 0x2E),
+	DSI_CMD_SHORT(0x15, 0x9F, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA0, 0x3A),
+	DSI_CMD_SHORT(0x15, 0xA2, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA3, 0x4A),
+	DSI_CMD_SHORT(0x15, 0xA4, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA5, 0x60),
+	DSI_CMD_SHORT(0x15, 0xA6, 0x03),
+	DSI_CMD_SHORT(0x15, 0xA7, 0x71),
+	DSI_CMD_SHORT(0x15, 0xA9, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAA, 0x95),
+	DSI_CMD_SHORT(0x15, 0xAB, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAC, 0xAA),
+	DSI_CMD_SHORT(0x15, 0xAD, 0x03),
+	DSI_CMD_SHORT(0x15, 0xAE, 0xCB),
+	DSI_CMD_SHORT(0x15, 0xAF, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB0, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB1, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB2, 0x2F),
+	DSI_CMD_SHORT(0x15, 0xB3, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB4, 0x4F),
+	DSI_CMD_SHORT(0x15, 0xB5, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB6, 0x5F),
+	DSI_CMD_SHORT(0x15, 0xB7, 0x00),
+	DSI_CMD_SHORT(0x15, 0xB8, 0x76),
+	DSI_CMD_SHORT(0x15, 0xB9, 0x00),
+	DSI_CMD_SHORT(0x15, 0xBA, 0x8D),
+	DSI_CMD_SHORT(0x15, 0xBB, 0x00),
+	DSI_CMD_SHORT(0x15, 0xBC, 0x9C),
+	DSI_CMD_SHORT(0x15, 0xBD, 0x00),
+	DSI_CMD_SHORT(0x15, 0xBE, 0xB0),
+	DSI_CMD_SHORT(0x15, 0xBF, 0x00),
+	DSI_CMD_SHORT(0x15, 0xC0, 0xC1),
+	DSI_CMD_SHORT(0x15, 0xC1, 0x00),
+	DSI_CMD_SHORT(0x15, 0xC2, 0xF3),
+	DSI_CMD_SHORT(0x15, 0xC3, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC4, 0x1B),
+	DSI_CMD_SHORT(0x15, 0xC5, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC6, 0x5F),
+	DSI_CMD_SHORT(0x15, 0xC7, 0x01),
+	DSI_CMD_SHORT(0x15, 0xC8, 0x8F),
+	DSI_CMD_SHORT(0x15, 0xC9, 0x01),
+	DSI_CMD_SHORT(0x15, 0xCA, 0xDD),
+	DSI_CMD_SHORT(0x15, 0xCB, 0x02),
+	DSI_CMD_SHORT(0x15, 0xCC, 0x19),
+	DSI_CMD_SHORT(0x15, 0xCD, 0x02),
+	DSI_CMD_SHORT(0x15, 0xCE, 0x1A),
+	DSI_CMD_SHORT(0x15, 0xCF, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD0, 0x4D),
+	DSI_CMD_SHORT(0x15, 0xD1, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD2, 0x83),
+	DSI_CMD_SHORT(0x15, 0xD3, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD4, 0xA6),
+	DSI_CMD_SHORT(0x15, 0xD5, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD6, 0xD3),
+	DSI_CMD_SHORT(0x15, 0xD7, 0x02),
+	DSI_CMD_SHORT(0x15, 0xD8, 0xF3),
+	DSI_CMD_SHORT(0x15, 0xD9, 0x03),
+	DSI_CMD_SHORT(0x15, 0xDA, 0x1E),
+	DSI_CMD_SHORT(0x15, 0xDB, 0x03),
+	DSI_CMD_SHORT(0x15, 0xDC, 0x2E),
+	DSI_CMD_SHORT(0x15, 0xDD, 0x03),
+	DSI_CMD_SHORT(0x15, 0xDE, 0x3A),
+	DSI_CMD_SHORT(0x15, 0xDF, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE0, 0x4A),
+	DSI_CMD_SHORT(0x15, 0xE1, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE2, 0x60),
+	DSI_CMD_SHORT(0x15, 0xE3, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE4, 0x71),
+	DSI_CMD_SHORT(0x15, 0xE5, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE6, 0x95),
+	DSI_CMD_SHORT(0x15, 0xE7, 0x03),
+	DSI_CMD_SHORT(0x15, 0xE8, 0xAA),
+	DSI_CMD_SHORT(0x15, 0xE9, 0x03),
+	DSI_CMD_SHORT(0x15, 0xEA, 0xCB),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x02),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x04),
+	DSI_CMD_SHORT(0x15, 0xFB, 0x01),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+
+	/*pwm frequency adjust*/
+	DSI_CMD_SHORT(0x15, 0xFF, 0x04),
+	DSI_CMD_SHORT(0x15, 0x0A, 0x07),
+	DSI_CMD_SHORT(0x15, 0x09, 0x20),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+
+	DSI_CMD_SHORT(0x05, 0x11, 0x00),
+	DSI_DLY_MS(105),
+
+	DSI_CMD_SHORT(0x15, 0x35, 0x00),
+
+	DSI_CMD_SHORT(0x15, 0xFF, 0xEE),
+	DSI_CMD_SHORT(0x15, 0x12, 0x50),
+	DSI_CMD_SHORT(0x15, 0x13, 0x02),
+	DSI_CMD_SHORT(0x15, 0x6A, 0x60),
+	DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+	DSI_CMD_SHORT(0x05, 0x29, 0x00),
+	DSI_DLY_MS(42),
+	DSI_CMD_SHORT(0x15, 0xBA, 0x01),
+
+        /*CABC setting*/
+        DSI_CMD_SHORT(0x15, 0xFF, 0x04),
+        DSI_CMD_SHORT(0x15, 0x05, 0x2D),
+        DSI_CMD_SHORT(0x15, 0x21, 0xFF),
+        DSI_CMD_SHORT(0x15, 0x22, 0xF7),
+        DSI_CMD_SHORT(0x15, 0x23, 0xEF),
+        DSI_CMD_SHORT(0x15, 0x24, 0xE7),
+        DSI_CMD_SHORT(0x15, 0x25, 0xDF),
+        DSI_CMD_SHORT(0x15, 0x26, 0xD7),
+        DSI_CMD_SHORT(0x15, 0x27, 0xCF),
+        DSI_CMD_SHORT(0x15, 0x28, 0xC7),
+        DSI_CMD_SHORT(0x15, 0x29, 0xBF),
+        DSI_CMD_SHORT(0x15, 0x2A, 0xB7),
+        DSI_CMD_SHORT(0x15, 0xFF, 0x00),
+
+	DSI_CMD_SHORT(0x15, 0x53, 0x2C),
+	DSI_CMD_SHORT(0x15, 0x55, 0x83),
+	DSI_CMD_SHORT(0x15, 0x5E, 0x06),
+};
+
 static struct tegra_dsi_cmd dsi_early_suspend_cmd[] = {
 	DSI_CMD_SHORT(0x05, 0x28, 0x00),
 	DSI_DLY_MS(20),
@@ -2905,7 +3848,7 @@ static struct tegra_dsi_cmd dsi_suspend_cmd[] = {
 	DSI_DLY_MS(130),
 };
 
-struct tegra_dsi_out enterprise_dsi = {
+struct tegra_dsi_out endeavor_dsi = {
 	.n_data_lanes = 2,
 	.pixel_format = TEGRA_DSI_PIXEL_FORMAT_24BIT_P,
 	.refresh_rate = 66,
@@ -2941,13 +3884,13 @@ struct tegra_dsi_out enterprise_dsi = {
 	.phy_timing.t_clkzero_ns = 27,
 };
 
-static struct tegra_stereo_out enterprise_stereo = {
-	.set_mode		= &enterprise_stereo_set_mode,
-	.set_orientation	= &enterprise_stereo_set_orientation,
+static struct tegra_stereo_out endeavor_stereo = {
+	.set_mode		= &endeavor_stereo_set_mode,
+	.set_orientation	= &endeavor_stereo_set_orientation,
 };
 
 #ifdef CONFIG_TEGRA_DC
-static struct tegra_dc_mode enterprise_dsi_modes[] = {
+static struct tegra_dc_mode endeavor_dsi_modes[] = {
 	{
 		.pclk = 20000000,
 		.h_ref_to_sync = 4,
@@ -2964,7 +3907,7 @@ static struct tegra_dc_mode enterprise_dsi_modes[] = {
 };
 
 
-static struct tegra_fb_data enterprise_dsi_fb_data = {
+static struct tegra_fb_data endeavor_dsi_fb_data = {
 	.win		= 0,
 	.xres		= 720,
 	.yres		= 1280,
@@ -2979,7 +3922,7 @@ struct tegra_fb_info f_proj_data = {
 };
 #endif
 
-static struct tegra_dc_out enterprise_disp1_out = {
+static struct tegra_dc_out endeavor_disp1_out = {
 	.align		= TEGRA_DC_ALIGN_MSB,
 	.order		= TEGRA_DC_ORDER_RED_BLUE,
 
@@ -2987,15 +3930,15 @@ static struct tegra_dc_out enterprise_disp1_out = {
 
 	.type		= TEGRA_DC_OUT_DSI,
 
-	.modes		= enterprise_dsi_modes,
-	.n_modes	= ARRAY_SIZE(enterprise_dsi_modes),
+	.modes		= endeavor_dsi_modes,
+	.n_modes	= ARRAY_SIZE(endeavor_dsi_modes),
 
-	.dsi		= &enterprise_dsi,
-	.stereo		= &enterprise_stereo,
+	.dsi		= &endeavor_dsi,
+	.stereo		= &endeavor_stereo,
 
-	.enable		= enterprise_dsi_panel_enable,
-	.disable	= enterprise_dsi_panel_disable,
-	.postsuspend	= enterprise_dsi_panel_postsuspend,
+	.enable		= endeavor_dsi_panel_enable,
+	.disable	= endeavor_dsi_panel_disable,
+	.postsuspend	= endeavor_dsi_panel_postsuspend,
 
 	.width		= 53,
 	.height		= 95,
@@ -3007,78 +3950,78 @@ static struct tegra_dc_out enterprise_disp1_out = {
 	.performance_tuning = 1,
 	.video_min_bw = 51000000,
 };
-static struct tegra_dc_platform_data enterprise_disp1_pdata = {
+static struct tegra_dc_platform_data endeavor_disp1_pdata = {
 	.flags		= TEGRA_DC_FLAG_ENABLED,
-	.default_out	= &enterprise_disp1_out,
+	.default_out	= &endeavor_disp1_out,
 	.emc_clk_rate	= 204000000,
-	.fb		= &enterprise_dsi_fb_data,
+	.fb		= &endeavor_dsi_fb_data,
 };
 
-static struct nvhost_device enterprise_disp1_device = {
+static struct nvhost_device endeavor_disp1_device = {
 	.name		= "tegradc",
 	.id		= 0,
-	.resource	= enterprise_disp1_resources,
-	.num_resources	= ARRAY_SIZE(enterprise_disp1_resources),
+	.resource	= endeavor_disp1_resources,
+	.num_resources	= ARRAY_SIZE(endeavor_disp1_resources),
 	.dev = {
-		.platform_data = &enterprise_disp1_pdata,
+		.platform_data = &endeavor_disp1_pdata,
 	},
 };
 
-static int enterprise_disp1_check_fb(struct device *dev, struct fb_info *info)
+static int endeavor_disp1_check_fb(struct device *dev, struct fb_info *info)
 {
-	return info->device == &enterprise_disp1_device.dev;
+	return info->device == &endeavor_disp1_device.dev;
 }
 
-static struct nvhost_device enterprise_disp2_device = {
+static struct nvhost_device endeavor_disp2_device = {
 	.name		= "tegradc",
 	.id		= 1,
-	.resource	= enterprise_disp2_resources,
-	.num_resources	= ARRAY_SIZE(enterprise_disp2_resources),
+	.resource	= endeavor_disp2_resources,
+	.num_resources	= ARRAY_SIZE(endeavor_disp2_resources),
 	.dev = {
-		.platform_data = &enterprise_disp2_pdata,
+		.platform_data = &endeavor_disp2_pdata,
 	},
 };
 #endif
 
-static struct nvmap_platform_carveout enterprise_carveouts[] = {
+static struct nvmap_platform_carveout endeavor_carveouts[] = {
 	[0] = NVMAP_HEAP_CARVEOUT_IRAM_INIT,
 	[1] = {
 		.name		= "generic-0",
 		.usage_mask	= NVMAP_HEAP_CARVEOUT_GENERIC,
-		.base		= 0,	/* Filled in by enterprise_panel_init() */
-		.size		= 0,	/* Filled in by enterprise_panel_init() */
+		.base		= 0,	/* Filled in by endeavor_panel_init() */
+		.size		= 0,	/* Filled in by endeavor_panel_init() */
 		.buddy_size	= SZ_32K,
 	},
 };
 
-static struct nvmap_platform_data enterprise_nvmap_data = {
-	.carveouts	= enterprise_carveouts,
-	.nr_carveouts	= ARRAY_SIZE(enterprise_carveouts),
+static struct nvmap_platform_data endeavor_nvmap_data = {
+	.carveouts	= endeavor_carveouts,
+	.nr_carveouts	= ARRAY_SIZE(endeavor_carveouts),
 };
 
-static struct platform_device enterprise_nvmap_device = {
+static struct platform_device endeavor_nvmap_device = {
 	.name	= "tegra-nvmap",
 	.id	= -1,
 	.dev	= {
-		.platform_data = &enterprise_nvmap_data,
+		.platform_data = &endeavor_nvmap_data,
 	},
 };
 
-static struct platform_device *enterprise_gfx_devices[] __initdata = {
-	&enterprise_nvmap_device,
+static struct platform_device *endeavor_gfx_devices[] __initdata = {
+	&endeavor_nvmap_device,
 #ifdef CONFIG_TEGRA_GRHOST
 	&tegra_grhost_device,
 #endif
 	&tegra_pwfm0_device,
 };
 
-static struct platform_device *enterprise_bl_devices[]  = {
-	&enterprise_disp1_backlight_device,
+static struct platform_device *endeavor_bl_devices[]  = {
+	&endeavor_disp1_backlight_device,
 };
 
 static void bkl_do_work(struct work_struct *work)
 {
-	struct backlight_device *bl = platform_get_drvdata(&enterprise_disp1_backlight_device);
+	struct backlight_device *bl = platform_get_drvdata(&endeavor_disp1_backlight_device);
 	if (bl) {
 		DISP_DEBUG_LN("set backlight after resume");
 		bl->props.bkl_on = 1;
@@ -3095,14 +4038,14 @@ static void bkl_update(unsigned long data) {
 /* put early_suspend/late_resume handlers here for the display in order
  * to keep the code out of the display driver, keeping it closer to upstream
  */
-struct early_suspend enterprise_panel_early_suspender;
+struct early_suspend endeavor_panel_early_suspender;
 #ifdef CONFIG_HTC_ONMODE_CHARGING
-struct early_suspend enterprise_panel_onchg_suspender;
+struct early_suspend endeavor_panel_onchg_suspender;
 #endif
 
-static void enterprise_panel_early_suspend(struct early_suspend *h)
+static void endeavor_panel_early_suspend(struct early_suspend *h)
 {
-	struct backlight_device *bl = platform_get_drvdata(&enterprise_disp1_backlight_device);
+	struct backlight_device *bl = platform_get_drvdata(&endeavor_disp1_backlight_device);
 
 	DISP_INFO_IN();
 	if (bl && bl->props.bkl_on) {
@@ -3120,7 +4063,7 @@ static void enterprise_panel_early_suspend(struct early_suspend *h)
 	DISP_INFO_OUT();
 }
 
-static void enterprise_panel_late_resume(struct early_suspend *h)
+static void endeavor_panel_late_resume(struct early_suspend *h)
 {
 	unsigned i;
 
@@ -3133,9 +4076,9 @@ static void enterprise_panel_late_resume(struct early_suspend *h)
 }
 
 #ifdef CONFIG_HTC_ONMODE_CHARGING
-static void enterprise_panel_onchg_suspend(struct early_suspend *h)
+static void endeavor_panel_onchg_suspend(struct early_suspend *h)
 {
-	struct backlight_device *bl = platform_get_drvdata(&enterprise_disp1_backlight_device);
+	struct backlight_device *bl = platform_get_drvdata(&endeavor_disp1_backlight_device);
 
 	DISP_INFO_IN();
 	if (bl && bl->props.bkl_on) {
@@ -3151,7 +4094,7 @@ static void enterprise_panel_onchg_suspend(struct early_suspend *h)
 	DISP_INFO_OUT();
 }
 
-static void enterprise_panel_onchg_resume(struct early_suspend *h)
+static void endeavor_panel_onchg_resume(struct early_suspend *h)
 {
 	unsigned i;
 
@@ -3164,24 +4107,17 @@ static void enterprise_panel_onchg_resume(struct early_suspend *h)
 #endif /* onmode charge */
 #endif /* early suspend */
 
-int __init enterprise_panel_init(void)
+int __init endeavor_panel_init(void)
 {
 	int err;
 	struct resource __maybe_unused *res;
 	int i;
 	int pin_count;
 
-	if (board_mfg_mode() == 5 && !(board_zchg_mode() & 0x1)) {
-		/* offmode charging, gfx devices register for vibrator*/
-		err = platform_add_devices(enterprise_gfx_devices,
-				ARRAY_SIZE(enterprise_gfx_devices));
-		return 0;
-	}
-
 	DISP_INFO_IN();
 
-	enterprise_carveouts[1].base = tegra_carveout_start;
-	enterprise_carveouts[1].size = tegra_carveout_size;
+	endeavor_carveouts[1].base = tegra_carveout_start;
+	endeavor_carveouts[1].size = tegra_carveout_size;
 
 	err = gpio_request_array(panel_init_gpios, ARRAY_SIZE(panel_init_gpios));
 	if(err) {
@@ -3196,27 +4132,29 @@ int __init enterprise_panel_init(void)
 	DISP_INFO_LN("panel id 0x%08lx\n", g_panel_id);
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
-	enterprise_panel_early_suspender.suspend = enterprise_panel_early_suspend;
-	enterprise_panel_early_suspender.resume = enterprise_panel_late_resume;
-	enterprise_panel_early_suspender.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
-	register_early_suspend(&enterprise_panel_early_suspender);
+	endeavor_panel_early_suspender.suspend = endeavor_panel_early_suspend;
+	endeavor_panel_early_suspender.resume = endeavor_panel_late_resume;
+	endeavor_panel_early_suspender.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
+	register_early_suspend(&endeavor_panel_early_suspender);
 
 #ifdef CONFIG_HTC_ONMODE_CHARGING
-	enterprise_panel_onchg_suspender.suspend = enterprise_panel_onchg_suspend;
-	enterprise_panel_onchg_suspender.resume = enterprise_panel_onchg_resume;
-	enterprise_panel_onchg_suspender.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
-	register_onchg_suspend(&enterprise_panel_onchg_suspender);
+	endeavor_panel_onchg_suspender.suspend = endeavor_panel_onchg_suspend;
+	endeavor_panel_onchg_suspender.resume = endeavor_panel_onchg_resume;
+	endeavor_panel_onchg_suspender.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
+	register_onchg_suspend(&endeavor_panel_onchg_suspender);
 #endif
 #endif
 
-	err = platform_add_devices(enterprise_gfx_devices,
-				ARRAY_SIZE(enterprise_gfx_devices));
+	err = platform_add_devices(endeavor_gfx_devices,
+				ARRAY_SIZE(endeavor_gfx_devices));
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
-	res = nvhost_get_resource_byname(&enterprise_disp1_device,
+	res = nvhost_get_resource_byname(&endeavor_disp1_device,
 					 IORESOURCE_MEM, "fbmem");
-	res->start = tegra_fb_start;
-	res->end = tegra_fb_start + tegra_fb_size - 1;
+	if (res) {
+		res->start = tegra_fb_start;
+		res->end = tegra_fb_start + tegra_fb_size - 1;
+	}
 #endif
 
 	/* Copy the bootloader fb to the fb. */
@@ -3224,7 +4162,7 @@ int __init enterprise_panel_init(void)
 		min(tegra_fb_size, tegra_bootloader_fb_size));
 
 	if ((g_panel_id & BL_MASK) == BL_CPU) {
-		enterprise_disp1_backlight_data.backlight_mode = CPU_BACKLIGHT;
+		endeavor_disp1_backlight_data.backlight_mode = CPU_BACKLIGHT;
 		DISP_INFO_LN("Found XA board and setup CPU_BACKLIGHT mode\n");
 	}
 
@@ -3236,6 +4174,7 @@ int __init enterprise_panel_init(void)
                 case PANEL_ID_ENRTD_SHARP_HX_C3:
                 case PANEL_ID_ENR_SHARP_HX_C4:
                 case PANEL_ID_ENRTD_SHARP_HX_C4:
+		case PANEL_ID_SHARP_HX_C5:
                 case PANEL_ID_ENR_SHARP_NT_C1:
                 case PANEL_ID_ENRTD_SHARP_NT_C1:
                 case PANEL_ID_ENR_SHARP_NT_C2:
@@ -3259,6 +4198,13 @@ int __init enterprise_panel_init(void)
                         def_pwm = MAP_SONY_DEF;
                         max_pwm = MAP_SONY_MAX;
                         break;
+		case PANEL_ID_AUO_NT_C2:
+		case PANEL_ID_AUO_NT_X7:
+		case PANEL_ID_AUO:
+			min_pwm = MAP_AUO_MIN;
+			def_pwm = MAP_AUO_DEF;
+			max_pwm = MAP_AUO_MAX;
+			break;
 		default:
 			min_pwm = MAP_SHARP_MIN;
 			def_pwm = MAP_SHARP_DEF;
@@ -3271,105 +4217,139 @@ int __init enterprise_panel_init(void)
 		case PANEL_ID_ENR_SHARP_HX_C3:
 		case PANEL_ID_ENRTD_SHARP_HX_XA:
 		case PANEL_ID_ENRTD_SHARP_HX_C3:
-			enterprise_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_hx_c3_cmd);
-			enterprise_dsi.dsi_init_cmd = dsi_init_sharp_hx_c3_cmd;
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_hx_c3_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_sharp_hx_c3_cmd;
+			endeavor_disp1_backlight_data.lcm_source = HIMAX;
 		break;
 		case PANEL_ID_ENR_SHARP_HX_C4:
 		case PANEL_ID_ENRTD_SHARP_HX_C4:
-			enterprise_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_hx_c4_cmd);
-			enterprise_dsi.dsi_init_cmd = dsi_init_sharp_hx_c4_cmd;
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_hx_c4_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_sharp_hx_c4_cmd;
+			endeavor_disp1_backlight_data.lcm_source = HIMAX;
+		break;
+		case PANEL_ID_SHARP_HX_C5:
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_hx_c5_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_sharp_hx_c5_cmd;
+			endeavor_disp1_backlight_data.lcm_source = HIMAX;
 		break;
 		case PANEL_ID_ENR_SONY_NT_C1:
 		case PANEL_ID_ENRTD_SONY_NT_C1:
-			enterprise_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sony_nt_c1_cmd);
-			enterprise_dsi.dsi_init_cmd = dsi_init_sony_nt_c1_cmd;
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sony_nt_c1_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_sony_nt_c1_cmd;
 
-			enterprise_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
-			enterprise_dsi.osc_off_cmd = osc_off_cmd;
-			enterprise_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
-			enterprise_dsi.osc_on_cmd = osc_on_cmd;
+			endeavor_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
+			endeavor_dsi.osc_off_cmd = osc_off_cmd;
+			endeavor_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
+			endeavor_dsi.osc_on_cmd = osc_on_cmd;
 		break;
 		case PANEL_ID_ENR_SONY_NT_C2:
 		case PANEL_ID_ENRTD_SONY_NT_C2:
 		case PANEL_ID_ENR_SONY:
 		case PANEL_ID_ENRTD_SONY:
-			enterprise_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sony_nt_c2_cmd);
-			enterprise_dsi.dsi_init_cmd = dsi_init_sony_nt_c2_cmd;
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sony_nt_c2_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_sony_nt_c2_cmd;
 
-			enterprise_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
-			enterprise_dsi.osc_off_cmd = osc_off_cmd;
-			enterprise_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
-			enterprise_dsi.osc_on_cmd = osc_on_cmd;
+			endeavor_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
+			endeavor_dsi.osc_off_cmd = osc_off_cmd;
+			endeavor_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
+			endeavor_dsi.osc_on_cmd = osc_on_cmd;
 		break;
 		case PANEL_ID_ENR_SHARP_NT_C1:
 		case PANEL_ID_ENRTD_SHARP_NT_C1:
-			enterprise_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_nt_c1_cmd);
-			enterprise_dsi.dsi_init_cmd = dsi_init_sharp_nt_c1_cmd;
-			enterprise_dsi.refresh_rate = 60;
-			enterprise_dsi_modes[0].h_front_porch = 29;
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_nt_c1_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_sharp_nt_c1_cmd;
+			endeavor_dsi.refresh_rate = 60;
+			endeavor_dsi_modes[0].h_front_porch = 29;
 
-			enterprise_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
-			enterprise_dsi.osc_off_cmd = osc_off_cmd;
-			enterprise_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
-			enterprise_dsi.osc_on_cmd = osc_on_cmd;
+			endeavor_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
+			endeavor_dsi.osc_off_cmd = osc_off_cmd;
+			endeavor_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
+			endeavor_dsi.osc_on_cmd = osc_on_cmd;
 		break;
 		case PANEL_ID_ENR_SHARP_NT_C2:
 		case PANEL_ID_ENRTD_SHARP_NT_C2:
-			enterprise_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_nt_c2_cmd);
-			enterprise_dsi.dsi_init_cmd = dsi_init_sharp_nt_c2_cmd;
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_nt_c2_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_sharp_nt_c2_cmd;
 
-			enterprise_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
-			enterprise_dsi.osc_off_cmd = osc_off_cmd;
-			enterprise_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
-			enterprise_dsi.osc_on_cmd = osc_on_cmd;
+			endeavor_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
+			endeavor_dsi.osc_off_cmd = osc_off_cmd;
+			endeavor_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
+			endeavor_dsi.osc_on_cmd = osc_on_cmd;
 		break;
 		case PANEL_ID_ENR_SHARP_NT_C2_9A:
 		case PANEL_ID_ENRTD_SHARP_NT_C2_9A:
-			enterprise_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_nt_c2_9a_cmd);
-			enterprise_dsi.dsi_init_cmd = dsi_init_sharp_nt_c2_9a_cmd;
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_nt_c2_9a_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_sharp_nt_c2_9a_cmd;
 
-			enterprise_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
-			enterprise_dsi.osc_off_cmd = osc_off_cmd;
-			enterprise_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
-			enterprise_dsi.osc_on_cmd = osc_on_cmd;
+			endeavor_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
+			endeavor_dsi.osc_off_cmd = osc_off_cmd;
+			endeavor_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
+			endeavor_dsi.osc_on_cmd = osc_on_cmd;
 		break;
 		case PANEL_ID_ENR_SHARP:
 		case PANEL_ID_ENRTD_SHARP:
-			enterprise_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_unknow_cmd);
-			enterprise_dsi.dsi_init_cmd = dsi_init_sharp_unknow_cmd;
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_unknow_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_sharp_unknow_cmd;
+		break;
+		case PANEL_ID_AUO_NT_C2:
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_auo_nt_c2_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_auo_nt_c2_cmd;
+
+			endeavor_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
+			endeavor_dsi.osc_off_cmd = osc_off_cmd;
+			endeavor_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
+			endeavor_dsi.osc_on_cmd = osc_on_cmd;
+		break;
+		case PANEL_ID_AUO_NT_X7:
+		case PANEL_ID_AUO:
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_auo_nt_x7_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_auo_nt_x7_cmd;
+
+			endeavor_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
+			endeavor_dsi.osc_off_cmd = osc_off_cmd;
+			endeavor_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
+			endeavor_dsi.osc_on_cmd = osc_on_cmd;
 		break;
 		default:
-			enterprise_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_nt_c2_9a_cmd);
-			enterprise_dsi.dsi_init_cmd = dsi_init_sharp_nt_c2_9a_cmd;
+			endeavor_dsi.n_init_cmd = ARRAY_SIZE(dsi_init_sharp_nt_c2_9a_cmd);
+			endeavor_dsi.dsi_init_cmd = dsi_init_sharp_nt_c2_9a_cmd;
 
-			enterprise_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
-			enterprise_dsi.osc_off_cmd = osc_off_cmd;
-			enterprise_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
-			enterprise_dsi.osc_on_cmd = osc_on_cmd;
+			endeavor_dsi.n_osc_off_cmd = ARRAY_SIZE(osc_off_cmd);
+			endeavor_dsi.osc_off_cmd = osc_off_cmd;
+			endeavor_dsi.n_osc_on_cmd = ARRAY_SIZE(osc_on_cmd);
+			endeavor_dsi.osc_on_cmd = osc_on_cmd;
 	}
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
 	if (!err)
-		err = nvhost_device_register(&enterprise_disp1_device);
+		err = nvhost_device_register(&endeavor_disp1_device);
 
-	res = nvhost_get_resource_byname(&enterprise_disp2_device,
+	res = nvhost_get_resource_byname(&endeavor_disp2_device,
 					 IORESOURCE_MEM, "fbmem");
-	res->start = tegra_fb2_start;
-	res->end = tegra_fb2_start + tegra_fb2_size - 1;
+	if (res) {
+		res->start = tegra_fb2_start;
+		res->end = tegra_fb2_start + tegra_fb2_size - 1;
+	}
+
 	if (!err)
-		err = nvhost_device_register(&enterprise_disp2_device);
+		err = nvhost_device_register(&endeavor_disp2_device);
 #endif
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_NVAVP)
 	if (!err)
 		err = nvhost_device_register(&nvavp_device);
 #endif
-	if ( (board_mfg_mode() == 5) && (board_zchg_mode() & 0x1))
-		enterprise_disp1_backlight_data.draw_battery = 1;
+
+	if( (board_mfg_mode() == BOARD_MFG_MODE_OFFMODE_CHARGING) ) {
+		if (board_zchg_mode() & 0x1)	/*off-mode charge with china sku, need to draw battery*/
+			endeavor_disp1_backlight_data.backlight_status = BACKLIGHT_SKIP_WHEN_PROBE;
+		else				/*off-mode charge without china sku, do not need to open backlight */
+			endeavor_disp1_backlight_data.backlight_status = BACKLIGHT_DISABLE;
+	}
 
 	if (!err)
-		err = platform_add_devices(enterprise_bl_devices,
-				ARRAY_SIZE(enterprise_bl_devices));
+		err = platform_add_devices(endeavor_bl_devices,
+				ARRAY_SIZE(endeavor_bl_devices));
 	INIT_WORK(&bkl_work, bkl_do_work);
 	bkl_wq = create_workqueue("bkl_wq");
 	setup_timer(&bkl_timer, bkl_update, 0);

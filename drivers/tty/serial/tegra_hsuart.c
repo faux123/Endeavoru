@@ -550,6 +550,10 @@ static void tegra_rx_dma_complete_callback(struct tegra_dma_req *req)
 	struct uart_port *u = &t->uport;
 	struct tty_struct *tty = u->state->port.tty;
 	int copied;
+/*remove WARN_ON(1) because the log message are too many*/
+#if 0
+	static int bytes_transferred_err = 0;
+#endif
 
 	/* If we are here, DMA is stopped */
 #ifdef UART_DATA_DEBUG
@@ -557,16 +561,28 @@ static void tegra_rx_dma_complete_callback(struct tegra_dma_req *req)
 		req->status);
 #endif
 	if (req->bytes_transferred) {
+		dma_sync_single_for_cpu(u->dev, t->rx_dma_req.dest_addr,
+			t->rx_dma_req.size, DMA_FROM_DEVICE);
 		t->uport.icount.rx += req->bytes_transferred;
 		copied = tty_insert_flip_string(tty,
 			((unsigned char *)(req->virt_addr)),
 			req->bytes_transferred);
+		dma_sync_single_for_device(u->dev, t->rx_dma_req.dest_addr,
+			t->rx_dma_req.size, DMA_TO_DEVICE);
+/*remove WARN_ON(1) because the log message are too many*/
+#if 0
 		if (copied != req->bytes_transferred) {
-			WARN_ON(1);
-			dev_err(t->uport.dev, "Not able to copy uart data "
-				"to tty layer Req %d and coped %d\n",
-				req->bytes_transferred, copied);
+			if ( bytes_transferred_err == 0 ) {
+				bytes_transferred_err = 1;
+				WARN_ON(1);
+				dev_err(t->uport.dev, "Not able to copy uart data "
+					"to tty layer Req %d and coped %d\n",
+					req->bytes_transferred, copied);
+			}
+		} else {
+			bytes_transferred_err = 0;
 		}
+#endif
 	}
 
 #ifdef MUX_UART_DEBUG
@@ -664,6 +680,13 @@ static char do_decode_rx_error(struct tegra_uart_port *t, u8 lsr)
 			/* Overrrun error  */
 			flag |= TTY_OVERRUN;
 			t->uport.icount.overrun++;
+#ifdef CONFIG_SERIAL_SC8800G
+			/*Reduce uart log for uart4 (MDM log usage for SC8800G)*/
+			if (t->uport.line == 3) {
+				if (t->uport.icount.overrun % 50 == 0)
+					dev_err(t->uport.dev, "Got overrun errors (%d)\n", t->uport.icount.overrun);
+			} else
+#endif
 			dev_err(t->uport.dev, "Got overrun errors\n");
 		} else if (lsr & UART_LSR_PE) {
 			/* Parity error */
@@ -673,8 +696,22 @@ static char do_decode_rx_error(struct tegra_uart_port *t, u8 lsr)
 		} else if (lsr & UART_LSR_FE) {
 			flag |= TTY_FRAME;
 			t->uport.icount.frame++;
+#ifdef CONFIG_SERIAL_SC8800G
+			/*Reduce uart log for uart4 (MDM log usage for SC8800G)*/
+			if (t->uport.line == 3) {
+				if (t->uport.icount.frame % 100 == 0)
+					dev_err(t->uport.dev, "Got frame errors (%d)\n", t->uport.icount.frame);
+			} else
+#endif
 			dev_err(t->uport.dev, "Got frame errors\n");
 		} else if (lsr & UART_LSR_BI) {
+#ifdef CONFIG_SERIAL_SC8800G
+			/*Reduce uart log for uart4 (MDM log usage for SC8800G)*/
+			if (t->uport.line == 3) {
+				if (t->uport.icount.brk % 500 == 0)
+					dev_err(t->uport.dev, "Got Break (%d)\n", t->uport.icount.brk);
+			} else
+#endif
 			dev_err(t->uport.dev, "Got Break\n");
 			t->uport.icount.brk++;
 			/* If FIFO read error without any data, reset Rx FIFO */
@@ -1293,6 +1330,10 @@ static int tegra_startup(struct uart_port *u)
 	struct tegra_uart_platform_data *pdata;
 
 	t = container_of(u, struct tegra_uart_port, uport);
+#ifdef CONFIG_SERIAL_SC8800G
+	if (t->uport.line == 3)
+		dev_info(u->dev,"+Start UART port %d\n", u->line);
+#endif
 	sprintf(t->port_name, "tegra_uart_%d", u->line);
 
 	t->use_tx_dma = false;
@@ -1345,6 +1386,11 @@ static int tegra_startup(struct uart_port *u)
 		dev_err(u->dev, "Failed to register ISR for IRQ %d\n", u->irq);
 		goto fail;
 	}
+#ifdef CONFIG_SERIAL_SC8800G
+	if (t->uport.line == 3)
+		dev_info(u->dev,"-Started UART port %d\n", u->line);
+	else
+#endif
 	dev_dbg(u->dev,"Started UART port %d\n", u->line);
 
 	return 0;
@@ -1769,13 +1815,23 @@ static void tegra_set_termios(struct uart_port *u, struct ktermios *termios,
 	unsigned char mcr;
 
 	t = container_of(u, struct tegra_uart_port, uport);
+#ifdef CONFIG_SERIAL_SC8800G
+	if (t->uport.line == 3)
+		dev_info(t->uport.dev, "+tegra_set_termios\n");
+	else
+#endif
 	dev_vdbg(t->uport.dev, "+tegra_set_termios\n");
 
 	spin_lock_irqsave(&u->lock, flags);
 
 	/* Changing configuration, it is safe to stop any rx now */
-	if (t->rts_active)
+	if (t->rts_active) {
+#if CONFIG_SERIAL_SC8800G
+		if (t->uport.line == 3)
+			disable_irq(u->irq);
+#endif
 		set_rts(t, false);
+	}
 
 	/* Parity */
 	lcr = t->lcr_shadow;
@@ -1825,6 +1881,7 @@ static void tegra_set_termios(struct uart_port *u, struct ktermios *termios,
 	spin_unlock_irqrestore(&u->lock, flags);
 	tegra_set_baudrate(t, baud);
 	spin_lock_irqsave(&u->lock, flags);
+	dev_info(t->uport.dev, "Set to baud rate: %d\n", t->baud);
 
 	/* Flow control */
 	if (termios->c_cflag & CRTSCTS)	{
@@ -1837,8 +1894,13 @@ static void tegra_set_termios(struct uart_port *u, struct ktermios *termios,
 		uart_writeb(t, mcr, UART_MCR);
 		t->use_cts_control = true;
 		/* if top layer has asked to set rts active then do so here */
-		if (t->rts_active)
+		if (t->rts_active) {
+#if CONFIG_SERIAL_SC8800G
+			if (t->uport.line == 3)
+				enable_irq(u->irq);
+#endif
 			set_rts(t, true);
+		}
 	} else {
 		mcr = t->mcr_shadow;
 		mcr &= ~UART_MCR_CTS_EN;
@@ -1852,6 +1914,11 @@ static void tegra_set_termios(struct uart_port *u, struct ktermios *termios,
 	uart_update_timeout(u, termios->c_cflag, baud);
 
 	spin_unlock_irqrestore(&u->lock, flags);
+#ifdef CONFIG_SERIAL_SC8800G
+	if (t->uport.line == 3)
+		dev_info(t->uport.dev, "-tegra_set_termios\n");
+	else
+#endif
 	dev_vdbg(t->uport.dev, "-tegra_set_termios\n");
 	return;
 }
@@ -2105,7 +2172,11 @@ static int tegra_uart_resume(struct platform_device *pdev)
 		pr_err("Invalid Uart instance (%d)\n", pdev->id);
 
 	u = &t->uport;
+#ifdef CONFIG_SERIAL_SC8800G
+	dev_info(t->uport.dev, "tegra_uart_resume called\n");
+#else
 	dev_dbg(t->uport.dev, "tegra_uart_resume called\n");
+#endif
 
 #ifdef CONFIG_SHARK_TD_WORKSHOP
 	if (t->uart_ipc) {
@@ -2146,7 +2217,11 @@ static int tegra_uart_resume(struct platform_device *pdev)
 #endif
 		uart_resume_port(&tegra_uart_driver, u);
 	}
+#ifdef CONFIG_SERIAL_SC8800G
+	dev_info(t->uport.dev, "tegra_uart_resume end\n");
+#else
 	printk("[SER] tegra_uart_resume end\n");
+#endif
 	return 0;
 }
 

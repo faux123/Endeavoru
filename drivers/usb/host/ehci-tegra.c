@@ -34,7 +34,6 @@
 #include <linux/usb/otg.h>
 #include <mach/usb_phy.h>
 #include <mach/iomap.h>
-#include <htc/log.h>
 
 /* HTC definition */
 #define MODULE_NAME "[USBHv1] "
@@ -76,8 +75,8 @@
 /* 84717-1 patch */
 
 #define USB1_PREFETCH_ID               6
-#define USB2_PREFETCH_ID               17
-#define USB3_PREFETCH_ID               18
+#define USB2_PREFETCH_ID               18
+#define USB3_PREFETCH_ID               17
 
 struct tegra_ehci_hcd {
 	struct ehci_hcd *ehci;
@@ -178,12 +177,12 @@ static irqreturn_t tegra_ehci_irq (struct usb_hcd *hcd)
 #ifndef CONFIG_ARCH_TEGRA_2x_SOC
 	/* Fence read for coherency of AHB master intiated writes */
 	if (tegra->phy->instance == 0)
-		readl(IO_ADDRESS(IO_PPCS_PHYS + USB1_PREFETCH_ID));
+		readb(IO_ADDRESS(IO_PPCS_PHYS + USB1_PREFETCH_ID));
 	else if (tegra->phy->instance == 1)
-		readl(IO_ADDRESS(IO_PPCS_PHYS + USB2_PREFETCH_ID));
+		readb(IO_ADDRESS(IO_PPCS_PHYS + USB2_PREFETCH_ID));
 	else if (tegra->phy->instance == 2)
-		readl(IO_ADDRESS(IO_PPCS_PHYS + USB3_PREFETCH_ID));
-	#endif
+		readb(IO_ADDRESS(IO_PPCS_PHYS + USB3_PREFETCH_ID));
+#endif
 
 	if ((tegra->phy->usb_phy_type == TEGRA_USB_PHY_TYPE_UTMIP) &&
 		(tegra->ehci->has_hostpc)) {
@@ -302,9 +301,9 @@ static int tegra_ehci_hub_control(
 			printk(KERN_INFO"%s retval=%d\n", __func__,retval);
 			goto done;
 		}
-		sp_pr_info("%s USB_PORT_FEAT_SUSPEND\n", __func__);
+		printk(KERN_INFO"%s USB_PORT_FEAT_SUSPEND\n", __func__);
 		tegra_usb_phy_presuspend(tegra->phy, false);
-		sp_pr_info("%s: SetPortFeature->USB_PORT_FEAT_SUSPEND\n", __func__);
+		pr_info("%s: SetPortFeature->USB_PORT_FEAT_SUSPEND\n", __func__);
 		temp &= ~PORT_WKCONN_E;
 		temp |= PORT_WKDISC_E | PORT_WKOC_E;
 		ehci_writel(ehci, temp | PORT_SUSPEND, status_reg);
@@ -356,7 +355,7 @@ static int tegra_ehci_hub_control(
 		spin_unlock_irqrestore(&ehci->lock, flags);
 		tegra_usb_phy_preresume(tegra->phy, false);
 		spin_lock_irqsave(&ehci->lock, flags);
-		sp_pr_info("%s: ClearPortFeature->USB_PORT_FEAT_SUSPEND\n", __func__);
+		pr_info("%s: ClearPortFeature->USB_PORT_FEAT_SUSPEND\n", __func__);
 #ifndef CONFIG_ARCH_TEGRA_2x_SOC
 		if (tegra->phy->usb_phy_type != TEGRA_USB_PHY_TYPE_UTMIP) {
 #endif
@@ -756,6 +755,11 @@ static void tegra_ehci_shutdown(struct usb_hcd *hcd)
 {
 	struct tegra_ehci_hcd *tegra = dev_get_drvdata(hcd->self.controller);
 
+	if (!tegra) {
+		pr_err(MODULE_NAME "%s tegra not initialized", __func__);
+		return;
+	}
+
 	pr_info(MODULE_NAME "%s\n", __func__); /* HTC */
 	mutex_lock(&tegra->tegra_ehci_hcd_mutex);
 	tegra_ehci_disable_phy_interrupt(hcd);
@@ -947,12 +951,27 @@ static int tegra_ehci_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 				      gfp_t mem_flags)
 {
 	int ret;
+	enum dma_data_direction dir;
 
 	ret = alloc_temp_buffer(urb, mem_flags);
 	if (ret)
 		return ret;
 
 	ret = usb_hcd_map_urb_for_dma(hcd, urb, mem_flags);
+
+	dir = usb_urb_dir_in(urb) ? DMA_FROM_DEVICE : DMA_TO_DEVICE;
+	if (urb->transfer_dma) {
+		if (dir == DMA_FROM_DEVICE)
+			/* read from usb */
+			dma_sync_single_for_device(hcd->self.controller,
+				urb->transfer_dma, urb->transfer_buffer_length,
+				DMA_FROM_DEVICE);
+		else
+			dma_sync_single_for_device(hcd->self.controller,
+				urb->transfer_dma, urb->transfer_buffer_length,
+				DMA_TO_DEVICE);
+	}
+
 	if (ret)
 		free_temp_buffer(urb);
 
@@ -961,6 +980,16 @@ static int tegra_ehci_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 
 static void tegra_ehci_unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
 {
+
+	enum dma_data_direction dir;
+	dir = usb_urb_dir_in(urb) ? DMA_FROM_DEVICE : DMA_TO_DEVICE;
+	if (urb->transfer_dma) {
+		if (dir == DMA_FROM_DEVICE)
+			dma_sync_single_for_cpu(hcd->self.controller,
+				urb->transfer_dma, urb->transfer_buffer_length,
+				DMA_FROM_DEVICE);
+	}
+
 	usb_hcd_unmap_urb_for_dma(hcd, urb);
 	free_temp_buffer(urb);
 }
@@ -1112,7 +1141,7 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 	int irq;
 	int instance = pdev->id;
 
-        pr_info(MODULE_NAME "%s:0309 - instance %d\n", __func__, instance); /* HTC */
+        pr_info(MODULE_NAME "%s: 0503 shutdown function panic - instance %d\n", __func__, instance); /* HTC */
 	pdata = pdev->dev.platform_data;
 	if (!pdata) {
 		dev_err(&pdev->dev, "Platform data missing\n");
@@ -1369,10 +1398,15 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 	clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 	if (tegra->irq)
 		disable_irq_wake(tegra->irq);
+	pr_info(MODULE_NAME "%s: call usb_remove_hcd(%p)\n", __func__, hcd); /* HTC */
 	usb_remove_hcd(hcd);
+	pr_info(MODULE_NAME "%s: call usb_put_hcd(%p)\n", __func__, hcd); /* HTC */
 	usb_put_hcd(hcd);
+	pr_info(MODULE_NAME "%s: call cancel_delayed_work(%p)\n", __func__, &tegra->work); /* HTC */
 	cancel_delayed_work(&tegra->work);
+	pr_info(MODULE_NAME "%s: call tegra_usb_phy_power_off(%p)\n", __func__, tegra->phy); /* HTC */
 	tegra_usb_phy_power_off(tegra->phy, true);
+	pr_info(MODULE_NAME "%s: call tegra_usb_phy_close(%p)\n", __func__, tegra->phy); /* HTC */
 	tegra_usb_phy_close(tegra->phy);
 	iounmap(hcd->regs);
 
@@ -1398,10 +1432,18 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 static void tegra_ehci_hcd_shutdown(struct platform_device *pdev)
 {
 	struct tegra_ehci_hcd *tegra = platform_get_drvdata(pdev);
-	struct usb_hcd *hcd = ehci_to_hcd(tegra->ehci);
+	struct usb_hcd *hcd;
+
+	if (!(tegra && tegra->ehci)) {
+		pr_err(MODULE_NAME "%s tegra not initialized", __func__);
+		return;
+	}
+
+	hcd = ehci_to_hcd(tegra->ehci);
+
 	pr_info(MODULE_NAME "%s\n", __func__); /* HTC */
 
-	if (hcd->driver->shutdown) {
+	if (hcd && hcd->driver && hcd->driver->shutdown) {
 		pr_info(MODULE_NAME "%s call hcd->driver->shutdown\n", __func__); /* HTC */
 		hcd->driver->shutdown(hcd);
          }

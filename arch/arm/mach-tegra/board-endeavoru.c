@@ -315,13 +315,13 @@ static struct platform_device pm8xxx_haptic = {
 static struct platform_device *haptic_vibrator[] __initdata = {
 	&pm8xxx_haptic,
 };
-static void haptic_vibrator_init(int board_id)
+static void haptic_vibrator_init(void)
 {
-	if (board_id == PROJECT_PHASE_XA) {
+	if ( (htc_get_pcbid_info() == PROJECT_PHASE_XA) && machine_is_endeavoru()) {
 		haptic_data->ena_gpio = TEGRA_GPIO_PR3;
 		haptic_data->pwm_sfio = TEGRA_GPIO_PH0;
 	}
-	else if (board_id >= PROJECT_PHASE_XB) {
+	else {
 		haptic_data->ena_gpio = TEGRA_GPIO_PF1;
 		haptic_data->pwm_sfio = TEGRA_GPIO_PH0;
 	}
@@ -338,7 +338,6 @@ static struct vibrator_platform_data vibrator_data = {
 	},
 	.pwm_gpio = TEGRA_GPIO_PH0,
 	.ena_gpio = TEGRA_GPIO_PF1,
-	.pwr_gpio = TEGRA_GPIO_PE7,
 };
 static struct platform_device tegra_vibrator = {
 	.name= VIBRATOR_NAME,
@@ -407,7 +406,7 @@ static struct platform_device tegra_usb_fsg_device = {
 #endif
 
 //flashlight
-static void config_enterprise_flashlight_gpios(void)
+static void config_endeavor_flashlight_gpios(void)
 {
 	int ret;
 	printk("%s: start...", __func__);
@@ -441,26 +440,26 @@ static void config_enterprise_flashlight_gpios(void)
 	printk("%s: end...", __func__);
 }
 
-static struct flashlight_platform_data enterprise_flashlight_data = {
-	.gpio_init  = config_enterprise_flashlight_gpios,
+static struct flashlight_platform_data endeavor_flashlight_data = {
+	.gpio_init  = config_endeavor_flashlight_gpios,
 	.torch = FL_TORCH_EN,
 	.flash = FL_FLASH_EN,
 	.flash_duration_ms = 600
 };
 
-static struct platform_device enterprise_flashlight_device = {
+static struct platform_device endeavor_flashlight_device = {
 	.name = FLASHLIGHT_NAME,
 	.dev		= {
-		.platform_data	= &enterprise_flashlight_data,
+		.platform_data	= &endeavor_flashlight_data,
 	},
 };
 
-static void enterprise_flashlight_init(void)
+static void endeavor_flashlight_init(void)
 {
-	platform_device_register(&enterprise_flashlight_device);
+	platform_device_register(&endeavor_flashlight_device);
 }
 
-/* !!!TODO: Change for enterprise (Taken from Cardhu) */
+/* !!!TODO: Change for endeavoru (Taken from Cardhu) */
 static struct tegra_utmip_config utmi_phy_config[] = {
 	[0] = {
 			.hssync_start_delay = 0,
@@ -497,7 +496,7 @@ static struct tegra_utmip_config utmi_phy_config[] = {
 	},
 };
 
-static struct resource enterprise_bcm4329_rfkill_resources[] = {
+static struct resource endeavor_bcm4329_rfkill_resources[] = {
 	{
 		.name   = "bcm4329_nshutdown_gpio",
 		.start  = TEGRA_GPIO_PE6,
@@ -506,11 +505,11 @@ static struct resource enterprise_bcm4329_rfkill_resources[] = {
 	},
 };
 
-static struct platform_device enterprise_bcm4329_rfkill_device = {
+static struct platform_device endeavor_bcm4329_rfkill_device = {
 	.name = "bcm4329_rfkill",
 	.id		= -1,
-	.num_resources  = ARRAY_SIZE(enterprise_bcm4329_rfkill_resources),
-	.resource       = enterprise_bcm4329_rfkill_resources,
+	.num_resources  = ARRAY_SIZE(endeavor_bcm4329_rfkill_resources),
+	.resource       = endeavor_bcm4329_rfkill_resources,
 };
 
 static unsigned long retry_suspend;
@@ -572,7 +571,7 @@ static struct platform_device wl128x_device = {
         .dev.platform_data = &wilink_pdata,
 };
 
-static noinline void __init enterprise_bt_wl128x(void)
+static noinline void __init endeavor_bt_wl128x(void)
 {
 	wake_lock_init(&st_wk_lock, WAKE_LOCK_SUSPEND, "st_wake_lock");
 
@@ -584,7 +583,8 @@ static noinline void __init enterprise_bt_wl128x(void)
 }
 /* TI 128x Bluetooth end */
 
-static __initdata struct tegra_clk_init_table enterprise_clk_init_table[] = {
+
+static __initdata struct tegra_clk_init_table endeavor_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "pll_m",	NULL,		0,		false},
 	{ "hda",	"pll_p",	108000000,	false},
@@ -694,7 +694,7 @@ static struct platform_device rndis_device = {
 };
 #endif
 
-static struct tegra_i2c_platform_data enterprise_i2c1_platform_data = {
+static struct tegra_i2c_platform_data endeavor_i2c1_platform_data = {
 	.adapter_nr	= 0,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 384000},
@@ -703,7 +703,7 @@ static struct tegra_i2c_platform_data enterprise_i2c1_platform_data = {
 	.arb_recovery = arb_lost_recovery,
 };
 
-static struct tegra_i2c_platform_data enterprise_i2c2_platform_data = {
+static struct tegra_i2c_platform_data endeavor_i2c2_platform_data = {
 	.adapter_nr	= 1,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 384000},
@@ -713,7 +713,7 @@ static struct tegra_i2c_platform_data enterprise_i2c2_platform_data = {
 	.arb_recovery = arb_lost_recovery,
 };
 
-static struct tegra_i2c_platform_data enterprise_i2c3_platform_data = {
+static struct tegra_i2c_platform_data endeavor_i2c3_platform_data = {
 	.adapter_nr	= 2,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 384000},
@@ -722,7 +722,7 @@ static struct tegra_i2c_platform_data enterprise_i2c3_platform_data = {
 	.arb_recovery = arb_lost_recovery,
 };
 
-static struct tegra_i2c_platform_data enterprise_i2c4_platform_data = {
+static struct tegra_i2c_platform_data endeavor_i2c4_platform_data = {
 	.adapter_nr	= 3,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 100000},
@@ -731,7 +731,7 @@ static struct tegra_i2c_platform_data enterprise_i2c4_platform_data = {
 	.arb_recovery = arb_lost_recovery,
 };
 
-static struct tegra_i2c_platform_data enterprise_i2c5_platform_data = {
+static struct tegra_i2c_platform_data endeavor_i2c5_platform_data = {
 	.adapter_nr	= 4,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 100000},
@@ -758,7 +758,7 @@ static struct spi_board_info spi_board_info_audio[] __initdata = {
 	},
 };
 
-static struct platform_device enterprise_audio_device = {
+static struct platform_device endeavor_audio_device = {
 	.name	= "tegra-snd-aic3008",
 	.id	= 0,
 	.dev	= {
@@ -773,7 +773,7 @@ static struct tegra_spi_device_controller_data dev_cdata_rawchip = {
        .cs_setup_clk_count = 1, /* int cs_setup_clk_count */
        .cs_hold_clk_count = 2, /* int cs_hold_clk_count */
 };
-static struct spi_board_info enterprise_spi_board_info_rawchip[] = {
+static struct spi_board_info endeavor_spi_board_info_rawchip[] = {
        {
                .modalias       = "spi_rawchip",
                .mode           = SPI_MODE_0,
@@ -783,7 +783,7 @@ static struct spi_board_info enterprise_spi_board_info_rawchip[] = {
                .controller_data = &dev_cdata_rawchip,
        },
 };
-EXPORT_SYMBOL_GPL(enterprise_spi_board_info_rawchip);
+EXPORT_SYMBOL_GPL(endeavor_spi_board_info_rawchip);
 
 static struct tegra_camera_rawchip_info tegra_rawchip_board_info = {
 	.rawchip_intr0  = TEGRA_GPIO_PR0,
@@ -967,21 +967,58 @@ static struct platform_device *headset_devices_xe[] = {
 	/* Please put the headset detection driver on the last */
 };
 
+static struct headset_1wire_config htc_headset_mgr_1wire_config[] = {
+	{
+		.type = HEADSET_MIC,
+		.value = 99,
+	},
+	{
+		.type = HEADSET_BEATS,
+		.value = 129,
+	},
+	{
+		.type = HEADSET_BEATS,
+		.value = 170,
+	},
+	{
+		.type = HEADSET_BEATS_SOLO,
+		.value = 16,
+	},
+	{
+		.type = HEADSET_NO_MIC,
+		.value = 99,
+	},
+};
 
 static struct htc_headset_mgr_platform_data htc_headset_mgr_data = {
 	.eng_cfg				= HS_EDE_U,
 	.headset_devices_num	= ARRAY_SIZE(headset_devices),
 	.headset_devices	= headset_devices,
+	.enable_1wire			= 0,
+	.tx_1wire_gpio			= TEGRA_GPIO_PY4,
+	.rx_1wire_gpio			= TEGRA_GPIO_PY5,
+	.level_1wire_gpio		= TEGRA_GPIO_PZ0,
+	.dev_1wire				= "/dev/ttyHS4",
 	.headset_config_num	= ARRAY_SIZE(htc_headset_mgr_config),
 	.headset_config		= htc_headset_mgr_config,
+	.headset_config_1wire_num	= ARRAY_SIZE(htc_headset_mgr_1wire_config),
+	.headset_config_1wire		= htc_headset_mgr_1wire_config,
 };
 
 static struct htc_headset_mgr_platform_data htc_headset_mgr_data_xe = {
 	.eng_cfg				= HS_EDE_U,
 	.headset_devices_num	= ARRAY_SIZE(headset_devices_xe),
 	.headset_devices	= headset_devices_xe,
+	.enable_1wire			= 0,
+	.tx_1wire_gpio			= TEGRA_GPIO_PY4,
+	.rx_1wire_gpio			= TEGRA_GPIO_PY5,
+	.level_1wire_gpio		= TEGRA_GPIO_PZ0,
+	.dev_1wire				= "/dev/ttyHS4",
 	.headset_config_num	= ARRAY_SIZE(htc_headset_mgr_config_xe),
 	.headset_config		= htc_headset_mgr_config_xe,
+	.headset_config_1wire_num	= ARRAY_SIZE(htc_headset_mgr_1wire_config),
+	.headset_config_1wire		= htc_headset_mgr_1wire_config,
+
 };
 
 
@@ -1002,13 +1039,13 @@ static struct platform_device htc_headset_mgr_xe = {
 };
 
 
-static void enterprise_i2c_init(void)
+static void endeavor_i2c_init(void)
 {
-	tegra_i2c_device1.dev.platform_data = &enterprise_i2c1_platform_data;
-	tegra_i2c_device2.dev.platform_data = &enterprise_i2c2_platform_data;
-	tegra_i2c_device3.dev.platform_data = &enterprise_i2c3_platform_data;
-	tegra_i2c_device4.dev.platform_data = &enterprise_i2c4_platform_data;
-	tegra_i2c_device5.dev.platform_data = &enterprise_i2c5_platform_data;
+	tegra_i2c_device1.dev.platform_data = &endeavor_i2c1_platform_data;
+	tegra_i2c_device2.dev.platform_data = &endeavor_i2c2_platform_data;
+	tegra_i2c_device3.dev.platform_data = &endeavor_i2c3_platform_data;
+	tegra_i2c_device4.dev.platform_data = &endeavor_i2c4_platform_data;
+	tegra_i2c_device5.dev.platform_data = &endeavor_i2c5_platform_data;
 
 	platform_device_register(&tegra_i2c_device5);
 	platform_device_register(&tegra_i2c_device4);
@@ -1017,7 +1054,7 @@ static void enterprise_i2c_init(void)
 	platform_device_register(&tegra_i2c_device1);
 }
 
-static struct platform_device *enterprise_uart_devices[] __initdata = {
+static struct platform_device *endeavor_uart_devices[] __initdata = {
 	&tegra_uarta_device,
 	&tegra_uartb_device,
 	&tegra_uartc_device,
@@ -1032,10 +1069,10 @@ struct uart_clk_parent uart_parent_clk[] = {
 	[2] = {.name = "clk_m"},
 #endif
 };
-static struct tegra_uart_platform_data enterprise_uart_pdata;
+static struct tegra_uart_platform_data endeavor_uart_pdata;
 
 #ifdef CONFIG_BT_CTS_WAKEUP
-static struct tegra_uart_platform_data enterprise_bt_uart_pdata;
+static struct tegra_uart_platform_data endeavor_bt_uart_pdata;
 #endif
 
 static void __init uart_debug_init(void)
@@ -1045,7 +1082,7 @@ static void __init uart_debug_init(void)
 
 	/* UARTA is the debug port. */
 	pr_info("Selecting UARTA as the debug console\n");
-	enterprise_uart_devices[0] = &debug_uarta_device;
+	endeavor_uart_devices[0] = &debug_uarta_device;
 	debug_uart_port_base = ((struct plat_serial8250_port *)(
 			debug_uarta_device.dev.platform_data))->mapbase;
 	debug_uart_clk = clk_get_sys("serial8250.0", "uarta");
@@ -1120,7 +1157,7 @@ tegra_gpio_enable(TEGRA_GPIO_PZ0);
 }
 
 
-static void __init enterprise_uart_init(void)
+static void __init endeavor_uart_init(void)
 {
 	int i;
 	struct clk *c;
@@ -1138,35 +1175,37 @@ static void __init enterprise_uart_init(void)
 		uart_parent_clk[i].parent_clk = c;
 		uart_parent_clk[i].fixed_clk_rate = clk_get_rate(c);
 	}
-	enterprise_uart_pdata.parent_clk_list = uart_parent_clk;
-	enterprise_uart_pdata.parent_clk_count = ARRAY_SIZE(uart_parent_clk);
-	tegra_uarta_device.dev.platform_data = &enterprise_uart_pdata;
-	tegra_uartb_device.dev.platform_data = &enterprise_uart_pdata;
-	tegra_uartc_device.dev.platform_data = &enterprise_uart_pdata;
-	tegra_uartd_device.dev.platform_data = &enterprise_uart_pdata;
-	tegra_uarte_device.dev.platform_data = &enterprise_uart_pdata;
+	endeavor_uart_pdata.parent_clk_list = uart_parent_clk;
+	endeavor_uart_pdata.parent_clk_count = ARRAY_SIZE(uart_parent_clk);
+	tegra_uarta_device.dev.platform_data = &endeavor_uart_pdata;
+	tegra_uartb_device.dev.platform_data = &endeavor_uart_pdata;
+	tegra_uartc_device.dev.platform_data = &endeavor_uart_pdata;
+	tegra_uartd_device.dev.platform_data = &endeavor_uart_pdata;
+	tegra_uarte_device.dev.platform_data = &endeavor_uart_pdata;
 
 #ifdef CONFIG_BT_CTS_WAKEUP
 	board_id = htc_get_pcbid_info();
 
-	enterprise_bt_uart_pdata = enterprise_uart_pdata;
-	if (board_id >= PROJECT_PHASE_XC) {// XC
-		enterprise_bt_uart_pdata.uart_bt = (1 == 1); /* true */
+	endeavor_bt_uart_pdata = endeavor_uart_pdata;
+	if ((machine_is_endeavoru() && (board_id >= PROJECT_PHASE_XC)) || // ENRU XC
+	    (machine_is_erau() && (board_id >= PROJECT_PHASE_XA))) // ERAU XA
+	{
+		endeavor_bt_uart_pdata.uart_bt = (1 == 1); /* true */
 	}
 	else {
-		enterprise_bt_uart_pdata.uart_bt = (1 == 0); /* false */
+		endeavor_bt_uart_pdata.uart_bt = (1 == 0); /* false */
 	}
-	enterprise_bt_uart_pdata.bt_en = BT_GPIO_EN;
-	enterprise_bt_uart_pdata.bt_cts_irq = BT_GPIO_CTS_IRQ;
-	tegra_uartc_device.dev.platform_data = &enterprise_bt_uart_pdata;
+	endeavor_bt_uart_pdata.bt_en = BT_GPIO_EN;
+	endeavor_bt_uart_pdata.bt_cts_irq = BT_GPIO_CTS_IRQ;
+	tegra_uartc_device.dev.platform_data = &endeavor_bt_uart_pdata;
 #endif
 
 	/* Register low speed only if it is selected */
 	if (!is_tegra_debug_uartport_hs())
 		uart_debug_init();
 
-	platform_add_devices(enterprise_uart_devices,
-				ARRAY_SIZE(enterprise_uart_devices));
+	platform_add_devices(endeavor_uart_devices,
+				ARRAY_SIZE(endeavor_uart_devices));
 }
 
 struct spi_clk_parent spi_parent_clk[] = {
@@ -1179,14 +1218,14 @@ struct spi_clk_parent spi_parent_clk[] = {
 #endif
 };
 
-static struct tegra_spi_platform_data cardhu_spi_pdata = {
+static struct tegra_spi_platform_data endeavor_spi_pdata = {
 	.is_dma_based		= true,
 	.max_dma_buffer		= (16 * 1024),
 	.is_clkon_always	= false,
 	.max_rate		= 100000000,
 };
 
-static void __init enterprise_spi_init(void)
+static void __init endeavor_spi_init(void)
 {
 	int i;
 	struct clk *c;
@@ -1201,13 +1240,13 @@ static void __init enterprise_spi_init(void)
 		spi_parent_clk[i].parent_clk = c;
 		spi_parent_clk[i].fixed_clk_rate = clk_get_rate(c);
 	}
-	cardhu_spi_pdata.parent_clk_list = spi_parent_clk;
-	cardhu_spi_pdata.parent_clk_count = ARRAY_SIZE(spi_parent_clk);
+	endeavor_spi_pdata.parent_clk_list = spi_parent_clk;
+	endeavor_spi_pdata.parent_clk_count = ARRAY_SIZE(spi_parent_clk);
 
 	spi_register_board_info(spi_board_info_audio, ARRAY_SIZE(spi_board_info_audio));
-        spi_register_board_info(enterprise_spi_board_info_rawchip, ARRAY_SIZE(enterprise_spi_board_info_rawchip));
+        spi_register_board_info(endeavor_spi_board_info_rawchip, ARRAY_SIZE(endeavor_spi_board_info_rawchip));
 	platform_device_register(&tegra_spi_device2);
-	tegra_spi_device4.dev.platform_data = &cardhu_spi_pdata;
+	tegra_spi_device4.dev.platform_data = &endeavor_spi_pdata;
         platform_device_register(&tegra_spi_device4);
 }
 
@@ -1249,7 +1288,7 @@ static struct platform_device ram_console_device = {
 	.resource	= ram_console_resources,
 };
 
-static struct platform_device *enterprise_devices[] __initdata = {
+static struct platform_device *endeavor_devices[] __initdata = {
 	&tegra_pmu_device,
 	&tegra_rtc_device,
 	&tegra_udc_device,
@@ -1270,7 +1309,7 @@ static struct platform_device *enterprise_devices[] __initdata = {
 	&spdif_dit_device,
 	&baseband_dit_device,
 	&tegra_pcm_device,
-	&enterprise_audio_device,
+	&endeavor_audio_device,
 	&tegra_rawchip_device,
 	&tegra_hda_device,
 //	&htc_headset_mgr,
@@ -1416,8 +1455,7 @@ static struct synaptics_i2c_rmi_platform_data edge_ts_3k_data_XB[] = {
 		.source = 1, //YFO
 		.customer_register = {0xF9,0x64,0x74,0x32},
 		.config = {
-			0x35,0x44,0x30,0x38,
-			0x00,0x3F,0x03,0x1E,0x05,0xB1,
+			0x35,0x44,0x30,0x39,0x00,0x3F,0x03,0x1E,0x05,0xB1,
 			0x08,0x0B,0x19,0x19,0x00,0x00,0x4C,0x04,0x75,0x07,
 			0x02,0x14,0x1E,0x05,0x37,0xA5,0x16,0xE8,0x03,0x01,
 			0x3C,0x17,0x02,0x17,0x01,0xEC,0x4D,0x71,0x51,0xF8,
@@ -1425,15 +1463,15 @@ static struct synaptics_i2c_rmi_platform_data edge_ts_3k_data_XB[] = {
 			0x04,0xC0,0x00,0x00,0x00,0x00,0x00,0x00,0x19,0x01,
 			0x00,0x0A,0x70,0x32,0xA2,0x02,0x28,0x0A,0x0A,0x64,
 			0x16,0x0C,0x00,0x02,0xEE,0x00,0x80,0x03,0x0E,0x1F,
-			0x11,0x38,0x00,0x13,0x08,0x1B,0x00,0x08,0xFF,0x00,
+			0x11,0x38,0x00,0x13,0x04,0x1B,0x00,0x08,0xFF,0x00,
 			0x06,0x0C,0x0D,0x0B,0x15,0x17,0x16,0x18,0x19,0x1A,
 			0x1B,0x11,0x14,0x12,0x0F,0x0E,0x09,0x0A,0x07,0x02,
 			0x01,0x00,0xFF,0xFF,0xFF,0xFF,0xFF,0x04,0x05,0x02,
 			0x06,0x01,0x0C,0x07,0x08,0x0E,0x10,0x0F,0x12,0xFF,
 			0xFF,0xFF,0xFF,0xC0,0xC0,0xC0,0xC0,0xC0,0xC8,0xC8,
 			0xC8,0x59,0x57,0x55,0x53,0x52,0x50,0x4E,0x4D,0x00,
-			0x02,0x04,0x06,0x08,0x0A,0x0C,0x0E,0x00,0xA0,0x0F,
-			0xFF,0x28,0x00,0xC8,0x00,0xB3,0xC8,0xCD,0xA0,0x0F,
+			0x02,0x04,0x06,0x08,0x0A,0x0C,0x0E,0x00,0x88,0x13,
+			0xCD,0x64,0x00,0xC8,0x00,0x80,0x0A,0x80,0xB8,0x0B,
 			0x00,0xC0,0x80,0x00,0x10,0x00,0x10,0x00,0x10,0x00,
 			0x10,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
 			0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
@@ -1441,7 +1479,7 @@ static struct synaptics_i2c_rmi_platform_data edge_ts_3k_data_XB[] = {
 			0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
 			0x80,0x80,0x80,0x80,0x02,0x02,0x02,0x02,0x02,0x02,
 			0x02,0x02,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,
-			0x58,0x5B,0x5D,0x5F,0x61,0x63,0x65,0x67,0x00,0x64,
+			0x58,0x5B,0x5D,0x5F,0x61,0x63,0x65,0x67,0x00,0x8C,
 			0x00,0x10,0x0A,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
 			0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,0xFF,0xFF,
 			0xFF,0xFF,0xFF,0xFF,0x51,0x51,0x51,0x51,0xCD,0x0D,
@@ -1462,32 +1500,31 @@ static struct synaptics_i2c_rmi_platform_data edge_ts_3k_data_XB[] = {
 		.source = 0, //second source
 		.customer_register = {0xF9,0x64,0x74,0x32},
 		.config = {
-			0x35,0x4A,0x30,0x39,
-			0x00,0x3F,0x03,0x1E,0x05,0xB1,
+			0x35,0x4A,0x31,0x30,0x00,0x3F,0x03,0x1E,0x05,0xB1,
 			0x08,0x0B,0x19,0x19,0x00,0x00,0x4C,0x04,0x75,0x07,
 			0x02,0x14,0x1E,0x05,0x3A,0x57,0x1F,0xAF,0x02,0x01,
 			0x3C,0x17,0x02,0x17,0x01,0xEC,0x4D,0x71,0x51,0xF8,
 			0xA7,0xC8,0xAF,0x00,0x50,0x13,0x00,0x00,0x00,0x0A,
 			0x04,0xC0,0x00,0x00,0x00,0x00,0x00,0x00,0x19,0x01,
-			0x00,0x0A,0x70,0x32,0xA2,0x02,0x28,0x0A,0x0A,0x64,
+			0x00,0x0A,0x90,0x32,0xA2,0x02,0x28,0x0A,0x0A,0x64,
 			0x16,0x0C,0x00,0x02,0xF0,0x00,0x80,0x03,0x0E,0x1F,
-			0x11,0x38,0x00,0x13,0x08,0x1B,0x00,0x08,0xFF,0x00,
+			0x11,0x38,0x00,0x13,0x04,0x1B,0x00,0x08,0xFF,0x00,
 			0x06,0x0C,0x0D,0x0B,0x15,0x17,0x16,0x18,0x19,0x1A,
 			0x1B,0x11,0x14,0x12,0x0F,0x0E,0x09,0x0A,0x07,0x02,
 			0x01,0x00,0xFF,0xFF,0xFF,0xFF,0xFF,0x04,0x05,0x02,
 			0x06,0x01,0x0C,0x07,0x08,0x0E,0x10,0x0F,0x12,0xFF,
-			0xFF,0xFF,0xFF,0xC0,0xC0,0xC0,0xC0,0xC0,0xC8,0xC8,
-			0xC8,0x62,0x60,0x5E,0x5C,0x5A,0x58,0x57,0x55,0x00,
-			0x02,0x04,0x06,0x08,0x0A,0x0C,0x0E,0x00,0xB8,0x0B,
-			0xCD,0x28,0x00,0xC8,0x00,0x80,0xC8,0xCD,0xB8,0x0B,
+			0xFF,0xFF,0xFF,0xC0,0xC0,0xC0,0xC0,0xC8,0xC8,0xC8,
+			0xC8,0x5E,0x5C,0x5A,0x58,0x57,0x55,0x53,0x51,0x00,
+			0x02,0x04,0x06,0x08,0x0A,0x0C,0x0E,0x00,0x88,0x13,
+			0xCD,0x64,0x00,0xC8,0x00,0x80,0x0A,0x80,0xB8,0x0B,
 			0x00,0xC0,0x80,0x00,0x10,0x00,0x10,0x00,0x10,0x00,
 			0x10,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
 			0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
 			0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
 			0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
 			0x80,0x80,0x80,0x80,0x02,0x02,0x02,0x02,0x02,0x02,
-			0x02,0x02,0x30,0x20,0x20,0x20,0x20,0x20,0x20,0x20,
-			0x7E,0x57,0x59,0x5B,0x5D,0x5F,0x61,0x63,0x00,0x64,
+			0x02,0x02,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,
+			0x58,0x5B,0x5D,0x5F,0x61,0x63,0x65,0x67,0x00,0x8C,
 			0x00,0x10,0x0A,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
 			0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,0xFF,0xFF,
 			0xFF,0xFF,0xFF,0xFF,0x51,0x51,0x51,0x51,0xCD,0x0D,
@@ -1638,14 +1675,14 @@ int __init generic_touch_init(struct tegra_touchscreen_init *tsdata)
 	return 0;
 }
 
-static int __init enterprise_touch_init(void)
+static int __init endeavor_touch_init(void)
 {
 	int retval = 0;
 	struct board_info BoardInfo;
 
 	tegra_get_board_info(&BoardInfo);
 	
-	if (htc_get_pcbid_info() == PROJECT_PHASE_XA)
+	if (htc_get_pcbid_info() == PROJECT_PHASE_XA && machine_is_endeavoru())
 		retval = generic_touch_init(&synaptics_init_data);
 	else
 		retval = generic_touch_init(&synaptics_init_data_XB);
@@ -1792,7 +1829,7 @@ static int cardu_usb_hsic_phy_off(void)
 	return 0;
 }
 
-static void enterprise_usb_init(void)
+static void endeavor_usb_init(void)
 {
 	struct	fsl_usb2_platform_data *udc_pdata;
 
@@ -1806,7 +1843,7 @@ static void enterprise_usb_init(void)
 	android_usb_pdata.products[0].product_id =
 	android_usb_pdata.product_id;
 #if defined(CONFIG_USB_CDROM)
-	if (board_mfg_mode() == 0 /* normal mode */) {
+	if (board_mfg_mode() == BOARD_MFG_MODE_NORMAL /* normal mode */) {
 		android_usb_pdata.nluns = 2;
 		android_usb_pdata.cdrom_lun = 0x2;
 	}
@@ -1819,6 +1856,12 @@ static void enterprise_usb_init(void)
 
 //	platform_device_register(&func_switch_device);
 	platform_device_register(&android_usb_device);
+
+	udc_pdata->charger_type = 1;
+	udc_pdata->ur_gpio = TEGRA_GPIO_PH3;
+	udc_pdata->tx_gpio = TEGRA_GPIO_PO1;
+	udc_pdata->rx_gpio = TEGRA_GPIO_PO2;
+	udc_pdata->chg_gpio = TEGRA_GPIO_PC7;
 }
 
 static int32_t get_tegra_adc_cb(void)
@@ -1904,6 +1947,7 @@ static struct cable_detect_platform_data cable_detect_pdata = {
 	.cable_gpio_init	= cable_tegra_gpio_init,
 #ifdef CONFIG_TEGRA_HDMI_MHL
 	/*.mhl_1v2_power = mhl_sii9234_1v2_power,*/
+	.mhl_internal_3v3 	= 1,
 #endif
 };
 
@@ -1942,12 +1986,12 @@ static void cable_tegra_gpio_init(void)
 	}
 }
 
-static void enterprise_cable_detect_init(void)
+static void endeavor_cable_detect_init(void)
 {
 	platform_device_register(&cable_detect_device);
 }
 
-static void enterprise_gps_init(void)
+static void endeavor_gps_init(void)
 {
 	//tegra_gpio_enable(TEGRA_GPIO_PE4);
 	//tegra_gpio_enable(TEGRA_GPIO_PE5);
@@ -2016,7 +2060,7 @@ static struct platform_device tegra_baseband_power_device = {
 */
 //#endif
 
-static void enterprise_modem_init(void)
+static void endeavor_modem_init(void)
 {
 //	struct board_info board_info;
 	int ret;
@@ -2155,17 +2199,17 @@ static void modem_not_init(void)
 }
 
 
-static void enterprise_baseband_init(void)
+static void endeavor_baseband_init(void)
 {
 //	modem_not_init();
 //	return;
-	enterprise_modem_init();
+	endeavor_modem_init();
 #if 0
 	int modem_id = tegra_get_modem_id();
 
 	switch (modem_id) {
 	case 1: /* PH450 ULPI */
-		enterprise_modem_init();
+		endeavor_modem_init();
 		break;
 		case 2: /* 6260 HSIC */
 		break;
@@ -2228,6 +2272,15 @@ static struct attribute_group Aproj_properties_attr_group_XC = {
 	.attrs = Aproj_properties_attrs_XC,
 };
 
+bool enr_swResetCheck(void)
+{
+	int pcbid = htc_get_pcbid_info();
+	if ( machine_is_endeavoru() && ((pcbid < PROJECT_PHASE_A ) || ( (pcbid == PROJECT_PHASE_A) && (engineer_id == 0x01 ))))
+		return true;
+	else
+		return false;
+}
+
 static struct keyreset_platform_data enr_reset_keys_pdata = {
 	.keys_down = {
 		KEY_POWER,
@@ -2235,6 +2288,7 @@ static struct keyreset_platform_data enr_reset_keys_pdata = {
 		KEY_VOLUMEUP,
 		0
 	},
+	.swResetCheck = enr_swResetCheck,
 };
 
 static struct platform_device enr_reset_keys_device = {
@@ -2249,6 +2303,14 @@ static void enr_u_basic_gpio_setup(void)
 {
 	int pcbid = htc_get_pcbid_info();
 	static struct gpio_callbacks callbacks = {NULL};
+
+	/*
+	 * Since era#u has only XA phase currently, and XA of era#u ==
+	 * PVT of end#u, it's safe to use enr_u_xe_no_owner_gpio_init
+	 * on era#u for now
+	 */
+	if (machine_is_erau())
+		pcbid = PROJECT_PHASE_A;
 
 	switch (pcbid) {
 		case PROJECT_PHASE_XA:
@@ -2270,7 +2332,7 @@ static void enr_u_basic_gpio_setup(void)
 
 }
 
-static void __init tegra_enterprise_init(void)
+static void __init tegra_endeavor_init(void)
 {
 	int board_id = 0;
 	struct kobject *properties_kobj;  	
@@ -2280,36 +2342,42 @@ static void __init tegra_enterprise_init(void)
 	tegra_thermal_init(&thermal_data);
 	BOOT_DEBUG_LOG_ENTER("<machine>.init_machine");
 	board_id = htc_get_pcbid_info();
-	tegra_clk_init_from_table(enterprise_clk_init_table);
+	tegra_clk_init_from_table(endeavor_clk_init_table);
 	endeavoru_pinmux_init();
-	enterprise_i2c_init();
-	enterprise_uart_init();
-	enterprise_spi_init();
-	enterprise_usb_init();
+	endeavor_i2c_init();
+	endeavor_uart_init();
+	endeavor_spi_init();
+	endeavor_usb_init();
 //	andusb_plat.serial_number = board_serialno();
-	enterprise_tsensor_init();
-	platform_add_devices(enterprise_devices, ARRAY_SIZE(enterprise_devices));
-	if (board_id <= PROJECT_PHASE_XD)
+	endeavor_tsensor_init();
+	platform_add_devices(endeavor_devices, ARRAY_SIZE(endeavor_devices));
+	if (machine_is_endeavoru() && board_id <= PROJECT_PHASE_XD)
 		platform_device_register(&htc_headset_mgr);
 	else
 		platform_device_register(&htc_headset_mgr_xe);
 
-	if (board_id >= PROJECT_PHASE_A && engineer_id != 1) {
+	if (machine_is_erau()) {
 		mhl_sii_device_data.ci2ca = 1;
 		mhl_sii_device_data.enMhlD3Guard = true;
+	} else if (machine_is_endeavoru()) {
+		if ((board_id > PROJECT_PHASE_A) ||
+				(board_id == PROJECT_PHASE_A && engineer_id != 1)) {
+			mhl_sii_device_data.ci2ca = 1;
+			mhl_sii_device_data.enMhlD3Guard = true;
+		}
 	}
 
-	enterprise_regulator_init();
-	enterprise_sdhci_init();
+	endeavor_regulator_init();
+	endeavor_sdhci_init();
 	headset_uart_init();
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
 		set_two_phase_freq(1000000);
 #endif
 
 #ifdef CONFIG_TEGRA_EDP_LIMITS
-	enterprise_edp_init();
+	endeavor_edp_init();
 #endif
-	//enterprise_kbc_init();
+	//endeavor_kbc_init();
 #if 1    // for A project bring up
 	A_PROJECT_keys_init();
 #endif
@@ -2317,36 +2385,38 @@ static void __init tegra_enterprise_init(void)
 	i2c_register_board_info(4, i2c_mhl_sii_info,
 			ARRAY_SIZE(i2c_mhl_sii_info));
 #endif
-	enterprise_touch_init();
-	//enterprise_gps_init();
-	enterprise_baseband_init();
-	enterprise_panel_init();
-	enterprise_bt_wl128x();
-	enterprise_emc_init();
-	enterprise_sensors_init();
+	endeavor_touch_init();
+	//endeavor_gps_init();
+	endeavor_baseband_init();
+	endeavor_panel_init();
+	endeavor_bt_wl128x();
+
+	endeavor_emc_init();
+	endeavor_sensors_init();
+	endeavor_cam_init();
 	if (platform_device_register(&enr_reset_keys_device))
 		printk(KERN_WARNING "%s: register reset key fail\n", __func__);
         properties_kobj = kobject_create_and_add("board_properties", NULL);
 	if (properties_kobj) {
-		if (htc_get_pcbid_info() >= PROJECT_PHASE_XC) {
-			ret = sysfs_create_group(properties_kobj, &Aproj_properties_attr_group_XC);
-		} else {
+		if (htc_get_pcbid_info() < PROJECT_PHASE_XC && machine_is_endeavoru()) {
 			ret = sysfs_create_group(properties_kobj, &Aproj_properties_attr_group);
+		} else {
+			ret = sysfs_create_group(properties_kobj, &Aproj_properties_attr_group_XC);
 		}
 	}
-	enterprise_suspend_init();
+	endeavor_suspend_init();
 	tegra_release_bootloader_fb();
 #ifdef CONFIG_TEGRA_HAPTIC2
-	haptic_vibrator_init(board_id);
+	haptic_vibrator_init();
 #endif
 #ifdef CONFIG_TEGRA_VIBRATOR_ENR
 	tegra_vibrator_init();
 #endif
 	leds_lp5521_init();
-	enterprise_flashlight_init();
+	endeavor_flashlight_init();
 	enr_u_basic_gpio_setup();
 #if defined(CONFIG_CABLE_DETECT_ACCESSORY)
-	enterprise_cable_detect_init();
+	endeavor_cable_detect_init();
 #endif
 	proc = create_proc_read_entry("emmc", 0, NULL, emmc_partition_read_proc, NULL);
 	if (proc) {
@@ -2362,7 +2432,7 @@ static void __init tegra_enterprise_init(void)
 	BOOT_DEBUG_LOG_LEAVE("<machine>.init_machine");
 }
 
-static void __init tegra_enterprise_ramconsole_reserve(unsigned long size)
+static void __init tegra_endeavor_ramconsole_reserve(unsigned long size)
 {
 	struct resource *res;
 	long ret;
@@ -2383,33 +2453,22 @@ static void __init tegra_enterprise_ramconsole_reserve(unsigned long size)
 	}
 }
 
-static void __init tegra_enterprise_reserve(void)
+static void __init tegra_endeavor_reserve(void)
 {
 #if defined(CONFIG_NVMAP_CONVERT_CARVEOUT_TO_IOVMM)
 	tegra_reserve(0, SZ_4M, SZ_8M);
 #else
 	tegra_reserve(SZ_128M, SZ_4M, SZ_8M);
 #endif
-	tegra_enterprise_ramconsole_reserve(SZ_1M);
+	tegra_endeavor_ramconsole_reserve(SZ_1M);
 }
 
 MACHINE_START(ENDEAVORU, "endeavoru")
 	.boot_params    = 0x80000100,
 	.map_io         = tegra_map_common_io,
-	.reserve        = tegra_enterprise_reserve,
+	.reserve        = tegra_endeavor_reserve,
 	.init_early	= tegra_init_early,
 	.init_irq       = tegra_init_irq,
 	.timer          = &tegra_timer,
-	.init_machine   = tegra_enterprise_init,
-MACHINE_END
-
-/* XXX for transition period only, will be removed soon */
-MACHINE_START(TEGRA_ENTERPRISE, "endeavoru")
-	.boot_params    = 0x80000100,
-	.map_io         = tegra_map_common_io,
-	.reserve        = tegra_enterprise_reserve,
-	.init_early	= tegra_init_early,
-	.init_irq       = tegra_init_irq,
-	.timer          = &tegra_timer,
-	.init_machine   = tegra_enterprise_init,
+	.init_machine   = tegra_endeavor_init,
 MACHINE_END

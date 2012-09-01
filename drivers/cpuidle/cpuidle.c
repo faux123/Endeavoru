@@ -61,7 +61,11 @@ void cpu_idle_debug_show(void)
 		lp3_cpu[i] = dev->states[0].time;
 
 	}
-	pr_pwr_story("%llu us, %llu us, %llu us, %llu us, %llu us, %llu us, %llu us, %llu us", lp2_cpu[0], lp3_cpu[0], lp2_cpu[1], lp3_cpu[1], lp2_cpu[2], lp3_cpu[2], lp2_cpu[3], lp3_cpu[3]);
+	/*
+	 * pr_pwr_story("%llu us, %llu us, %llu us, %llu us, %llu us,
+		 %llu us, %llu us, %llu us", lp2_cpu[0], lp3_cpu[0],
+		 lp2_cpu[1], lp3_cpu[1], lp2_cpu[2], lp3_cpu[2], lp2_cpu[3], lp3_cpu[3]);
+	 */
 }
 
 /**

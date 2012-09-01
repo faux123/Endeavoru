@@ -24,15 +24,9 @@
 #include <linux/workqueue.h>
 #include "board.h"
 #include <mach/board_htc.h>
-#if defined(CONFIG_MACH_QUATTRO_U)
-#include "board-quattro.h"
-#elif defined(CONFIG_MACH_BLUE)
+#if defined(CONFIG_MACH_BLUE)
 #include "board-blue.h"
-#elif defined(CONFIG_MACH_EDGE)
-#include "board-edge.h"
-#elif defined(CONFIG_MACH_EDGE_TD)
-#include "board-edgetd.h"
-#elif defined(CONFIG_MACH_ENDEAVORU)
+#elif defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ERAU)
 #include "board-endeavoru.h"
 #endif
 #include "gpio-names.h"

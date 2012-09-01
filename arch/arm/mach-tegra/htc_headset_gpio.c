@@ -345,15 +345,13 @@ static int htc_headset_gpio_probe(struct platform_device *pdev)
 	hi->hpin_debounce = HS_JIFFIES_ZERO;
 	hi->key_irq_type = IRQF_TRIGGER_LOW;
 	hi->headset_state = 0;
+	last_key_jiffies = jiffies;
 
-	if ((hi->pdata.eng_cfg == HS_QUO_F_U))
-	{
-		/* HW power connet cable issue */
-		/* EVT XB WORKAROUND Only */
-		if (PROJECT_PHASE_XB == htc_get_pcbid_info()) {
-			HS_ERR("=====FORCED RETURN!!!!!=====");
-			return -ENOMEM;
-		}
+	/* HW power connet cable issue */
+	/* EVT XB WORKAROUND Only */
+	if (hi->pdata.eng_cfg == HS_QUO_F_U_XB) {
+		HS_ERR("=====FORCED RETURN!!!!!=====");
+		return -ENOMEM;
 	}
 
 	detect_wq = create_workqueue("HS_GPIO_DETECT");

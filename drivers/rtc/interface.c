@@ -357,11 +357,11 @@ int rtc_set_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 
 	err = rtc_valid_tm(&alarm->time);
 	if (err != 0)
-		goto error;
+		return err;
 
 	err = mutex_lock_interruptible(&rtc->ops_lock);
 	if (err)
-		goto error;
+		return err;
 	if (rtc->aie_timer.enabled) {
 		rtc_timer_remove(rtc, &rtc->aie_timer);
 	}
@@ -371,10 +371,6 @@ int rtc_set_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 		err = rtc_timer_enqueue(rtc, &rtc->aie_timer);
 	}
 	mutex_unlock(&rtc->ops_lock);
-
-error:
-	if (err)
-		pr_info("set invalid alarm\n");
 	return err;
 }
 EXPORT_SYMBOL_GPL(rtc_set_alarm);

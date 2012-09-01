@@ -95,12 +95,15 @@
 #include <asm/cacheflush.h>
 #include <linux/list.h>
 
+#include <linux/io.h>
+#include <mach/iomap.h>
+
 /* HTC include file */
 #include <mach/htc_hostdbg.h>
 #include <asm/cacheflush.h>
-#include <htc/log.h>
 
 #include "cdc-acm.h"
+#include "../../../arch/arm/mach-tegra/baseband-xmm-power.h"
 /* HTC: PRINTRPT */
 #include <mach/htc_ril_misc.h>
 #include <linux/ctype.h>
@@ -346,9 +349,12 @@ static int acm_start_wb(struct acm *acm, struct acm_wb *wb, const char *func_nam
 		pr_info(MODULE_NAME "%s - acm_start_wb %s %p len=%d [%02x]\n",
 			__func__, func_name, wb->buf, wb->len, wb->buf[0]);
 
-	/* flush tx buffer from cache */
-	if (wb->len)
-		dmac_flush_range(wb->buf, wb->buf + wb->len -1);
+	 /* flush tx buffer from cache */
+	if (wb->len) {
+		dmac_flush_range(wb->buf, wb->buf + wb->len);
+		outer_flush_range(__pa(wb->buf), __pa(wb->buf+wb->len));
+	  }
+
 
 	rc = usb_submit_urb(wb->urb, GFP_ATOMIC);
 	if (rc < 0) {
@@ -385,7 +391,7 @@ static int acm_write_start(struct acm *acm, int wbn)
 
 	if (acm->susp_count) {
 #ifdef CONFIG_PM
-		sp_pr_debug("%s buffer urb %p len=%d, [%02x] anchor urb=%p\n",
+		printk("%s buffer urb %p len=%d, [%02x] anchor urb=%p\n",
 			__func__, wb->buf, wb->len, wb->buf[0], wb->urb);
 		acm->transmitting++;
 		wb->urb->transfer_buffer = wb->buf;
@@ -398,7 +404,7 @@ static int acm_write_start(struct acm *acm, int wbn)
 		if (!acm->delayed_wb) {
 			acm->delayed_wb = wb;
 			/* HTC */
-			sp_pr_debug(MODULE_NAME "%s - delayed wb, ttyACM%d, susp_cnt=%d, "
+			pr_info(MODULE_NAME "%s - delayed wb, ttyACM%d, susp_cnt=%d, "
 				"%p len=%d, [%02x]\n",
 				__func__, acm->minor, acm->susp_count, wb->buf, wb->len, wb->buf[0]);
 		} else {
@@ -574,10 +580,10 @@ static void acm_read_bulk(struct urb *urb)
 		//pr_info("%s: bulk rx status %d, acm->susp_count=%d\n", __func__, status, acm->susp_count);
 		dev_dbg(&acm->data->dev, "bulk rx status %d\n", status);
 		if (status == -EPROTO)	{
+			kobject_uevent(&acm->dev->dev.kobj,KOBJ_CHANGE);
+			pr_info(KERN_INFO "%s: -EPROTO HIT !!\n",__func__);
 			usb_register_dump();
-			//kobject_uevent(&acm->dev->dev.kobj,KOBJ_CHANGE);
-			//printk(KERN_INFO "-EPROTO HIT !!\n");
-
+			//trigger_radio_fatal_get_coredump();
 		}
 	}
 
@@ -678,6 +684,32 @@ next_buffer:
 		throttled = acm->throttle;
 		spin_unlock_irqrestore(&acm->throttle_lock, flags);
 		if (!throttled) {
+			/* check if buf->base did not get written by usb host controller
+			 * - we know if it was untouched by usb host controller because
+			 *   we filled rx urb buffer with 0xab byte pattern before
+			 *   we submitted rx urb
+			 */
+			{
+				int i;
+				for (i = 0; i < buf->size; i++)
+					if (buf->base[i] != 0xab)
+						break;
+				if ((buf->size > 0) && (i == buf->size)) {
+					pr_info("%s: rx urb contains 0xab byte pattern!  usb hc did not fill in rx urb buffer!\n", __func__);
+					/* Fence read for coherency of AHB master intiated writes (assume USB2 for HSIC) */
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
+#define USB2_PREFETCH_ID               18
+					readb(IO_ADDRESS(IO_PPCS_PHYS + USB2_PREFETCH_ID));
+#endif
+					/* recheck if fencing operation worked */
+					for (i = 0; i < buf->size; i++)
+						if (buf->base[i] != 0xab)
+							break;
+					if ((buf->size > 0) && (i == buf->size)) {
+						pr_info("%s: rx urb still contains 0xab byte pattern!  fencing operation failed!\n", __func__);
+					}
+				}
+			}
 			copied = tty_insert_flip_string(tty, buf->base, buf->size);
 			tty_flip_buffer_push(tty);
 			if (copied != buf->size && printk_ratelimit())
@@ -823,6 +855,7 @@ urbs:
 		memset(buf->base,0xaa,acm->readsize);
 		memset(buf->base,0xab,acm->readsize);
 		dmac_flush_range(buf->base,buf->base+acm->readsize-1);
+		outer_flush_range(__pa(buf->base),__pa(buf->base+acm->readsize-1));
 		//_range(current->,buf->base,buf->base+acm->readsize-1);
 		//memset(buf->base,0xaf,acm->readsize);
 
@@ -909,7 +942,7 @@ static int acm_tty_open(struct tty_struct *tty, struct file *filp)
 		pr_err("%s: tty NULL\n", __func__);
 		goto out;
 	}
-	if (tty->index >ACM_TTY_MINORS ) {
+	if (tty->index >= ACM_TTY_MINORS ) {
 		pr_err("%s: tty > ACM_TTY_MINORS\n", __func__);
 		goto out;
 	}
@@ -922,7 +955,7 @@ static int acm_tty_open(struct tty_struct *tty, struct file *filp)
 		rv = 0;
 
 #if 1 //HTC_CSP_START
-	printk(MODULE_NAME":%s ttyACM%d +\n",__FUNCTION__,acm->minor);
+		printk(MODULE_NAME":%s ttyACM%d +\n",__FUNCTION__,acm->minor);
 #endif //HTC_CSP_END
 
 	/* Current acm implementation does not have acm->disconnected
@@ -957,10 +990,24 @@ static int acm_tty_open(struct tty_struct *tty, struct file *filp)
 		goto out;
 	}
 
-	acm->ctrlurb->dev = acm->dev;
-	if (usb_submit_urb(acm->ctrlurb, GFP_KERNEL)) {
-		dbg("usb_submit_urb(ctrl irq) failed");
-		goto bail_out;
+	if ( tty->index == 1) {
+
+		printk(MODULE_NAME":%s tty->index =%d for ttyACM1 panic only\n",__FUNCTION__,tty->index);
+		//new patch for ttyACM1
+		INIT_LIST_HEAD(&acm->spare_read_urbs);
+		INIT_LIST_HEAD(&acm->spare_read_bufs);
+		INIT_LIST_HEAD(&acm->filled_read_bufs);
+
+		for (i = 0; i < acm->rx_buflimit; i++)
+			list_add(&(acm->ru[i].list), &acm->spare_read_urbs);
+		for (i = 0; i < acm->rx_buflimit; i++)
+			list_add(&(acm->rb[i].list), &acm->spare_read_bufs);
+		}
+
+		acm->ctrlurb->dev = acm->dev;
+		if (usb_submit_urb(acm->ctrlurb, GFP_KERNEL)) {
+			dbg("usb_submit_urb(ctrl irq) failed");
+			goto bail_out;
 	}
 
 	if (0 > acm_set_control(acm, acm->ctrlout = ACM_CTRL_DTR | ACM_CTRL_RTS) &&
@@ -969,6 +1016,9 @@ static int acm_tty_open(struct tty_struct *tty, struct file *filp)
 
 	reflog("[ref] - %s(%d) %d\n", __func__, __LINE__, --autopm_refcnt);
 	usb_autopm_put_interface(acm->control);
+	if ( tty->index != 1) {
+	//original code
+		printk(MODULE_NAME":%s tty->index =%d original code\n",__FUNCTION__,tty->index);
 
 	INIT_LIST_HEAD(&acm->spare_read_urbs);
 	INIT_LIST_HEAD(&acm->spare_read_bufs);
@@ -978,7 +1028,7 @@ static int acm_tty_open(struct tty_struct *tty, struct file *filp)
 		list_add(&(acm->ru[i].list), &acm->spare_read_urbs);
 	for (i = 0; i < acm->rx_buflimit; i++)
 		list_add(&(acm->rb[i].list), &acm->spare_read_bufs);
-
+	}
 	acm->throttle = 0;
 
 	set_bit(ASYNCB_INITIALIZED, &acm->port.flags);
@@ -1003,6 +1053,15 @@ out:
 full_bailout:
 	usb_kill_urb(acm->ctrlurb);
 bail_out:
+	if ( tty->index == 1) {
+
+		printk(MODULE_NAME":%s tty->index =%d for ttyACM1 only\n",__FUNCTION__,tty->index);
+	//new patch for ACM1
+		for (i = 0; i < acm->rx_buflimit; i++)
+			list_del(&(acm->ru[i].list));
+		for (i = 0; i < acm->rx_buflimit; i++)
+			list_del(&(acm->rb[i].list));
+	}
 	acm->port.count--;
 	mutex_unlock(&acm->mutex);
 	reflog("[ref] - %s(%d) %d\n", __func__, __LINE__, --autopm_refcnt);
@@ -1090,11 +1149,9 @@ static void acm_tty_hangup(struct tty_struct *tty)
 		printk(MODULE_NAME":%s ttyACM%d -\n",__FUNCTION__,acm->minor);
 #endif //HTC_CSP_END
 
+	pr_info("%s: ttyACM%d out: -\n", __func__, acm->minor);
 out:
 	mutex_unlock(&open_mutex);
-	pr_info("%s: ttyACM%d out: -\n", __func__, acm->minor);
-
-
 }
 
 
@@ -1476,8 +1533,7 @@ static int acm_probe(struct usb_interface *intf,
 	int i;
 	int combined_interfaces = 0;
 
-
-	pr_info("%s: 0311 - cdc drop urb fix intf->cur_altsetting->desc.bInterfaceNumber %d max_intfs=%d\n",
+	pr_info("%s: 0710 - zero length packet. intf->cur_altsetting->desc.bInterfaceNumber %d max_intfs=%d\n",
 		__func__, intf->cur_altsetting->desc.bInterfaceNumber,max_intfs);
 
 	/* normal quirks */
@@ -1575,7 +1631,7 @@ static int acm_probe(struct usb_interface *intf,
 			call_management_function = buffer[3];
 			call_interface_num = buffer[4];
 			if ( (quirks & NOT_A_MODEM) == 0 && (call_management_function & 3) != 3)
-				dev_err(&intf->dev, "This device cannot do calls on its own. It is not a modem.\n");
+				dev_dbg(&intf->dev, "This device cannot do calls on its own. It is not a modem.\n");
 			break;
 		default:
 			/* there are LOTS more CDC descriptors that
@@ -1744,7 +1800,7 @@ made_compressed_probe:
 	tty_port_init(&acm->port);
 	acm->port.ops = &acm_port_ops;
 
-	buf = usb_alloc_coherent(usb_dev, ctrlsize, GFP_DMA, &acm->ctrl_dma);
+	buf = usb_alloc_coherent(usb_dev, ctrlsize, GFP_DMA|GFP_KERNEL, &acm->ctrl_dma);
 	if (!buf) {
 		dev_dbg(&intf->dev, "out of memory (ctrl buffer alloc)\n");
 		goto alloc_fail2;
@@ -1778,7 +1834,7 @@ made_compressed_probe:
 		struct acm_rb *rb = &(acm->rb[i]);
 
 		rb->base = usb_alloc_coherent(acm->dev, readsize,
-				GFP_DMA, &rb->dma);
+				GFP_DMA|GFP_KERNEL, &rb->dma);
 		if (!rb->base) {
 			dev_dbg(&intf->dev,
 				"out of memory (read bufs usb_alloc_coherent)\n");
@@ -1803,7 +1859,7 @@ made_compressed_probe:
 			usb_fill_bulk_urb(snd->urb, usb_dev,
 				usb_sndbulkpipe(usb_dev, epwrite->bEndpointAddress),
 				NULL, acm->writesize, acm_write_bulk, snd);
-		snd->urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+		snd->urb->transfer_flags |= (URB_NO_TRANSFER_DMA_MAP + URB_ZERO_PACKET);
 		snd->instance = acm;
 	}
 
@@ -1862,7 +1918,7 @@ skip_countries:
 	acm_table[minor] = acm;
 
 	tty_register_device(acm_tty_driver, minor, &control_interface->dev);
-	
+
 	printk("%s: acm_ready_table[minor=%d]=ture\n", __func__,minor);
 	acm_ready_table[minor] = true;
 
@@ -2001,14 +2057,14 @@ static int acm_suspend(struct usb_interface *intf, pm_message_t message)
 {
 	struct acm *acm = usb_get_intfdata(intf);
 	int cnt;
-#if 1 //HTC_CSP_START
-	printk(MODULE_NAME": %s ttyACM%d +\n",__FUNCTION__,acm->minor);
-#endif //HTC_CSP_END
-
 	if (!acm) {
 		pr_err("%s: !acm\n", __func__);
 		return -EBUSY;
 	}
+
+#if 1 //HTC_CSP_START
+		printk(MODULE_NAME": %s ttyACM%d +\n",__FUNCTION__,acm->minor);
+#endif //HTC_CSP_END
 
 	//pr_info("%s: cnt %d intf=%p &intf->dev=%p kobje=%s\n",
 		//	__func__, atomic_read(&intf->dev.power.usage_count),intf,&intf->dev,kobject_name(&intf->dev.kobj));
@@ -2083,7 +2139,6 @@ static int acm_resume(struct usb_interface *intf)
 		return -EBUSY;
 	}
 
-	
 	//pr_info("%s: cnt %d intf=%p &intf->dev=%p kobje=%s\n",
 		//	__func__, atomic_read(&intf->dev.power.usage_count),intf,&intf->dev,kobject_name(&intf->dev.kobj));
 
@@ -2176,13 +2231,13 @@ static int acm_reset_resume(struct usb_interface *intf)
 	struct acm *acm = usb_get_intfdata(intf);
 	struct tty_struct *tty = NULL;
 
-	printk(KERN_INFO"%s acm->port.count=%d\n",__func__,acm->port.count);
 	pr_info(MODULE_NAME "%s - don't hangup ttyacm\n", __func__);
 
 	if (!acm) {
 		pr_err("%s: !acm\n", __func__);
 		return -EBUSY;
 	}
+	printk(KERN_INFO"%s acm->port.count=%d\n",__func__,acm->port.count);
 /*
 	mutex_lock(&acm->mutex);
 	if (acm->port.count) {

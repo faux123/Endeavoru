@@ -20,6 +20,7 @@ void ble_xa_unused_gpio_init(void);
 void ble_xb_unused_gpio_init(void);
 void ble_xb_no_owner_gpio_init(void);
 void enr_td_xc_no_owner_gpio_init(void);
+void enr_td_xd_unused_gpio_init(void);
 void enr_u_xc_no_owner_gpio_init(void);
 void enr_u_xd_no_owner_gpio_init(void);
 void enr_u_xe_no_owner_gpio_init(void);

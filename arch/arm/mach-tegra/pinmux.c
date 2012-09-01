@@ -237,7 +237,8 @@ static int tegra_pinmux_set_func(const struct tegra_pingroup_config *config)
 		}
 #if defined(CONFIG_MACH_ENDEAVORU) || \
 	defined(CONFIG_MACH_ENDEAVORTD) || \
-	defined(CONFIG_MACH_VERTEXF)
+	defined(CONFIG_MACH_ERAU) || \
+	defined(CONFIG_MACH_VERTEXFP)
 		if (mux < 0)
 		{
 			/*

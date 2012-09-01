@@ -31,3 +31,6 @@ obj-$(CONFIG_USB_VL600)		+= lg-vl600.o
 ifeq (${CONFIG_MACH_ENDEAVORU},y)
 obj-$(CONFIG_USB_NET_RAW_IP)	+= raw_ip_net.o
 endif
+ifeq (${CONFIG_MACH_ERAU},y)
+obj-$(CONFIG_USB_NET_RAW_IP)	+= raw_ip_net.o
+endif

@@ -22,7 +22,7 @@
 #include <linux/io.h>
 #include <linux/err.h>
 #include <mach/iomap.h>
-#if (defined(CONFIG_MACH_ENDEAVORU) | defined(CONFIG_MACH_ENDEAVORTD))
+#if (defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU))
 #include <linux/init.h>
 #include <mach/board_htc.h>
 #endif
@@ -155,7 +155,7 @@ static void rev_sku_to_speedo_ids(int rev, int sku)
 				cpu_speedo_id = 4;
 				soc_speedo_id = 1;
 				threshold_index = 7;
-#if (defined(CONFIG_MACH_ENDEAVORU) | defined(CONFIG_MACH_ENDEAVORTD))
+#if (defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU))
 				if (htc_get_pcbid_info() <= PROJECT_PHASE_XC) {
 					cpu_speedo_id = 1;
 					soc_speedo_id = 1;

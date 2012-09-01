@@ -304,6 +304,10 @@ int android_switch_function(unsigned func)
 	usb_remove_config(dev->cdev, &android_config_driver);
 
 	INIT_LIST_HEAD(&dev->enabled_functions);
+	if (board_mfg_mode() == BOARD_MFG_MODE_OFFMODE_CHARGING) {
+		func = 3;/* USB_FUNCTION_UMS + USB_FUNCTION_ADB */
+		pr_debug("%s enter offmode-charging\n", __func__);
+	}
 
 	while ((f = *functions++)) {
 		if ((func & (1 << USB_FUNCTION_UMS)) &&
@@ -445,7 +449,7 @@ void init_mfg_serialno(void)
 {
 	char *serialno = "000000000000";
 
-	use_mfg_serialno = (board_mfg_mode() == 1) ? 1 : 0;
+	use_mfg_serialno = (board_mfg_mode() == BOARD_MFG_MODE_FACTORY2) ? 1 : 0;
 	strncpy(mfg_df_serialno, serialno, strlen(serialno));
 }
 

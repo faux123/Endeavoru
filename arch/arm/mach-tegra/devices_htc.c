@@ -64,8 +64,9 @@
 
 #include <mach/gpio.h>
 #include "gpio-names.h"
+#include <asm/mach-types.h>
 
-#if defined(CONFIG_MACH_QUATTRO_U) || defined(CONFIG_MACH_VERTEXF)
+#if defined(CONFIG_MACH_VERTEXFP)
 #define ENGID_XB 0xFFEE
 #endif
 
@@ -356,7 +357,7 @@ static int __init parse_tag_ps_calibration(const struct tag *tag)
 __tagtable(ATAG_PS, parse_tag_ps_calibration);
 
 #if 0 
-defined(CONFIG_MACH_QUATTRO_U) || defined(CONFIG_MACH_VERTEXF)
+defined(CONFIG_MACH_VERTEXFP)
 unsigned int als_kadc_htc;
 EXPORT_SYMBOL(als_kadc_htc);
 
@@ -372,7 +373,7 @@ static int __init parse_tag_als_calibration(const struct tag *tag)
 __tagtable(ATAG_ALS, parse_tag_als_calibration);
 #endif
 
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_BLUE) || defined(CONFIG_MACH_QUATTRO_U) || defined(CONFIG_MACH_VERTEXF)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU) ||defined(CONFIG_MACH_BLUE) || defined(CONFIG_MACH_VERTEXFP)
 unsigned int als_kadc;
 EXPORT_SYMBOL(als_kadc);
 
@@ -524,17 +525,17 @@ static int mfg_mode;
 int __init board_mfg_mode_init(char *s)
 {
 	if (!strcmp(s, "normal"))
-		mfg_mode = 0;
+		mfg_mode = BOARD_MFG_MODE_NORMAL;
 	else if (!strcmp(s, "factory2"))
-		mfg_mode = 1;
+		mfg_mode = BOARD_MFG_MODE_FACTORY2;
 	else if (!strcmp(s, "recovery"))
-		mfg_mode = 2;
+		mfg_mode = BOARD_MFG_MODE_RECOVERY;
 	else if (!strcmp(s, "charge"))
-		mfg_mode = 3;
+		mfg_mode = BOARD_MFG_MODE_CHARGE;
 	else if (!strcmp(s, "power_test"))
-		mfg_mode = 4;
+		mfg_mode = BOARD_MFG_MODE_POWERTEST;
 	else if (!strcmp(s, "offmode_charging"))
-		mfg_mode = 5;
+		mfg_mode = BOARD_MFG_MODE_OFFMODE_CHARGING;
 
 	return 1;
 }
@@ -613,7 +614,7 @@ static int __init board_serialno_setup(char *serialno)
 	char *str;
 
 	/* use default serial number when mode is factory2 */
-	if (board_mfg_mode() == 1 || !strlen(serialno))
+	if (board_mfg_mode() == BOARD_MFG_MODE_FACTORY2 || !strlen(serialno))
 		str = df_serialno;
 	else
 		str = serialno;
@@ -630,7 +631,7 @@ static int __init board_mb_serialno_setup(char *serialno)
 	char *str;
 
 	/* use default serial number when mode is factory2 */
-	if (board_mfg_mode() == 1 || !strlen(serialno))
+	if (board_mfg_mode() == BOARD_MFG_MODE_FACTORY2 || !strlen(serialno))
 		str = df_mb_serialno;
 	else
 		str = serialno;
@@ -692,7 +693,7 @@ int __init tag_panel_parsing(const struct tag *tags)
 __tagtable(ATAG_HERO_PANEL_TYPE, tag_panel_parsing);
 
 /* ISL29028 ID values */
-//#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+//#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
 #define ATAG_PS_TYPE 0x4d534D77
 int ps_type;
 EXPORT_SYMBOL(ps_type);
@@ -750,7 +751,7 @@ int __init parse_tag_engineerid(const struct tag *tags)
 __tagtable(ATAG_ENGINEERID, parse_tag_engineerid);
 
 #define ATAG_PCBID 0x4d534D76
-unsigned char pcbid = PROJECT_PHASE_INVALID;
+static unsigned char pcbid = PROJECT_PHASE_LATEST;
 int __init parse_tag_pcbid(const struct tag *tags)
 {
 	int find = 0;
@@ -947,130 +948,23 @@ static int __init tegra_bootloader_panel_arg(char *options)
 }
 early_param("panel_vendor", tegra_bootloader_panel_arg);
 
-/* should call only one time */
-static int __htc_get_pcbid_info(void)
-{
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
-	switch (pcbid)
-	{
-		case 0:
-			return PROJECT_PHASE_XA;
-		case 1:
-			return PROJECT_PHASE_XB;
-		case 2:
-			return PROJECT_PHASE_XC;
-		case 3:
-			return PROJECT_PHASE_XD;
-		case 4:
-			return PROJECT_PHASE_XE;
-		case 5:
-			return PROJECT_PHASE_XF;
-		case 6:
-			return PROJECT_PHASE_XG;
-		case 7:
-			return PROJECT_PHASE_XH;
-		default:
-			return pcbid;
-	}
-
-#elif defined(CONFIG_MACH_QUATTRO_U) || defined(CONFIG_MACH_VERTEXF)
-	int err;
-	int pinSixValue   = 0;
-	int pinSevenValue = 0;
-
-	switch (pcbid)
-	{
-		case 0:
-		case 1:
-			break;
-		case 2:
-			return PROJECT_PHASE_XC;
-		case 3:
-			return PROJECT_PHASE_XD;
-		case 4:
-			return PROJECT_PHASE_XE;
-		case 5:
-			return PROJECT_PHASE_XF;
-		case 6:
-			return PROJECT_PHASE_XG;
-		case 7:
-			return PROJECT_PHASE_XH;
-		default:
-			return pcbid;
-	}
-
-	static const struct gpio pcbid_info_gpios[] = {
-		{ TEGRA_GPIO_PG6, GPIOF_IN, "TEGRA_GPIO_PG6" },
-		{ TEGRA_GPIO_PG7, GPIOF_IN, "TEGRA_GPIO_PG7" },
-	};
-	err = gpio_request_array(pcbid_info_gpios,
-		ARRAY_SIZE(pcbid_info_gpios));
-	if (err < 0) {
-		pr_err("%s - gpio_request_array failed\n", __func__);
-		return PROJECT_PHASE_INVALID;
-	}
-	tegra_gpio_enable(TEGRA_GPIO_PG6);
-	tegra_gpio_enable(TEGRA_GPIO_PG7);
-
-	pinSixValue   = gpio_get_value(TEGRA_GPIO_PG6);
-	pinSevenValue = gpio_get_value(TEGRA_GPIO_PG7);
-
-#ifdef DEBUG_GET_PROJ_PHASE
-	pr_info("pinSixValue: %d\n", pinSixValue);
-	pr_info("pinSevenValue: %d\n", pinSevenValue);
-	pr_info("engineer_id: %d\n", engineer_id);
-#endif
-
-	switch (engineer_id) {
-		case 0x0:
-			if (pinSixValue & pinSevenValue)
-				return PROJECT_PHASE_XA;
-			else
-				return PROJECT_PHASE_EVM;
-		case ENGID_XB:
-			return PROJECT_PHASE_XB;
-		default:
-			return PROJECT_PHASE_INVALID;
-	}
-#endif
-}
-
-static char* __pcbid_to_name(signed int id)
-{
-	switch (id)
-	{
-	case PROJECT_PHASE_INVALID: return "INVALID";
-	case PROJECT_PHASE_EVM:     return "EVM";
-	case PROJECT_PHASE_XA:      return "XA";
-	case PROJECT_PHASE_XB:      return "XB";
-	case PROJECT_PHASE_XC:      return "XC";
-	case PROJECT_PHASE_XD:      return "XD";
-	case PROJECT_PHASE_XE:      return "XE";
-	case PROJECT_PHASE_XF:      return "XF";
-	case PROJECT_PHASE_XG:      return "XG";
-	case PROJECT_PHASE_XH:      return "XH";
-	default:
-		return "<Latest HW phase>";
-	}
-}
-
 const int htc_get_pcbid_info(void)
 {
-	static int __pcbid = PROJECT_PHASE_INVALID;
-	if (__pcbid == PROJECT_PHASE_INVALID)
-	{
-		__pcbid = __htc_get_pcbid_info();
-		pr_info("[hTC info] project phase: %s (id=%d)\n",
-				__pcbid_to_name(__pcbid), __pcbid);
-	}
-	return __pcbid;
+	return pcbid;
 }
 
 #define ENG_ID_MODEM_REWORK 0xCA0F
 const bool is_modem_rework_phase()
 {
-    return (htc_get_pcbid_info() == PROJECT_PHASE_XC) &&
-        (engineer_id == ENG_ID_MODEM_REWORK);
+	/*
+	 * this function is used on reworked ENR#TD XC, should be removed after
+	 * ENR#TD XD come out.
+	 */
+	if (machine_is_endeavortd())
+		return false;
+	else
+		return (htc_get_pcbid_info() == PROJECT_PHASE_XC) &&
+			(engineer_id == ENG_ID_MODEM_REWORK);
 }
 
 #ifdef CONFIG_DEBUG_LL_DYNAMIC
@@ -1095,4 +989,21 @@ __setup("bl_ac_in", bl_ac_flag_init);
 unsigned int get_bl_ac_in_flag(void)
 {
 	return bl_ac_flag;
+}
+
+static long unsigned int usb_ats;
+int __init board_ats_init(char *s)
+{
+	int ret;
+
+	//usb_ats = simple_strtoul(s, 0, 10);
+	ret = strict_strtoul(s, 16, &usb_ats);
+	return 1;
+}
+__setup("ats=", board_ats_init);
+
+
+int board_get_usb_ats(void)
+{
+	return usb_ats;
 }

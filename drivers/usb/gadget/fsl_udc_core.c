@@ -66,16 +66,6 @@
 #define VOL_LEVEL_DONGLE_UPPER 46
 #define VOL_LEVEL_DONGLE_LOWER 31
 
-#define TEGRA_GPIO_PC7         23
-
-#define TEGRA_GPIO_PO1         113
-#define TEGRA_GPIO_PO2         114
-#define TEGRA_GPIO_PH3         59
-
-#define UART_USB_SW             TEGRA_GPIO_PH3
-#define UART1_DEBUG_TX          TEGRA_GPIO_PO1
-#define UART1_DEBUG_RX          TEGRA_GPIO_PO2
-#define CHARGER_PIN_REC		TEGRA_GPIO_PC7
 #define D_PLUS_BIT 0x0400
 #define D_MINUS_BIT 0x0800
 
@@ -180,6 +170,8 @@ static int reset_queues(struct fsl_udc *udc);
 static int usb_check_count;
 static int first_online;
 static void usb_vbus_state_work(struct work_struct *w);
+
+static struct fsl_usb2_platform_data *udc_pdata;
 
 #define USB_STATE_IDLE    0
 #define USB_STATE_ONLINE  1
@@ -910,6 +902,10 @@ prime:
 			| EP_QUEUE_HEAD_STATUS_HALT));
 	dQH->size_ioc_int_sts &= temp;
 
+#if defined(CONFIG_ARCH_TEGRA)
+	fsl_udc_ep_barrier();
+#endif
+
 	/* Ensure that updates to the QH will occur before priming. */
 	wmb();
 
@@ -995,6 +991,10 @@ static int fsl_req_to_dtd(struct fsl_req *req, gfp_t gfp_flags)
 	int		is_first =1;
 	struct ep_td_struct	*last_dtd = NULL, *dtd;
 	dma_addr_t dma;
+
+#if defined(CONFIG_ARCH_TEGRA)
+	fsl_udc_dtd_prepare();
+#endif
 
 	do {
 		dtd = fsl_build_dtd(req, &count, &dma, &is_last, gfp_flags);
@@ -1701,10 +1701,12 @@ static void udc_test_mode(struct fsl_udc *udc, u32 test_mode)
 		VDBG("TEST_K\n");
 		break;
 	case PORTSCX_PTC_SEQNAK:
-		val = readl(IO_ADDRESS(base + UTMIP_HSRX_CFG1));
-		val &= ~UTMIP_HS_SYNC_START_DLY(~0);
-		val |= UTMIP_HS_SYNC_START_DLY(0x2);
-		writel(val, IO_ADDRESS(base + UTMIP_HSRX_CFG1));
+		if(!(base + UTMIP_HSRX_CFG1) && !(IO_ADDRESS(base + UTMIP_HSRX_CFG1))){
+			val = readl(IO_ADDRESS(base + UTMIP_HSRX_CFG1));
+			val &= ~UTMIP_HS_SYNC_START_DLY(~0);
+			val |= UTMIP_HS_SYNC_START_DLY(0x2);
+			writel(val, IO_ADDRESS(base + UTMIP_HSRX_CFG1));
+		}
 		VDBG("TEST_SE0_NAK\n");
 		break;
 	case PORTSCX_PTC_PACKET:
@@ -1970,6 +1972,13 @@ static int process_ep_req(struct fsl_udc *udc, int pipe,
 	actual = curr_req->req.length;
 
 	for (j = 0; j < curr_req->dtd_count; j++) {
+#ifdef CONFIG_ARCH_TEGRA
+		/* Fence read for coherency of AHB master intiated writes */
+		readb(IO_ADDRESS(IO_PPCS_PHYS + USB1_PREFETCH_ID));
+#endif
+		dma_sync_single_for_cpu(udc->gadget.dev.parent, curr_td->td_dma,
+			sizeof(struct ep_td_struct), DMA_FROM_DEVICE);
+
 		remaining_length = (le32_to_cpu(curr_td->size_ioc_sts)
 					& DTD_PACKET_SIZE)
 				>> DTD_LENGTH_BIT_POS;
@@ -2585,7 +2594,6 @@ static void charger_detect_gpio(struct fsl_udc *udc)
 {
 	int val, val1, val2;
 	int charger_type;
-	int board_id = 0;
 	bool is5Pin;
 	int voltage;
 	u32 portsc;
@@ -2595,7 +2603,6 @@ static void charger_detect_gpio(struct fsl_udc *udc)
 	printk("charger_detect_gpio \n");
 
 	mdelay(10);
-	board_id = htc_get_pcbid_info();
 	portsc = fsl_readl(&dr_regs->portsc1);
 	ret = (portsc & PORTSCX_LINE_STATUS_BITS);
 	if (ret != PORTSCX_LINE_STATUS_BITS) {
@@ -2608,91 +2615,91 @@ static void charger_detect_gpio(struct fsl_udc *udc)
 		udc->connect_type = CONNECT_TYPE_AC;
 	}
 
-	/* UART_USB_SW */
+	/* udc_pdata->ur_gpio */
 	/* 1. Set GPIO PH3 output low, switch to UART bus */
 
-	ret = gpio_direction_output(UART_USB_SW, 0);
+	ret = gpio_direction_output(udc_pdata->ur_gpio, 0);
 	if (ret < 0) {
 		USB_WARNING("%s: gpio_direction_output failed %d\n", __func__, ret);
-		gpio_free(UART_USB_SW);
+		gpio_free(udc_pdata->ur_gpio);
 		return;
 	}
-	tegra_gpio_enable(UART_USB_SW);
+	tegra_gpio_enable(udc_pdata->ur_gpio);
 
-	/* 2. Set GPIO PO2 (UART1_DEBUG_RX) input D-*/
-	ret = gpio_direction_input(UART1_DEBUG_RX);
+	/* 2. Set GPIO PO2 (udc_pdata->rx_gpio) input D-*/
+	ret = gpio_direction_input(udc_pdata->rx_gpio);
 	if (ret < 0) {
 		USB_WARNING("%s: gpio_direction_input failed %d\n", __func__, ret);
-		gpio_free(UART1_DEBUG_RX);
+		gpio_free(udc_pdata->rx_gpio);
 		return;
 	}
-	tegra_gpio_enable(UART1_DEBUG_RX);
+	tegra_gpio_enable(udc_pdata->rx_gpio);
 
-	/* 3. Set GPIO PO1 (UART1_DEBUG_TX) output high D+ (0)*/
-	
+	/* 3. Set GPIO PO1 (udc_pdata->tx_gpio) output high D+ (0)*/
 
-	ret = gpio_direction_output(UART1_DEBUG_TX, 0);
+
+	ret = gpio_direction_output(udc_pdata->tx_gpio, 0);
 
 	if (ret < 0) {
 
 		USB_WARNING("%s: gpio_direction_output failed %d\n", __func__, ret);
-		gpio_free(UART1_DEBUG_TX);
+		gpio_free(udc_pdata->tx_gpio);
 		return;
 	}
-	tegra_gpio_enable(UART1_DEBUG_TX);
+	tegra_gpio_enable(udc_pdata->tx_gpio);
 
 
 	mdelay(100);
 
-	/* 4. Set GPIO PO1 (UART1_DEBUG_TX) output high D+ (1) */
-	ret = gpio_direction_output(UART1_DEBUG_TX, 1);
+	/* 4. Set GPIO PO1 (udc_pdata->tx_gpio) output high D+ (1) */
+	ret = gpio_direction_output(udc_pdata->tx_gpio, 1);
 
 	if (ret < 0) {
 
 		USB_WARNING("%s: gpio_direction_output failed %d\n", __func__, ret);
-		gpio_free(UART1_DEBUG_TX);
+		gpio_free(udc_pdata->tx_gpio);
 		return;
 	}
 
-	tegra_gpio_enable(UART1_DEBUG_TX);
+	tegra_gpio_enable(udc_pdata->tx_gpio);
 
 
 	/* 5. Read GPIO PO1(D-) */
 
-	val1 = gpio_get_value(UART1_DEBUG_RX);
+	val1 = gpio_get_value(udc_pdata->rx_gpio);
 	mdelay(5);
-	val2 = gpio_get_value(UART1_DEBUG_RX);
+	val2 = gpio_get_value(udc_pdata->rx_gpio);
 
 
 
-	/* 6. Set GPIO PO2 (UART1_DEBUG_RX) as SFIO2 (UART1 RX) */
-	tegra_gpio_disable(UART1_DEBUG_RX);
+	/* 6. Set GPIO PO2 (udc_pdata->rx_gpio) as SFIO2 (UART1 RX) */
+	tegra_gpio_disable(udc_pdata->rx_gpio);
 
-	/* 7. Set GPIO PO1 (UART1_DEBUG_TX) as SFIO2 (UART1 TX) */
-	tegra_gpio_disable(UART1_DEBUG_TX);
+	/* 7. Set GPIO PO1 (udc_pdata->tx_gpio) as SFIO2 (UART1 TX) */
+	tegra_gpio_disable(udc_pdata->tx_gpio);
 
 	/* 8. Set GPIO PH3 (UART/USB#SW) input */
 #ifndef CONFIG_USB_STRESS_TEST
 	
-	ret = gpio_direction_input(UART_USB_SW);
+	ret = gpio_direction_input(udc_pdata->ur_gpio);
 	if (ret < 0) {
 		USB_WARNING("%s: gpio_direction_output failed %d\n", __func__, ret);
-		gpio_free(UART_USB_SW);
+		gpio_free(udc_pdata->ur_gpio);
 		return;
 	}
-	tegra_gpio_enable(UART_USB_SW);
+	tegra_gpio_enable(udc_pdata->ur_gpio);
 #else
 	/* when stress test, we disable the uart in case hang the PC */
-	ret = gpio_direction_output(UART_USB_SW, 1);
+	ret = gpio_direction_output(udc_pdata->ur_gpio, 1);
 	if (ret < 0) {
 		USB_WARNING("%s: gpio_direction_output failed %d\n", __func__, ret);
-		gpio_free(UART_USB_SW);
+		gpio_free(udc_pdata->ur_gpio);
 		return;
 	}
-	tegra_gpio_enable(UART_USB_SW);
+	tegra_gpio_enable(udc_pdata->ur_gpio);
 #endif
 	/* read the int state */
-	val = gpio_get_value(CHARGER_PIN_REC);
+	val = gpio_get_value(udc_pdata->chg_gpio);
 
 	microp_read_adc(command);
 	voltage =  ((command[0]<<8) | command[1])&0xffff;
@@ -2725,7 +2732,7 @@ static void charger_detect_gpio(struct fsl_udc *udc)
 	USB_INFO("command = %x %x\n", command[1], command[0]);
 	is5Pin = (voltage > 0) ? true : false;
 	
-	if (board_id == PROJECT_PHASE_XA || board_id == PROJECT_PHASE_XB) {
+	if (udc_pdata->charger_type == 0) {
 		if (val1 && val2) {
 			USB_INFO("5V/1A AC charger\n");
 		} else if (val1 == 0 && val2 == 1) {
@@ -2742,7 +2749,7 @@ static void charger_detect_gpio(struct fsl_udc *udc)
 			USB_WARNING("Unknown Type\n");
 		}
 	}
-	else if(board_id >= PROJECT_PHASE_XC){
+	else if(udc_pdata->charger_type == 1){
 		if (val1 && val2) { // 1A
 
 			if(charger_type == CHARGER_TYPE_5){
@@ -2832,6 +2839,11 @@ static void charger_detect(struct fsl_udc *udc)
 	spin_unlock_irqrestore(&udc->lock, flags);
 
 #if defined(CONFIG_CABLE_DETECT_ACCESSORY)
+	if (udc->connect_type == CONNECT_TYPE_INTERNAL) {
+		USB_INFO("%s: internrl, return\n", __func__);
+		return;
+	}
+
 	if (ret != PORTSCX_LINE_STATUS_BITS && !cable_detection_ac_only())
 #else
 	if (ret != PORTSCX_LINE_STATUS_BITS)
@@ -2978,16 +2990,10 @@ static void usb_start(struct fsl_udc *udc)
 #if defined(CONFIG_CABLE_DETECT_ACCESSORY)
 void cable_status_notifier_func(int cable_type)
 {
-	if (vbus_enabled() && cable_type != CONNECT_TYPE_NONE) {
+	if (cable_type != CONNECT_TYPE_NONE) {
 		USB_INFO("%s: cable=%d\n", __func__, cable_type);
-		if (cable_type == CONNECT_TYPE_AC) {
-			udc_controller->connect_type = CONNECT_TYPE_AC;
-			queue_work(udc_controller->usb_wq, &udc_controller->notifier_work);
-		}
-		else {
-			udc_controller->connect_type = CONNECT_TYPE_USB;
-			queue_work(udc_controller->usb_wq, &udc_controller->notifier_work);
-		}
+		udc_controller->connect_type = cable_type;
+		queue_work(udc_controller->usb_wq, &udc_controller->notifier_work);
 	}
 }
 
@@ -3137,6 +3143,7 @@ void tegra_usb_set_vbus_state(int online)
 
 	}
 
+
 	spin_lock_irqsave(&udc->lock, flags);
 	udc->vbus_active = (online != 0);
 	if (can_pullup(udc))
@@ -3146,6 +3153,7 @@ void tegra_usb_set_vbus_state(int online)
 		fsl_writel((fsl_readl(&dr_regs->usbcmd) & ~USB_CMD_RUN_STOP),
 				&dr_regs->usbcmd);
 	spin_unlock_irqrestore(&udc->lock, flags);
+
 
 	return;
 }
@@ -3726,6 +3734,8 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	struct resource *res_sys = NULL;
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 #endif
+
+	udc_pdata= pdata;
 
 	if (strcmp(pdev->name, driver_name)) {
 		VDBG("Wrong device");

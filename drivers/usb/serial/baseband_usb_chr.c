@@ -690,13 +690,13 @@ static struct baseband_ipc *baseband_ipc_open(work_func_t work_func,
 			ipc_buf);
 		list_add_tail(&ipc_buf->list, &ipc->tx_free.buf);
 	}
-	ipc->ipc_rx = kzalloc(USB_CHR_RX_BUFSIZ, GFP_KERNEL);
+	ipc->ipc_rx = kmalloc(USB_CHR_RX_BUFSIZ, GFP_KERNEL);
 	if (!ipc->ipc_rx) {
 		pr_err("baseband_ipc_open - "
 			"cannot allocate ipc->ipc_rx\n");
 		goto error_exit;
 	}
-	ipc->ipc_tx = kzalloc(USB_CHR_TX_BUFSIZ, GFP_KERNEL);
+	ipc->ipc_tx = kmalloc(USB_CHR_TX_BUFSIZ, GFP_KERNEL);
 	if (!ipc->ipc_tx) {
 		pr_err("baseband_ipc_open - "
 			"cannot allocate ipc->ipc_tx\n");
@@ -894,7 +894,7 @@ static int baseband_usb_driver_probe(struct usb_interface *intf,
 	const struct usb_device_id *id)
 {
 
-	pr_info("%s(%d) 0308 - usb chr driver Ver.2 { intf %p id %p\n", __func__, __LINE__, intf, id);
+	pr_info("%s(%d) 0322 - usb chr driver Ver.3 { intf %p id %p\n", __func__, __LINE__, intf, id);
 
 	pr_info("intf->cur_altsetting->desc.bInterfaceNumber %02x\n",
 		intf->cur_altsetting->desc.bInterfaceNumber);
@@ -1304,12 +1304,14 @@ static struct baseband_usb *baseband_usb_open(unsigned int vid,
 		pr_err("usb_alloc_urb() failed\n");
 		goto error_exit;
 	}
-	buf = kzalloc(USB_CHR_RX_BUFSIZ, GFP_KERNEL);
+
+	buf = kmalloc(USB_CHR_RX_BUFSIZ, GFP_KERNEL);
 	if (!buf) {
-		pr_err("usb buffer kzalloc() failed\n");
+		pr_err("%s: usb buffer kmalloc() failed\n", __func__);
 		usb_free_urb(urb);
 		goto error_exit;
 	}
+	pr_info("page alloc debug: after check !buf and allocated %d bytes\n", USB_CHR_RX_BUFSIZ);
 	urb->transfer_buffer = buf;
 	usb->usb.rx_urb = urb;
 

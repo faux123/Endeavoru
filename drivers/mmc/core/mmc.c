@@ -22,6 +22,13 @@
 #include "mmc_ops.h"
 #include "sd_ops.h"
 
+#include <linux/android_alarm.h>
+
+extern int htc_mmc_needs_bkops;
+extern int htc_mmc_bkops_flag;
+extern u64 bkops_end;
+extern u64 bkops_start;
+
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -456,6 +463,19 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
+
+	if (oldcard && host->index == 0 && htc_mmc_bkops_flag) {
+		bkops_end = ktime_to_ms(ktime_get_real());
+
+		if (bkops_end > bkops_start)
+			htc_mmc_needs_bkops -= (bkops_end - bkops_start);
+
+		if (htc_mmc_needs_bkops < 0)
+			htc_mmc_needs_bkops = 0;
+
+		mmc_card_clr_doing_bkops(oldcard);
+		htc_mmc_bkops_flag = 0;
+	}
 
 	/*
 	 * Since we're changing the OCR value, we seem to

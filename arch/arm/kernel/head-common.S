@@ -49,7 +49,7 @@ __vet_atags:
 	cmp	r5, r6
 	bne	1f
 
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_VERTEXF)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU) || defined(CONFIG_MACH_VERTEXFP)
 #define ATAGS_BLOCK_DISPLACE
 #endif
 

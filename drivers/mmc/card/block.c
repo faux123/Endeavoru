@@ -328,10 +328,13 @@ static int mmc_blk_issue_secdiscard_rq(struct mmc_queue *mq,
 	from = blk_rq_pos(req);
 	nr = blk_rq_sectors(req);
 
+/*
 	if (mmc_can_trim(card) && !mmc_erase_group_aligned(card, from, nr))
 		arg = MMC_SECURE_TRIM1_ARG;
 	else
 		arg = MMC_SECURE_ERASE_ARG;
+*/
+	arg = MMC_ERASE_ARG;
 
 	if (card->quirks & MMC_QUIRK_INAND_CMD38) {
 		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
@@ -557,9 +560,10 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *req)
 		spin_unlock_irq(&md->lock);
 	} while (ret);
 
+/*
 	if (brq.cmd.resp[0] & R1_URGENT_BKOPS)
 		mmc_card_set_need_bkops(card);
-
+*/
 	mmc_release_host(card->host);
 
 	return 1;
@@ -780,6 +784,7 @@ static int mmc_blk_probe(struct mmc_card *card)
 	mmc_set_bus_resume_policy(card->host, 1);
 #endif
 	add_disk(md->disk);
+	card->mmcblk_dev = disk_to_dev(md->disk);
 	return 0;
 
  out:

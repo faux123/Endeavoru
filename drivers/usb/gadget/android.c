@@ -241,12 +241,12 @@ static void android_work(struct work_struct *data)
 		spin_unlock_irqrestore(&cdev->lock, flags);
 		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE,
 							configured);
-		sp_pr_info("USB_STATE=CONFIGURED");
+		pr_info("USB_STATE=CONFIGURED");
 
 		/* hold perflock, wakelock for performance consideration */
 		list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
 			if (f->performance_lock) {
-				sp_pr_info("Performance lock for '%s'\n", f->name);
+				//pr_info("Performance lock for '%s'\n", f->name);
 				count++;
 			}
 		}
@@ -272,7 +272,7 @@ static void android_work(struct work_struct *data)
 		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE,
 				dev->sw_connected ? connected : disconnected);
 
-		sp_pr_info("%s\n", dev->connected ? connected[0] : disconnected[0]);
+		pr_info("%s\n", dev->connected ? connected[0] : disconnected[0]);
 	} else {
 		spin_unlock_irqrestore(&cdev->lock, flags);
 	}
@@ -1840,6 +1840,26 @@ field ## _store(struct device *dev, struct device_attribute *attr,	\
 }									\
 static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, field ## _show, field ## _store);
 
+#define DESCRIPTOR_STRING_ATTR_SECU(field, buffer)				\
+static ssize_t								\
+field ## _show(struct device *dev, struct device_attribute *attr,	\
+		char *buf)						\
+{									\
+	return snprintf(buf, PAGE_SIZE, "%s", buffer);			\
+}									\
+static ssize_t								\
+field ## _store(struct device *dev, struct device_attribute *attr,	\
+		const char *buf, size_t size)		       		\
+{									\
+	pr_info("%s\n", __func__);				\
+	if (size >= sizeof(buffer)) return -EINVAL;			\
+	if (sscanf(buf, "%255s", buffer) == 1) {			\
+		return size;						\
+	}								\
+	return -1;							\
+}									\
+static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, field ## _show, field ## _store);
+
 
 DESCRIPTOR_ATTR(idVendor, "%04x\n")
 DESCRIPTOR_ATTR(idProduct, "%04x\n")
@@ -1849,7 +1869,7 @@ DESCRIPTOR_ATTR(bDeviceSubClass, "%d\n")
 DESCRIPTOR_ATTR(bDeviceProtocol, "%d\n")
 DESCRIPTOR_STRING_ATTR(iManufacturer, manufacturer_string)
 DESCRIPTOR_STRING_ATTR(iProduct, product_string)
-DESCRIPTOR_STRING_ATTR(iSerial, serial_string)
+DESCRIPTOR_STRING_ATTR_SECU(iSerial, serial_string)
 
 static DEVICE_ATTR(functions, S_IRUGO | S_IWUSR, functions_show, functions_store);
 static DEVICE_ATTR(enable, S_IRUGO | S_IWUSR, enable_show, enable_store);

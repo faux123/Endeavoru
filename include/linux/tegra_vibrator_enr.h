@@ -13,7 +13,6 @@ struct vibrator_platform_data {
 	struct tegra_pwm_data pwm_data;
 	int pwm_gpio;
 	int ena_gpio;
-	int pwr_gpio;
 };
 
 #endif  //_TEGRA_VIBRATOR_ENR_H

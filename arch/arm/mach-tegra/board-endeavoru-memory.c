@@ -25,7 +25,7 @@
 //#include <linux/clk.h>
 
 
-static const struct tegra_emc_table enterprise_emc_tables_h5tc2g_400[] = {
+static const struct tegra_emc_table endeavor_emc_tables_h5tc2g_400[] = {
 	{
 		0x31,       /* Rev 3.1 */
 		25500,      /* SDRAM frequency */
@@ -623,7 +623,7 @@ static const struct tegra_emc_table enterprise_emc_tables_h5tc2g_400[] = {
 	},
 };
 
-static const struct tegra_emc_table enterprise_emc_tables_h5tc2g_533[] = 
+static const struct tegra_emc_table endeavor_emc_tables_h5tc2g_533[] = 
 {
 	{
 		0x32,       /* Rev 3.2 */
@@ -1227,7 +1227,7 @@ static const struct tegra_emc_table enterprise_emc_tables_h5tc2g_533[] =
 	},
 };
 
-int enterprise_emc_init(void)
+int endeavor_emc_init(void)
 {
 //    struct clk *emc;
 //	unsigned long  max_rate;
@@ -1238,12 +1238,12 @@ int enterprise_emc_init(void)
 //    printk("max_rate : %d\n" ,max_rate);
 //    if (max_rate == 400000){
 //        printk("init 400MHz Timing table\n");
-//        tegra_init_emc(enterprise_emc_tables_h5tc2g_400,
-//          ARRAY_SIZE(enterprise_emc_tables_h5tc2g_400));
+//        tegra_init_emc(endeavor_emc_tables_h5tc2g_400,
+//          ARRAY_SIZE(endeavor_emc_tables_h5tc2g_400));
 //    } else if (max_rate == 533000){
         printk("init 533MHz Timing table\n");
-        tegra_init_emc(enterprise_emc_tables_h5tc2g_533,
-          ARRAY_SIZE(enterprise_emc_tables_h5tc2g_533));
+        tegra_init_emc(endeavor_emc_tables_h5tc2g_533,
+          ARRAY_SIZE(endeavor_emc_tables_h5tc2g_533));
 //    } 
 	return 0;
 }

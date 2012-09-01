@@ -37,7 +37,6 @@
 
 #include <asm/irq.h>
 #include <asm/uaccess.h>
-#include <htc/log.h>
 
 /*
  * This is used to lock changes in serial line configuration.
@@ -1299,7 +1298,6 @@ static void uart_close(struct tty_struct *tty, struct file *filp)
 		 * one, we've got real problems, since it means the
 		 * serial port won't be shutdown.
 		 */
-//		printk(KERN_ERR "uart_close: bad serial port count; tty->count is 1, "
 		printk(KERN_ERR "uart_close: bad serial port count; tty->count is 1, "
 		       "port->count is %d\n", port->count);
 		port->count = 1;
@@ -2022,6 +2020,10 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 	/*
 	 * Re-enable the console device after suspending.
 	 */
+#ifdef CONFIG_SERIAL_SC8800G
+	if (uport->line == 3)
+		printk("uart.3: uart_console(uport)=%d, (%d)", uart_console(uport), console_suspend_enabled);
+#endif
 	if (uart_console(uport)) {
 		/*
 		 * First try to use the console cflag setting.

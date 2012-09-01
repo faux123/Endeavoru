@@ -90,7 +90,10 @@ int __cpuinit __cpu_up(unsigned int cpu)
 	 */
 	pgd = pgd_alloc(&init_mm);
 	if (!pgd)
+	{
+		printk(KERN_ERR "%s: out of memory\n", __func__);
 		return -ENOMEM;
+	}
 
 	if (PHYS_OFFSET != PAGE_OFFSET) {
 #ifndef CONFIG_HOTPLUG_CPU

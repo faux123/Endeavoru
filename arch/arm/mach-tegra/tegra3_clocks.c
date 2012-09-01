@@ -29,9 +29,10 @@
 #include <linux/clk.h>
 #include <linux/cpufreq.h>
 #include <linux/syscore_ops.h>
+#include <linux/seq_file.h>
+#include <linux/debugfs.h>
 
 #include <asm/clkdev.h>
-
 #include <mach/iomap.h>
 #include <mach/edp.h>
 
@@ -309,7 +310,6 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #define EARLY_SUSPEND_MIN_CPU_FREQ_IDX	0
 #define ACTIVE_MIN_CPU_FREQ_IDX		1
-
 /*
  * SCLK_ADJUST_DELAY is timeout to delay lowering SCLK
  * after display off/suspend. SCLK is kept at 40Mhz for the specified
@@ -4274,12 +4274,21 @@ struct clk tegra_list_clks[] = {
 	PERIPH_CLK("hda",	"tegra30-hda",		"hda",   125,	0x428,	108000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
 	PERIPH_CLK("hda2codec_2x",	"tegra30-hda",	"hda2codec",   111,	0x3e4,	48000000,  mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
 	PERIPH_CLK("hda2hdmi",	"tegra30-hda",		"hda2hdmi",	128,	0,	48000000,  mux_clk_m,			PERIPH_ON_APB),
-	PERIPH_CLK("sbc1",	"spi_tegra.0",		NULL,	41,	0x134,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
-	PERIPH_CLK("sbc2",	"spi_tegra.1",		NULL,	44,	0x118,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
-	PERIPH_CLK("sbc3",	"spi_tegra.2",		NULL,	46,	0x11c,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
-	PERIPH_CLK("sbc4",	"spi_tegra.3",		NULL,	68,	0x1b4,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
-	PERIPH_CLK("sbc5",	"spi_tegra.4",		NULL,	104,	0x3c8,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
-	PERIPH_CLK("sbc6",	"spi_tegra.5",		NULL,	105,	0x3cc,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
+#ifdef CONFIG_SERIAL_SC8800G
+	PERIPH_CLK("sbc1",	"spi_tegra.0",		"spi",	41,	0x134,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("sbc2",	"spi_tegra.1",		"spi",	44,	0x118,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("sbc3",	"spi_tegra.2",		"spi",	46,	0x11c,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("sbc4",	"spi_tegra.3",		"spi",	68,	0x1b4,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("sbc5",	"spi_tegra.4",		"spi",	104,	0x3c8,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("sbc6",	"spi_tegra.5",		"spi",	105,	0x3cc,	160000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
+#else
+	PERIPH_CLK("sbc1",      "spi_tegra.0",          NULL,   41,     0x134,  160000000, mux_pllp_pllc_pllm_clkm,     MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("sbc2",      "spi_tegra.1",          NULL,   44,     0x118,  160000000, mux_pllp_pllc_pllm_clkm,     MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("sbc3",      "spi_tegra.2",          NULL,   46,     0x11c,  160000000, mux_pllp_pllc_pllm_clkm,     MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("sbc4",      "spi_tegra.3",          NULL,   68,     0x1b4,  160000000, mux_pllp_pllc_pllm_clkm,     MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("sbc5",      "spi_tegra.4",          NULL,   104,    0x3c8,  160000000, mux_pllp_pllc_pllm_clkm,     MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("sbc6",      "spi_tegra.5",          NULL,   105,    0x3cc,  160000000, mux_pllp_pllc_pllm_clkm,     MUX | DIV_U71 | PERIPH_ON_APB),
+#endif
 	PERIPH_CLK("sata_oob",	"tegra_sata_oob",	NULL,	123,	0x420,	216000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71),
 	PERIPH_CLK("sata",	"tegra_sata",		NULL,	124,	0x424,	216000000, mux_pllp_pllc_pllm_clkm,	MUX | DIV_U71),
 	PERIPH_CLK("sata_cold",	"tegra_sata_cold",	NULL,	129,	0,	48000000,  mux_clk_m,			0),
@@ -4364,6 +4373,14 @@ struct clk tegra_list_clks[] = {
 	SHARED_CLK("mon.avp",	"tegra_actmon",		"avp",	&tegra_clk_sbus_cmplx, NULL, 0, 0),
 	SHARED_CLK("cap.sclk",	"cap_sclk",		NULL,	&tegra_clk_sbus_cmplx, NULL, 0, SHARED_CEILING),
 	SHARED_CLK("floor.sclk", "floor_sclk",		NULL,	&tegra_clk_sbus_cmplx, NULL, 0, 0),
+#ifdef CONFIG_SERIAL_SC8800G
+	SHARED_CLK("sbc1.sclk", "spi_tegra.0",		"sclk", &tegra_clk_sbus_cmplx, NULL, 0, 0),
+	SHARED_CLK("sbc2.sclk", "spi_tegra.1",		"sclk", &tegra_clk_sbus_cmplx, NULL, 0, 0),
+	SHARED_CLK("sbc3.sclk", "spi_tegra.2",		"sclk", &tegra_clk_sbus_cmplx, NULL, 0, 0),
+	SHARED_CLK("sbc4.sclk", "spi_tegra.3",		"sclk", &tegra_clk_sbus_cmplx, NULL, 0, 0),
+	SHARED_CLK("sbc5.sclk", "spi_tegra.4",		"sclk", &tegra_clk_sbus_cmplx, NULL, 0, 0),
+	SHARED_CLK("sbc6.sclk", "spi_tegra.5",		"sclk", &tegra_clk_sbus_cmplx, NULL, 0, 0),
+#endif
 	SHARED_CLK("camera.sclk",	"tegra_camera",	"sclk",	&tegra_clk_sbus_cmplx, NULL, 0, 0),
 	SHARED_CLK("wake.sclk", "delay.audio.0",	"sclk",	&tegra_clk_sbus_cmplx, NULL, 0, 0),
 	SHARED_CLK("disp2.sclk", "tegradc.1",		"sclk",	&tegra_clk_sbus_cmplx, NULL, 0, 0),

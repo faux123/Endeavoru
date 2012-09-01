@@ -159,16 +159,16 @@ config MACH_TEGRA_ENTERPRISE
          Support for NVIDIA Enterprise development platform
 
 config MACH_VERTEXF
-       bool "Quattro#F board"
+       bool "Vertex#F board"
        depends on ARCH_TEGRA_3x_SOC
        help
-         Support for HTC Quattro#F tablet
+         Support for HTC Vertex#F tablet
 
 config MACH_VERTEXFP
-       bool "Quattro#F PRM board"
+       bool "Vertex#F PRM board"
        depends on ARCH_TEGRA_3x_SOC
        help
-         Support for HTC Quattro#F PRM tablet
+         Support for HTC Vertex#F PRM tablet
 
 config MACH_ENDEAVORU
 	bool "Edge board"
@@ -183,6 +183,13 @@ config MACH_ENDEAVORTD
 	depends on ARCH_TEGRA_3x_SOC
 	help
 		Support for HTC EDGE#TD phone
+
+config MACH_ERAU
+	bool "Edge board"
+	default n
+	depends on ARCH_TEGRA_3x_SOC
+	help
+		Support for HTC EDGE#U phone
 
 config BATTERY_TPS80032
 	depends on HTC_BATT_CORE && ADC_TPS80032 && VSYS_ALARM_TPS80032
@@ -485,7 +492,7 @@ config USB_HOTPLUG
 
 config TIWLAN_SDIO
         bool "TI WLAN Enhanced SDIO Contoller support"
-        depends on MACH_ENDEAVORU || MACH_ENDEAVORTD || MACH_BLUE
+        depends on MACH_ENDEAVORU || MACH_ENDEAVORTD || MACH_ERAU || MACH_BLUE
         help
            Say Y here if you want to be able to use TI's WLAN device using the
            SDIO interface. If unsure, say N.
@@ -607,7 +614,7 @@ config HTC_BATT_CORE
 
 config RESET_REASON
     bool "Enable reset reason for Quattro / Blue"
-    depends on MACH_ENDEAVORU || MACH_ENDEAVORTD || MACH_BLUE || MACH_VERTEXF || MACH_QUATTRO_U
+    depends on MACH_ENDEAVORU || MACH_ENDEAVORTD || MACH_ERAU || MACH_BLUE || MACH_VERTEXFP
     default n
 
 config TEGRA_PLLM_RESTRICTED
@@ -652,6 +659,26 @@ config ANDROID_RAM_CONSOLE_APPEND_PMIC_STATUS_BITS
 	help
 	  Append PMIC status bits to end of /proc/last_kmsg for
 	  checking the boot / reset reason in detail
+
+config BUILD_BOARD_MFG
+	bool
+	option env="CONFIG_BOARD_MFG"
+
+choice
+	prompt "SELECT BUILD_BOARD_MFG"
+	default BOARD_MFG
+
+config BOARD_MFG
+	prompt "BUILD_BOARD_MFG"
+	bool
+	depends on BUILD_BOARD_MFG
+
+config BOARD_NO_MFG
+	prompt "BUILD_BOARD_NO_MFG"
+	bool
+	depends on !BUILD_BOARD_MFG
+
+endchoice
 
 config CMDLINE_OPTIONS
 	bool "Enable cmdline options command parsing"

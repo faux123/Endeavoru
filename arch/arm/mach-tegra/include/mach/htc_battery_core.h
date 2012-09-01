@@ -49,6 +49,7 @@ struct battery_info_reply {
 
 struct htc_battery_core {
 	int (*func_show_batt_attr)(struct device_attribute *attr, char *buf);
+	int (*func_show_batt_power_meter)(struct device_attribute *attr, char *buf);
 	int (*func_get_battery_info)(struct battery_info_reply *buffer);
 	int (*func_charger_control)(enum charger_control_flag);
 	void (*func_set_full_level)(int full_level);

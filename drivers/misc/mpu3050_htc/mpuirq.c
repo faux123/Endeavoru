@@ -163,11 +163,6 @@ static long mpuirq_ioctl(struct file *file,
 		if (copy_to_user((int *) arg, &mpu_debug_flag, sizeof(int)))
 			return -EFAULT;
 		break;
-	 case HTC_BOARD:
-		 gyro_htc_board_info = htc_get_pcbid_info();
-		 if (copy_to_user((int *) arg, &gyro_htc_board_info, sizeof(int)))
-			 return -EFAULT;
-		 break;
 
 	default:
 		retval = -EINVAL;

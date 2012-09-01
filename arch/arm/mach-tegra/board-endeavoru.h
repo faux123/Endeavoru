@@ -38,20 +38,21 @@
 /* vdd_cpu voltage follower */
 #define BOARD_SKU_VF_BIT	0x0400
 
-int enterprise_charge_init(void);
-int enterprise_sdhci_init(void);
+int endeavor_charge_init(void);
+int endeavor_sdhci_init(void);
 int endeavoru_pinmux_init(void);
-int enterprise_panel_init(void);
-int enterprise_sensors_init(void);
+int endeavor_panel_init(void);
+int endeavor_sensors_init(void);
+int endeavor_cam_init(void);
 int touch_init(void);
-int enterprise_kbc_init(void);
-int enterprise_emc_init(void);
-int enterprise_regulator_init(void);
-//int enterprise_modem_init(void);
-int enterprise_suspend_init(void);
-int enterprise_edp_init(void);
-void __init enterprise_tsensor_init(void);
-void enterprise_bpc_mgmt_init(void);
+int endeavor_kbc_init(void);
+int endeavor_emc_init(void);
+int endeavor_regulator_init(void);
+//int endeavor_modem_init(void);
+int endeavor_suspend_init(void);
+int endeavor_edp_init(void);
+void __init endeavor_tsensor_init(void);
+void endeavor_bpc_mgmt_init(void);
 
 /* Invensense MPU Definitions */
 #define MPU_GYRO_NAME		"mpu3050"

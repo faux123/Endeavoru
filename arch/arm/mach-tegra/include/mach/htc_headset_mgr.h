@@ -62,6 +62,7 @@
 #define DRIVER_HS_MGR_RPC_SERVER	(1 << 0)
 #define UART_DEV_NAME_LEN 32
 #define CHECK_COUNT 5
+#define DET_CHECK_COUNT 10
 
 
 #define DEBUG_FLAG_LOG		(1 << 0)
@@ -119,7 +120,7 @@
 #define HS_JIFFIES_REMOVE		msecs_to_jiffies(HS_DELAY_REMOVE)
 #define HS_JIFFIES_BUTTON		msecs_to_jiffies(HS_DELAY_BUTTON)
 
-#define HS_WAKE_LOCK_TIMEOUT		(2 * HZ)
+#define HS_WAKE_LOCK_TIMEOUT		(5 * HZ)
 #define HS_RPC_TIMEOUT			(5 * HZ)
 #define HS_MIC_DETECT_TIMEOUT		(HZ + HZ / 2)
 
@@ -153,6 +154,7 @@
 #define HS_EDE_U			5
 #define HS_EDE_TD			6
 #define HS_EDE_U_TD			7
+#define HS_QUO_F_U_XB		8
 
 enum {
 	HEADSET_UNPLUG		= 0,

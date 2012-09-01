@@ -30,13 +30,18 @@
 #include <linux/mmc/host.h>
 
 #include <linux/io.h>
+#include <linux/mmc/card.h>
 #include <linux/mmc/sdhci-pltfm.h>
 
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
 
+#include <linux/android_alarm.h>
+
+#define cls_dev_to_mmc_host(d)	container_of(d, struct mmc_host, class_dev)
+
 //HTC_CSP_START
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
 #include <mach/iomap.h>
 
 struct platform_device *mmci_get_platform_device(void);
@@ -51,6 +56,78 @@ typedef struct wlan_sdioDrv{
 wlan_sdioDrv_t g_wlan_sdioDrv;
 #endif
 //HTC_CSP_END
+
+struct alarm htc_mmc_bkops_alarm;
+int htc_mmc_bkops_flag = 0;
+int htc_mmc_bkops_alarm_flag = 0;
+u64 htc_mmc_needs_bkops = 0;
+u64 bkops_start = 0;
+u64 bkops_end = 0;
+
+static ssize_t mmc_bkops_store(struct device *dev,
+							struct device_attribute *attr,
+							const char *buf, size_t count)
+{
+	sscanf(buf, "%llu", &htc_mmc_needs_bkops);
+	return count;
+}
+
+static ssize_t mmc_bkops_show(struct device *dev,
+							struct device_attribute *attr,
+							char *buf)
+{
+	return sprintf(buf, "%llu\n", htc_mmc_needs_bkops);
+}
+static DEVICE_ATTR(bkops, 0664, mmc_bkops_show, mmc_bkops_store);
+
+static ssize_t mmc_bkops_time_show(struct device *dev,
+							struct device_attribute *attr,
+							char *buf)
+{
+	u64 time_spent = 0;
+	if (bkops_end > bkops_start)
+		time_spent = bkops_end - bkops_start;
+
+	return sprintf(buf, "%llu\n", time_spent);
+}
+static DEVICE_ATTR(bkops_time, 0664, mmc_bkops_time_show, NULL);
+
+static void mmc_bkops_alarm_handler(struct alarm *alarm)
+{
+	printk(KERN_INFO "mmc0: %s\n", __func__);
+    return;
+}
+
+static ssize_t
+show_burst(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct mmc_host *host = cls_dev_to_mmc_host(dev);
+	if (!host)
+		return 0;
+	return sprintf(buf, "%d", host->burst_mode);
+}
+
+static ssize_t
+set_burst(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct mmc_host *host = cls_dev_to_mmc_host(dev);
+	char *envp[3] = {"SWITCH_NAME=camera_burst",0, 0};
+	if (!host || !host->card || !host->card->mmcblk_dev)
+		return 0;
+	sscanf(buf, "%d", &host->burst_mode);
+	pr_info("%s: %d\n", __func__, host->burst_mode);
+	if (!host->burst_mode) {
+		envp[1] = "SWITCH_STATE=0";
+	} else {
+		envp[1] = "SWITCH_STATE=1";
+	}
+
+	kobject_uevent_env(&host->card->mmcblk_dev->kobj, KOBJ_CHANGE, envp);
+	return count;
+}
+static DEVICE_ATTR(burst, S_IRUGO | S_IWUSR | S_IWGRP,
+		show_burst, set_burst);
 
 /*****************************************************************************\
  *                                                                           *
@@ -90,7 +167,7 @@ static int __devinit sdhci_pltfm_probe(struct platform_device *pdev)
 	}
 
 //HTC_CSP_START
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
  	addr = 0;
     	addr = iomem->start;
     	//printk(KERN_INFO "start addr = 0x%x\n", addr);
@@ -151,7 +228,7 @@ static int __devinit sdhci_pltfm_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, host);
 
 //HTC_CSP_START
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
 //printk(KERN_INFO "[SD] SdioDrv_probe pdev:0x%x  mmc:0x%x  mmc->index=%d pdev->resource[1].start=%x, addr=%x\n",
 //		   (int)pdev, host->mmc, host->mmc->index, pdev->resource[1].start, addr);
 
@@ -166,6 +243,27 @@ static int __devinit sdhci_pltfm_probe(struct platform_device *pdev)
 #endif
 //HTC_CSP_END
 
+	if (addr == TEGRA_SDMMC4_BASE) {
+		printk(KERN_INFO "mmc0: bkops alarm init\n");
+		alarm_init(&htc_mmc_bkops_alarm,
+            ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP,
+            mmc_bkops_alarm_handler);
+
+		ret = device_create_file(&host->mmc->class_dev,
+				&dev_attr_bkops);
+		if (ret)
+			goto err_add_host;
+
+		ret = device_create_file(&host->mmc->class_dev,
+				&dev_attr_bkops_time);
+		if (ret)
+			goto err_add_host;
+
+		ret = device_create_file(&host->mmc->class_dev,
+				&dev_attr_burst);
+		if (ret)
+			goto err_add_host;
+	}
 
 	return 0;
 
@@ -265,25 +363,90 @@ static int sdhci_pltfm_resume(struct platform_device *dev)
 
 	return ret;
 }
+
+static int sdhci_pltfm_suspend_pm(struct device *dev)
+{
+	struct platform_device *plt_dev = to_platform_device(dev);
+	return sdhci_pltfm_suspend(plt_dev, PMSG_SUSPEND);
+}
+
+static int sdhci_pltfm_resume_pm(struct device *dev)
+{
+	struct platform_device *plt_dev = to_platform_device(dev);
+	return sdhci_pltfm_resume(plt_dev);
+}
 #else
 #define sdhci_pltfm_suspend	NULL
 #define sdhci_pltfm_resume	NULL
+#define sdhci_pltfm_suspend_pm	NULL
+#define sdhci_pltfm_resume_pm	NULL
 #endif	/* CONFIG_PM */
+
+static int sdhci_pltfm_prepare(struct device *dev) {
+	struct platform_device *plt_dev = to_platform_device(dev);
+	struct sdhci_host *host = platform_get_drvdata(plt_dev);
+
+	if (host->mmc && host->mmc->card && host->mmc->card->type == MMC_TYPE_MMC) {
+		if (htc_mmc_needs_bkops) {
+			ktime_t interval;
+			ktime_t next_alarm;
+			long alarm_sec = ((u32) htc_mmc_needs_bkops) / 1000 + 20;
+
+			interval = ktime_set(alarm_sec, 0);
+			printk(KERN_INFO "mmc0: setup alarm, and wake up system after %llu ms\n",
+				ktime_to_ms(interval));
+
+			next_alarm = ktime_add(alarm_get_elapsed_realtime(), interval);
+
+			alarm_start_range(&htc_mmc_bkops_alarm,
+				next_alarm, ktime_add(next_alarm, ktime_set(0,0)));
+
+			htc_mmc_bkops_alarm_flag = 1;
+		}
+	}
+
+	return 0;
+}
+
+static int sdhci_pltfm_complete(struct device *dev) {
+/*
+	struct platform_device *plt_dev = to_platform_device(dev);
+	struct sdhci_host *host = platform_get_drvdata(plt_dev);
+	int ret = 0;
+
+	if (host->mmc && host->mmc->card && host->mmc->card->type == MMC_TYPE_MMC) {
+		printk(KERN_INFO "mmc0: Cancel alarm if it exists (%s)\n", __func__);
+		if (htc_mmc_bkops_alarm_flag) {
+			ret = alarm_cancel(&htc_mmc_bkops_alarm);
+			htc_mmc_bkops_alarm_flag = 0;
+		}
+	}
+*/
+	return 0;
+}
+
+static struct dev_pm_ops htc_mmc_pm_ops = {
+    .prepare = sdhci_pltfm_prepare,
+    .complete = sdhci_pltfm_complete,
+	.suspend = sdhci_pltfm_suspend_pm,
+	.resume	= sdhci_pltfm_resume_pm,
+};
 
 static struct platform_driver sdhci_pltfm_driver = {
 	.driver = {
 		.name	= "sdhci",
 		.owner	= THIS_MODULE,
+#ifdef CONFIG_PM
+		.pm = &htc_mmc_pm_ops,
+#endif
 	},
 	.probe		= sdhci_pltfm_probe,
 	.remove		= __devexit_p(sdhci_pltfm_remove),
 	.id_table	= sdhci_pltfm_ids,
-	.suspend	= sdhci_pltfm_suspend,
-	.resume		= sdhci_pltfm_resume,
 };
 
 //HTC_CSP_START
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
 struct platform_device *mmci_get_platform_device(void){
 	printk(KERN_INFO "sdhci-tegra.c  g_wlan_sdioDrv.pdev = 0x%x\n", 
 		(unsigned int)g_wlan_sdioDrv.pdev);

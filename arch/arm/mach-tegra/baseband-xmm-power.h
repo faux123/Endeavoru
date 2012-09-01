@@ -26,7 +26,7 @@
 #if defined(CONFIG_MACH_EDGE)\
 	|| defined(CONFIG_MACH_EDGE_TD)\
 	|| defined(CONFIG_MACH_BLUE)\
-	|| defined(CONFIG_MACH_QUATTRO_U)\
+	|| defined(CONFIG_MACH_ERAU) \
 	|| defined(CONFIG_MACH_ENDEAVORU)
 
 #include <linux/completion.h>
@@ -58,6 +58,8 @@ struct baseband_power_platform_data {
 	enum baseband_type baseband_type;
 	struct platform_device* (*hsic_register)(void);
 	void (*hsic_unregister)(struct platform_device *);
+	wait_queue_head_t bb_wait;
+	unsigned int pin_state;
 	union {
 		struct {
 			int mdm_reset;
@@ -123,5 +125,9 @@ enum baseband_xmm_powerstate_t {
 irqreturn_t baseband_xmm_power_ipc_ap_wake_irq(int irq, void *dev_id);
 
 void baseband_xmm_set_power_status(unsigned int status);
+ssize_t debug_gpio_dump(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count);
+void trigger_radio_fatal_get_coredump(void);
 
 #endif  /* BASREBAND_XMM_POWER_H */

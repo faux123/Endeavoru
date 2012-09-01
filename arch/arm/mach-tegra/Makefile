@@ -81,6 +81,7 @@ obj-$(CONFIG_TEGRA_SYSTEM_DMA)          += dma.o
 obj-$(CONFIG_CPU_FREQ)                  += cpu-tegra.o
 ifeq ($(CONFIG_TEGRA_AUTO_HOTPLUG),y)
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += cpu-tegra3.o
+obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += cpuplug.lib
 endif
 obj-$(CONFIG_TEGRA_PCI)                 += pcie.o
 obj-$(CONFIG_USB_SUPPORT)               += usb_phy.o
@@ -177,31 +178,31 @@ obj-y                                   += htc_audio_power.o
 
 obj-y                                   += power.o
 
-obj-${CONFIG_MACH_VERTEXF}            += board-vertex.o
-obj-${CONFIG_MACH_VERTEXF}            += board-vertex-memory.o
-obj-${CONFIG_MACH_VERTEXF}            += board-vertex-panel.o
-obj-${CONFIG_MACH_VERTEXF}            += board-vertex-kbc.o
-obj-${CONFIG_MACH_VERTEXF}            += board-vertex-pinmux.o
-obj-${CONFIG_MACH_VERTEXF}            += board-vertex-power.o
-obj-${CONFIG_MACH_VERTEXF}            += board-vertex-powermon.o
-obj-${CONFIG_MACH_VERTEXF}            += board-vertex-sdhci.o
-obj-${CONFIG_MACH_VERTEXF}            += board-vertex-sensors.o
-obj-${CONFIG_MACH_VERTEXF}            += baseband-xmm-power.o
-obj-${CONFIG_MACH_VERTEXF}            += devices_htc.o
-obj-${CONFIG_MACH_VERTEXF}            += htc_bdaddress.o
-obj-${CONFIG_MACH_VERTEXF}            += board-vertex-audio.o
+obj-${CONFIG_MACH_VERTEXFP}            += board-vertex.o
+obj-${CONFIG_MACH_VERTEXFP}            += board-vertex-memory.o
+obj-${CONFIG_MACH_VERTEXFP}            += board-vertex-panel.o
+obj-${CONFIG_MACH_VERTEXFP}            += board-vertex-kbc.o
+obj-${CONFIG_MACH_VERTEXFP}            += board-vertex-pinmux.o
+obj-${CONFIG_MACH_VERTEXFP}            += board-vertex-power.o
+obj-${CONFIG_MACH_VERTEXFP}            += board-vertex-powermon.o
+obj-${CONFIG_MACH_VERTEXFP}            += board-vertex-sdhci.o
+obj-${CONFIG_MACH_VERTEXFP}            += board-vertex-sensors.o
+obj-${CONFIG_MACH_VERTEXFP}            += baseband-xmm-power.o
+obj-${CONFIG_MACH_VERTEXFP}            += devices_htc.o
+obj-${CONFIG_MACH_VERTEXFP}            += htc_bdaddress.o
+obj-${CONFIG_MACH_VERTEXFP}            += board-vertex-audio.o
 
-obj-${CONFIG_MACH_VERTEXF}            += htc_disp_device.o
-obj-${CONFIG_MACH_VERTEXF}            += htc_disp_evm_auo.o
-obj-${CONFIG_MACH_VERTEXF}            += htc_disp_evt_xa_chimei.o
-obj-${CONFIG_MACH_VERTEXF}            += htc_disp_evt_xb_chimei.o
-obj-${CONFIG_MACH_VERTEXF}            += htc_disp_evt_xb_LG.o
-obj-${CONFIG_MACH_VERTEXF}        	+= htc_wifi_nvs.o
+obj-${CONFIG_MACH_VERTEXFP}            += htc_disp_device.o
+obj-${CONFIG_MACH_VERTEXFP}            += htc_disp_evm_auo.o
+obj-${CONFIG_MACH_VERTEXFP}            += htc_disp_evt_xa_chimei.o
+obj-${CONFIG_MACH_VERTEXFP}            += htc_disp_evt_xb_chimei.o
+obj-${CONFIG_MACH_VERTEXFP}            += htc_disp_evt_xb_LG.o
+obj-${CONFIG_MACH_VERTEXFP}        	+= htc_wifi_nvs.o
 
-obj-${CONFIG_MACH_VERTEXF}        	+= drv_callback.o
-obj-${CONFIG_MACH_VERTEXF}        	+= board-vertex-microp.o
-obj-${CONFIG_MACH_VERTEXF}            += charger.o
-obj-${CONFIG_MACH_VERTEXF}            += htc-gpio.o
+obj-${CONFIG_MACH_VERTEXFP}        	+= drv_callback.o
+obj-${CONFIG_MACH_VERTEXFP}        	+= board-vertex-microp.o
+obj-${CONFIG_MACH_VERTEXFP}            += charger.o
+obj-${CONFIG_MACH_VERTEXFP}            += htc-gpio.o
 
 obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavor-panel.o
@@ -209,19 +210,41 @@ obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru-pinmux.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru-sdhci.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru-memory.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru-power.o
-obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru-baseband.o
+#obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru-baseband.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru-kbc.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru-sensors.o
+obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru-camera.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += tegra_flashlight.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += devices_htc.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += htc-gpio.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += board-endeavoru-audio.o
 obj-${CONFIG_MACH_ENDEAVORU}                 += htc_wifi_nvs.o
+obj-${CONFIG_MACH_ENDEAVORU}                 += baseband-xmm-power.o
+obj-${CONFIG_MACH_ENDEAVORU}                 += htc_simhotswap.o
 obj-y                                        += htc_port_list.o
 ifeq (${CONFIG_MACH_ENDEAVORU},y)
-obj-y += baseband-xmm-power.o
 obj-m += baseband-xmm-power2.o
-obj-y += htc_simhotswap.o
+endif
+
+obj-${CONFIG_MACH_ERAU}      += board-erau.o
+obj-${CONFIG_MACH_ERAU}      += board-endeavor-panel.o
+obj-${CONFIG_MACH_ERAU}      += board-endeavoru-pinmux.o
+obj-${CONFIG_MACH_ERAU}      += board-endeavoru-sdhci.o
+obj-${CONFIG_MACH_ERAU}      += board-endeavoru-memory.o
+obj-${CONFIG_MACH_ERAU}      += board-endeavoru-power.o
+#obj-${CONFIG_MACH_ERAU}      += board-endeavoru-baseband.o
+obj-${CONFIG_MACH_ERAU}      += board-endeavoru-kbc.o
+obj-${CONFIG_MACH_ERAU}      += board-endeavoru-sensors.o
+obj-${CONFIG_MACH_ERAU}      += board-endeavoru-camera.o
+obj-${CONFIG_MACH_ERAU}      += tegra_flashlight.o
+obj-${CONFIG_MACH_ERAU}      += devices_htc.o
+obj-${CONFIG_MACH_ERAU}      += htc-gpio.o
+obj-${CONFIG_MACH_ERAU}      += board-endeavoru-audio.o
+obj-${CONFIG_MACH_ERAU}      += htc_wifi_nvs.o
+obj-${CONFIG_MACH_ERAU}      += baseband-xmm-power.o
+obj-${CONFIG_MACH_ERAU}      += htc_simhotswap.o
+ifeq (${CONFIG_MACH_ERAU},y)
+obj-m += baseband-xmm-power2.o
 endif
 
 obj-${CONFIG_MACH_ENDEAVORTD}                 += board-endeavortd.o
@@ -233,6 +256,7 @@ obj-${CONFIG_MACH_ENDEAVORTD}                 += board-endeavortd-power.o
 obj-${CONFIG_MACH_ENDEAVORTD}                 += board-endeavortd-baseband.o
 obj-${CONFIG_MACH_ENDEAVORTD}                 += board-endeavortd-kbc.o
 obj-${CONFIG_MACH_ENDEAVORTD}                 += board-endeavortd-sensors.o
+obj-${CONFIG_MACH_ENDEAVORTD}                 += board-endeavortd-camera.o
 obj-${CONFIG_MACH_ENDEAVORTD}           	   += tegra_flashlight.o
 obj-${CONFIG_MACH_ENDEAVORTD}                 += devices_htc.o
 obj-${CONFIG_MACH_ENDEAVORTD}					+= htc-gpio.o
@@ -254,13 +278,14 @@ obj-$(CONFIG_HTC_HEADSET_MISC) += htc_headset_misc.o
 obj-$(CONFIG_HTC_HEADSET_8X60) += htc_headset_8x60.o
 
 #Add nand_partitions.c
-obj-${CONFIG_MACH_VERTEXF}            += nand_partitions.o
+obj-${CONFIG_MACH_VERTEXFP}            += nand_partitions.o
 obj-${CONFIG_MACH_ENDEAVORU}          += nand_partitions.o
 obj-${CONFIG_MACH_ENDEAVORTD}         += nand_partitions.o
+obj-${CONFIG_MACH_ERAU}               += nand_partitions.o
 
 # Add ramdump from NV patches
 obj-y                                   += nvdumper.o
 obj-y 					+= htc_util.o
 obj-y 					+= pokecpu.o
 
-obj-y                                   += tegra_sleep_stats.o
+obj-y                                   += tegra_rq_stats.o

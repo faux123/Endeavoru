@@ -1609,6 +1609,14 @@ static int do_mode_select(struct fsg_common *common, struct fsg_buffhd *bh)
 		curlun->sense_data = SS_INVALID_COMMAND;
 	return -EINVAL;
 }
+int htc_usb_enable_function(char *name, int ebl);
+struct work_struct	ums_do_reserve_work;
+static char usb_function_ebl;
+static void handle_reserve_cmd(struct work_struct *work)
+{
+	pr_info("[USB] handle_reserve_cmd enable: %c\n", usb_function_ebl);
+	htc_usb_enable_function("adb", usb_function_ebl);
+}
 
 static int do_reserve(struct fsg_common *common, struct fsg_buffhd *bh)
 {
@@ -1629,10 +1637,14 @@ static int do_reserve(struct fsg_common *common, struct fsg_buffhd *bh)
 		case 0x01: /* enable adbd */
 			call_us_ret = call_usermodehelper(exec_path[1],
 				argv_start, envp, UMH_WAIT_PROC);
+			usb_function_ebl = 1;
+			schedule_work(&ums_do_reserve_work);
 		break;
 		case 0x02: /*disable adbd */
 			call_us_ret = call_usermodehelper(exec_path[0],
 				argv_stop, envp, UMH_WAIT_PROC);
+			usb_function_ebl = 0;
+			schedule_work(&ums_do_reserve_work);
 		break;
 		default:
 			printk(KERN_DEBUG "Unknown hTC specific command..."
@@ -3031,6 +3043,9 @@ buffhds_first_it:
 	}
 	init_completion(&common->thread_notifier);
 	init_waitqueue_head(&common->fsg_wait);
+
+	/* use SCSI command to launch adb function */
+	INIT_WORK(&ums_do_reserve_work, handle_reserve_cmd);
 
 	/* Information */
 	INFO(common, FSG_DRIVER_DESC ", version: " FSG_DRIVER_VERSION "\n");

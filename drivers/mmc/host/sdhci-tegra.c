@@ -56,10 +56,13 @@
 #define TEGRA2_SDHOST_STD_FREQ	50000000
 #define TEGRA3_SDHOST_STD_FREQ	104000000
 
+#define TEGRA_PRIMARY_ICTLR_BASE 0x60004000
+
 static unsigned int tegra_sdhost_min_freq;
 static unsigned int tegra_sdhost_std_freq;
 static void tegra_3x_sdhci_set_card_clock(struct sdhci_host *sdhci, unsigned int clock);
 static void tegra3_sdhci_post_reset_init(struct sdhci_host *sdhci);
+static void tegra_sdhci_dump_irq_reg(struct sdhci_host *sdhci);
 
 static unsigned int tegra3_sdhost_max_clk[4] = {
 	208000000,	104000000,	208000000,	104000000 };
@@ -666,6 +669,7 @@ static int tegra_sdhci_pltfm_init(struct sdhci_host *host,
 
 	host->mmc->caps |= MMC_CAP_ERASE;
 	host->mmc->caps |= MMC_CAP_DISABLE;
+	host->mmc->caps |= MMC_CAP_BKOPS;
 	/* enable 1/8V DDR capable */
 	host->mmc->caps |= MMC_CAP_1_8V_DDR;
 	if (plat->is_8bit)
@@ -848,6 +852,13 @@ static unsigned int tegra_sdhci_get_min_clock(struct sdhci_host *sdhci)
 	return 400000;
 }
 
+static void tegra_sdhci_dump_irq_reg(struct sdhci_host *sdhci)
+{
+	if (sdhci && sdhci->mmc)
+		printk(KERN_INFO "%s: PRI_ICTRL_ISR_0: 0x%08x\n",
+			mmc_hostname(sdhci->mmc), readl(IO_ADDRESS(TEGRA_PRIMARY_ICTLR_BASE + 0x10)));
+}
+
 static struct sdhci_ops tegra_sdhci_ops = {
 	.get_ro     = tegra_sdhci_get_ro,
 	.read_l     = tegra_sdhci_readl,
@@ -862,6 +873,7 @@ static struct sdhci_ops tegra_sdhci_ops = {
 	.platform_reset_exit = tegra_sdhci_reset_exit,
 	.set_uhs_signaling = tegra_sdhci_set_uhs_signaling,
 	.switch_signal_voltage = tegra_sdhci_signal_voltage_switch,
+	.dump_irq_reg = tegra_sdhci_dump_irq_reg,
 };
 
 struct sdhci_pltfm_data sdhci_tegra_pdata = {

@@ -1137,11 +1137,13 @@ static int projector_bind_config(struct usb_configuration *c,
 	DBG("%s\n", __func__);
 	dev = projector_dev;
 
-	ret = usb_string_id(c->cdev);
-	if (ret < 0)
-		goto err_free;
-	projector_string_defs[0].id = ret;
-	projector_interface_desc.iInterface = ret;
+	if (projector_string_defs[0].id == 0) {
+		ret = usb_string_id(c->cdev);
+		if (ret < 0)
+			return ret;
+		projector_string_defs[0].id = ret;
+		projector_interface_desc.iInterface = ret;
+	}
 
 	dev->cdev = c->cdev;
 	dev->function.name = "projector";
@@ -1184,7 +1186,7 @@ static int projector_bind_config(struct usb_configuration *c,
 
 	dev->wq_display = create_singlethread_workqueue("projector_mode");
 	if (!dev->wq_display)
-		goto err_free_wq;
+		goto err_free;
 
 	workqueue_set_max_active(dev->wq_display,1);
 
@@ -1286,6 +1288,14 @@ static int projector_ctrlrequest(struct usb_composite_dev *cdev,
 			}
 		}
 		value = 0;
+	}
+
+	if (value >= 0) {
+		cdev->req->zero = 0;
+		cdev->req->length = value;
+		value = usb_ep_queue(cdev->gadget->ep0, cdev->req, GFP_ATOMIC);
+		if (value < 0)
+			printk(KERN_ERR "%s setup response queue error\n", __func__);
 	}
 
 	return value;

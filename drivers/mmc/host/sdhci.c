@@ -29,6 +29,8 @@
 
 #include "sdhci.h"
 
+#include <linux/android_alarm.h>
+
 #define DRIVER_NAME "sdhci"
 
 #define DBG(f, x...) \
@@ -40,6 +42,12 @@
 #endif
 
 #define MAX_TUNING_LOOP 40
+
+extern struct alarm htc_mmc_bkops_alarm;
+extern int htc_mmc_bkops_flag;
+extern int htc_mmc_bkops_alarm_flag;
+extern u64 htc_mmc_needs_bkops;
+extern u64 bkops_start;
 
 static unsigned int debug_quirks = 0;
 
@@ -1062,9 +1070,9 @@ out:
 	host->clock = clock;
 }
 // HTC_WIFI_START
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
 static int wifi_is_on = 0;
-extern int enterprise_wifi_power(int on);
+extern int endeavor_wifi_power(int on);
 void set_wifi_is_on (int on){
     wifi_is_on = on;
 }
@@ -1077,9 +1085,9 @@ static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
 
 	if (power != (unsigned short)-1) {
 		// HTC_WIFI_START
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
 	if(host->mmc->index==1)
-		enterprise_wifi_power(1);
+		endeavor_wifi_power(1);
 #endif
 		// HTC_WIFI_END
 		switch (1 << power) {
@@ -1100,9 +1108,9 @@ static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
 	}
 	else {
 		// HTC_WIFI_START
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
 		if(host->mmc->index==1)
-			enterprise_wifi_power(0);
+			endeavor_wifi_power(0);
 #endif
 		// HTC_WIFI_END
 	}
@@ -1827,6 +1835,9 @@ static void sdhci_timeout_timer(unsigned long data)
 			"interrupt.\n", mmc_hostname(host->mmc));
 		sdhci_dumpregs(host);
 
+		if(host->ops && host->ops->dump_irq_reg)
+			host->ops->dump_irq_reg(host);
+
 		if (host->data) {
 			host->data->error = -ETIMEDOUT;
 			sdhci_finish_data(host);
@@ -2146,11 +2157,24 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 
 	sdhci_disable_card_detection(host);
 
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
 	if (mmc->card) { //austin && (mmc->card->type != MMC_TYPE_SDIO))
 #else
     if (mmc->card && (mmc->card->type != MMC_TYPE_SDIO)) {
 #endif
+		if (mmc->card->type == MMC_TYPE_MMC) {
+			if (htc_mmc_needs_bkops) {
+				int ret = 0;
+				pr_info("%s: Force to do bkops at least %llu ms\n",
+					mmc_hostname(mmc), htc_mmc_needs_bkops);
+
+				if (ret = mmc_bkops_start(mmc->card, false))
+					pr_err("%s: Failed to send bkops (%d)\n", mmc_hostname(mmc), ret);
+
+				htc_mmc_bkops_flag = 1;
+				bkops_start = ktime_to_ms(ktime_get_real());
+			}
+		}
         ret = mmc_suspend_host(host->mmc);
     }
 
@@ -2198,7 +2222,7 @@ int sdhci_resume_host(struct sdhci_host *host)
 		if (mmc->card->type != MMC_TYPE_SDIO) {
 			ret = mmc_resume_host(host->mmc);
 		} else {
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
             printk("wifi_is_on: %d\n",wifi_is_on);
             if (host->mmc->index == 1 && wifi_is_on == 1) {
                 printk("%s: host->mmc->index = %d, call mmc_resume_host()\n"
@@ -2425,7 +2449,7 @@ int sdhci_add_host(struct sdhci_host *host)
 	if ((host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) &&
 	    mmc_card_is_removable(mmc))
 		mmc->caps |= MMC_CAP_NEEDS_POLL;
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU)
 	/* HTC_WIFI_START */
 	if(host->mmc->index==1) {
 		mmc->caps |= MMC_CAP_NONREMOVABLE;

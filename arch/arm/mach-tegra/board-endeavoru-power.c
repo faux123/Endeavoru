@@ -38,6 +38,8 @@
 #include <mach/pinmux.h>
 #include <mach/board_htc.h>
 
+#include <asm/mach-types.h>
+
 #include "gpio-names.h"
 #include "board.h"
 #include "board-endeavoru.h"
@@ -380,7 +382,7 @@ static struct tps80031_platform_data tps_platform = {
 	.clk32k_init_data_size	= ARRAY_SIZE(clk32k_idata),
 };
 
-static struct i2c_board_info __initdata enterprise_regulators[] = {
+static struct i2c_board_info __initdata endeavor_regulators[] = {
 	{
 		I2C_BOARD_INFO("tps80031", 0x4A),
 		.irq		= INT_EXTERNAL_PMU,
@@ -594,13 +596,19 @@ static struct platform_device gswitch_regulator_pdata = {
 	},
 };
 
-static int __init enterprise_gpio_switch_regulator_init(void)
+static int __init endeavor_gpio_switch_regulator_init(void)
 {
 	int i;
-	if(htc_get_pcbid_info() >= PROJECT_PHASE_XD) {
+	if( machine_is_endeavoru() && (htc_get_pcbid_info() >= PROJECT_PHASE_XD) ) {
 		gswitch_pdata.num_subdevs = ARRAY_SIZE(gswitch_subdevs_xd);
 		gswitch_pdata.subdevs = gswitch_subdevs_xd;
 	}
+	else if (machine_is_erau()) {
+                gswitch_pdata.num_subdevs = ARRAY_SIZE(gswitch_subdevs_xd);
+                gswitch_pdata.subdevs = gswitch_subdevs_xd;
+        }
+
+
 	for (i = 0; i < gswitch_pdata.num_subdevs; ++i) {
 		struct gpio_switch_regulator_subdev_data *gswitch_data =
 						gswitch_pdata.subdevs[i];
@@ -649,28 +657,28 @@ fail:
 	return ret;
 }
 
-static void enterprise_power_off(void)
+static void endeavor_power_off(void)
 {
 	int ret;
 #if 0
-        pr_info("enterprise: Powering off the device\n");
+        pr_info("endeavoru: Powering off the device\n");
         ret = tps80031_power_off();
 #else
-        pr_info("enterprise: Powering off the device or"
+        pr_info("endeavoru: Powering off the device or"
                 " enter offmode charging\n");
         ret = tps80031_power_off_or_reboot();
 #endif
 	if (ret)
-		pr_err("enterprise: failed to power off\n");
+		pr_err("endeavoru: failed to power off\n");
 	while(1);
 }
 
-void __init enterprise_tsensor_init(void)
+void __init endeavor_tsensor_init(void)
 {
 	tegra3_tsensor_init(NULL);
 }
 
-int __init enterprise_regulator_init(void)
+int __init endeavor_regulator_init(void)
 {
 	void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
 	u32 pmc_ctrl;
@@ -690,19 +698,28 @@ int __init enterprise_regulator_init(void)
 
 	projectPhase = htc_get_pcbid_info();
 
-	if (projectPhase == PROJECT_PHASE_XD){
-		tps_platform.num_subdevs = ARRAY_SIZE(tps80031_devs_xd);
-		tps_platform.subdevs = tps80031_devs_xd;
-	} else if (projectPhase >= PROJECT_PHASE_XE){
+	if (machine_is_endeavoru())
+	{
+		if (projectPhase == PROJECT_PHASE_XD){
+			tps_platform.num_subdevs = ARRAY_SIZE(tps80031_devs_xd);
+			tps_platform.subdevs = tps80031_devs_xd;
+		} else if (projectPhase >= PROJECT_PHASE_XE){
+			tps_platform.num_subdevs = ARRAY_SIZE(tps80031_devs_xe);
+			tps_platform.subdevs = tps80031_devs_xe;
+		}
+	}
+	else if (machine_is_erau())
+	{
 		tps_platform.num_subdevs = ARRAY_SIZE(tps80031_devs_xe);
 		tps_platform.subdevs = tps80031_devs_xe;
 	}
-	i2c_register_board_info(4, enterprise_regulators, 1);
-	enterprise_gpio_switch_regulator_init();
-	pm_power_off = enterprise_power_off;
+
+	i2c_register_board_info(4, endeavor_regulators, 1);
+	endeavor_gpio_switch_regulator_init();
+	pm_power_off = endeavor_power_off;
 
 
-	if (htc_get_pcbid_info() <= PROJECT_PHASE_XC) {
+	if ( machine_is_endeavoru() && (htc_get_pcbid_info() <= PROJECT_PHASE_XC) ) {
 		pr_info("[PMIC]Registering the device FAN53555\n");
 		i2c_register_board_info(4, fan53555_boardinfo, 1);
 	}
@@ -710,55 +727,55 @@ int __init enterprise_regulator_init(void)
 	return 0;
 }
 
-static void enterprise_board_suspend(int lp_state, enum suspend_stage stg)
+static void endeavor_board_suspend(int lp_state, enum suspend_stage stg)
 {
 	if ((lp_state == TEGRA_SUSPEND_LP1) && (stg == TEGRA_SUSPEND_BEFORE_CPU))
 		tegra_console_uart_suspend();
 }
 
-static void enterprise_board_resume(int lp_state, enum resume_stage stg)
+static void endeavor_board_resume(int lp_state, enum resume_stage stg)
 {
 	if ((lp_state == TEGRA_SUSPEND_LP1) && (stg == TEGRA_RESUME_AFTER_CPU))
 		tegra_console_uart_resume();
 }
 
-static struct tegra_suspend_platform_data enterprise_suspend_data = {
-	.cpu_timer	= 2000,
+static struct tegra_suspend_platform_data endeavor_suspend_data = {
+	.cpu_timer	= 600,
 	.cpu_off_timer	= 200,
 	.suspend_mode	= TEGRA_SUSPEND_LP0,
-	.core_timer	= 0x7e7e,
+	.core_timer	= 0x0b21,
 	.core_off_timer = 0,
 	.corereq_high	= true,
 	.sysclkreq_high	= true,
-	.board_suspend = enterprise_board_suspend,
-	.board_resume = enterprise_board_resume,
+	.board_suspend = endeavor_board_suspend,
+	.board_resume = endeavor_board_resume,
 	.cpu_resume_boost	= BOOST_CPU_FREQ_MIN,
 	.boost_resume_reason	= 0x80,
 };
 
-static void enterprise_init_deep_sleep_mode(void)
+static void endeavor_init_deep_sleep_mode(void)
 {
 	struct board_info bi;
 	tegra_get_board_info(&bi);
 
 	if (bi.board_id == BOARD_E1205 && bi.fab == BOARD_FAB_A01)
-		enterprise_suspend_data.suspend_mode = TEGRA_SUSPEND_LP1;
+		endeavor_suspend_data.suspend_mode = TEGRA_SUSPEND_LP1;
 
 	if ((bi.board_id == BOARD_E1205 && (bi.sku & BOARD_SKU_VF_BIT) == 0) ||
 	    (bi.board_id == BOARD_E1197 && (bi.sku & BOARD_SKU_VF_BIT)))
-		enterprise_suspend_data.cpu_timer = 8000;
+		endeavor_suspend_data.cpu_timer = 8000;
 }
 
-int __init enterprise_suspend_init(void)
+int __init endeavor_suspend_init(void)
 {
-	enterprise_init_deep_sleep_mode();
-	tegra_init_suspend(&enterprise_suspend_data);
+	endeavor_init_deep_sleep_mode();
+	tegra_init_suspend(&endeavor_suspend_data);
 	return 0;
 }
 
 #ifdef CONFIG_TEGRA_EDP_LIMITS
 
-int __init enterprise_edp_init(void)
+int __init endeavor_edp_init(void)
 {
 	unsigned int regulator_mA;
 
@@ -780,7 +797,7 @@ static struct tegra_bpc_mgmt_platform_data bpc_mgmt_platform_data = {
 	.bpc_mgmt_timeout = TEGRA_BPC_TIMEOUT,
 };
 
-static struct platform_device enterprise_bpc_mgmt_device = {
+static struct platform_device endeavor_bpc_mgmt_device = {
 	.name		= "tegra-bpc-mgmt",
 	.id		= -1,
 	.dev		= {
@@ -788,7 +805,7 @@ static struct platform_device enterprise_bpc_mgmt_device = {
 	},
 };
 
-void __init enterprise_bpc_mgmt_init(void)
+void __init endeavor_bpc_mgmt_init(void)
 {
 	int int_gpio;
 
@@ -802,7 +819,7 @@ void __init enterprise_bpc_mgmt_init(void)
 				&(bpc_mgmt_platform_data.affinity_mask));
 	irq_set_affinity(int_gpio, &(bpc_mgmt_platform_data.affinity_mask));
 #endif
-	platform_device_register(&enterprise_bpc_mgmt_device);
+	platform_device_register(&endeavor_bpc_mgmt_device);
 
 	return;
 }
