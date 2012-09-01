@@ -2629,8 +2629,9 @@ static int __devinit check_position_fix(struct azx *chip, int fix)
 		return POS_FIX_LPIB;
 	case AZX_DRIVER_GENERIC:
 		/* AMD chipsets also don't work with position-buffer */
-		if (chip->pci->vendor == PCI_VENDOR_ID_AMD)
-			return POS_FIX_LPIB;
+		if (chip->pci)
+			if (chip->pci->vendor == PCI_VENDOR_ID_AMD)
+				return POS_FIX_LPIB;
 		break;
 	}
 
@@ -2745,7 +2746,7 @@ static int __devinit azx_create(struct snd_card *card, struct pci_dev *pci,
 				struct azx **rchip)
 {
 	struct azx *chip;
-	int i, err;
+	int i, err = -EINVAL;
 	unsigned short gcap;
 	static struct snd_device_ops ops = {
 		.dev_free = azx_dev_free,
@@ -2802,6 +2803,8 @@ static int __devinit azx_create(struct snd_card *card, struct pci_dev *pci,
 	/* Fix up base address on ULI M5461 */
 	if (chip->driver_type == AZX_DRIVER_ULI) {
 		u16 tmp3;
+		if(!pci)
+			return -EINVAL;
 		pci_read_config_word(pci, 0x40, &tmp3);
 		pci_write_config_word(pci, 0x40, tmp3 | 0x10);
 		pci_write_config_dword(pci, PCI_BASE_ADDRESS_1, 0);
@@ -2857,7 +2860,7 @@ static int __devinit azx_create(struct snd_card *card, struct pci_dev *pci,
 
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 		if (res == NULL) {
-			err = EINVAL;
+			err = -EINVAL;
 			goto errout;
 		}
 

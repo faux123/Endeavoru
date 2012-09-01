@@ -2747,8 +2747,10 @@ int snd_hda_create_spdif_share_sw(struct hda_codec *codec,
 	if (!mout->dig_out_nid)
 		return 0;
 	/* ATTENTION: here mout is passed as private_data, instead of codec */
-	return snd_hda_ctl_add(codec, mout->dig_out_nid,
-			      snd_ctl_new1(&spdif_share_sw, mout));
+	struct snd_kcontrol *SND_KCTL = snd_ctl_new1(&spdif_share_sw, mout);
+	if(!SND_KCTL)
+		return 0;
+	return snd_hda_ctl_add(codec, mout->dig_out_nid, SND_KCTL);
 }
 EXPORT_SYMBOL_HDA(snd_hda_create_spdif_share_sw);
 

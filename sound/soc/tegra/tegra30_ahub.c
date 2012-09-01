@@ -617,7 +617,8 @@ static int __devexit tegra30_ahub_remove(struct platform_device *pdev)
 	iounmap(ahub->audio_regs);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	release_mem_region(res->start, resource_size(res));
+	if(res != NULL)
+		release_mem_region(res->start, resource_size(res));
 
 	iounmap(ahub->apbif_regs);
 

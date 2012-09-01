@@ -4088,7 +4088,11 @@ static struct hda_pcm_stream alc_pcm_null_stream = {
 
 static int alc_build_pcms(struct hda_codec *codec)
 {
+	if(!codec)
+		return -EINVAL;
 	struct alc_spec *spec = codec->spec;
+	if(!spec)
+		return -EINVAL;
 	struct hda_pcm *info = spec->pcm_rec;
 	int i;
 

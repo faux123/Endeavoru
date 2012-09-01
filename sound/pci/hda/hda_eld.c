@@ -27,6 +27,7 @@
 #include <asm/unaligned.h>
 #include "hda_codec.h"
 #include "hda_local.h"
+#define SHOW_ELD_DATA 0
 
 enum eld_versions {
 	ELD_VER_CEA_861D	= 2,
@@ -152,7 +153,7 @@ static unsigned char hdmi_get_eld_byte(struct hda_codec *codec, hda_nid_t nid,
 	val = snd_hda_codec_read(codec, nid, 0,
 					AC_VERB_GET_HDMI_ELDD, byte_index);
 
-#ifdef BE_PARANOID
+#if SHOW_ELD_DATA
 	printk(KERN_INFO "HDMI: ELD data byte %d: 0x%x\n", byte_index, val);
 #endif
 
@@ -328,6 +329,7 @@ static int hdmi_update_lpcm_sad_eld (struct hda_codec *codec, hda_nid_t nid,
 	int i, j;
 	u32 val, sad_base;
 	struct cea_sad *a;
+      snd_printd(KERN_INFO "hdmi_update_lpcm_sad_eld\n");
 
 	val = hdmi_get_eld_byte(codec, nid, 0);
 	e->eld_ver = GET_BITS(val, 3, 5);

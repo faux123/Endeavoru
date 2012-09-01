@@ -696,8 +696,10 @@ static int create_mixer(struct hda_codec *codec, struct hda_gnode *node,
 		if (is_loopback)
 			add_input_loopback(codec, node->nid, HDA_INPUT, index);
 		snd_printdd("[%s] NID=0x%x, DIR=IN, IDX=0x%x\n", name, node->nid, index);
-		err = snd_hda_ctl_add(codec, node->nid,
-					snd_ctl_new1(&knew, codec));
+		struct snd_kcontrol *SND_KCTL = snd_ctl_new1(&knew, codec);
+		if(!SND_KCTL)
+			return -1;
+		err = snd_hda_ctl_add(codec, node->nid, SND_KCTL);
 		if (err < 0)
 			return err;
 		created = 1;
@@ -831,8 +833,10 @@ static int build_input_controls(struct hda_codec *codec)
 	}
 
 	/* create input MUX if multiple sources are available */
-	err = snd_hda_ctl_add(codec, spec->adc_node->nid,
-			      snd_ctl_new1(&cap_sel, codec));
+	struct snd_kcontrol *SND_KCTL = snd_ctl_new1(&cap_sel, codec);
+	if(!SND_KCTL)
+		return -1;
+	err = snd_hda_ctl_add(codec, spec->adc_node->nid, SND_KCTL);
 	if (err < 0)
 		return err;
 
@@ -850,8 +854,10 @@ static int build_input_controls(struct hda_codec *codec)
 			HDA_CODEC_VOLUME(name, adc_node->nid,
 					 spec->input_mux.items[i].index,
 					 HDA_INPUT);
-		err = snd_hda_ctl_add(codec, adc_node->nid,
-					snd_ctl_new1(&knew, codec));
+		struct snd_kcontrol *SND_CTL = snd_ctl_new1(&knew, codec);
+		if(!SND_CTL)
+			return -1;
+		err = snd_hda_ctl_add(codec, adc_node->nid, SND_CTL);
 		if (err < 0)
 			return err;
 	}

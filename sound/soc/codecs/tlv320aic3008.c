@@ -623,9 +623,12 @@ static CODEC_SPI_CMD **init_2d_array(int row_sz, int col_sz)
 		AUD_ERR("%s: out of memory\n", __func__);
 		kfree(table);
 		kfree(table_ptr);
-	} else
+		table = NULL;
+		table_ptr = NULL;
+	} else {
 		for (i = 0; i < row_sz; i++)
 			table_ptr[i] = (CODEC_SPI_CMD *) table + i * col_sz;
+	}
 
 	return table_ptr;
 }
@@ -991,10 +994,18 @@ static int aic3008_set_config(int config_tbl, int idx, int en)
 	switch (config_tbl) {
 	case AIC3008_IO_CONFIG_TX:
 		/* TX */
+		if (idx < 0 || idx >= UPLINK_MODE_END) {
+			AUD_ERR("[TX] AIC3008_IO_CONFIG_TX: idx %d is out of range.", idx);
+			rc = -EFAULT;
+			break;
+		}
 		if(!aic3008_power_ctl->isPowerOn)
 		{
-			AUD_ERR("[TX] AIC3008 is power off now, can't do IO CONFIG TX = %d, please check this condition!!", idx);
-			AUD_ERR("[TX] Since IO CONFIG TX can't be done, it maybe no sound on device");
+			if(idx!=UPLINK_PATH_OFF)
+			{
+				AUD_INFO("[TX] AIC3008 is power off now, can't do IO CONFIG TX = %d, please check this condition!!", idx);
+				AUD_INFO("[TX] Since IO CONFIG TX = %d can't be done, it maybe no sound on device", idx);
+			}
 			break;
 		}
 		if (en) {
@@ -1015,11 +1026,20 @@ static int aic3008_set_config(int config_tbl, int idx, int en)
 		break;
 	case AIC3008_IO_CONFIG_RX:
 		/* RX */
+		if (idx < 0 || idx >= DOWNLINK_MODE_END) {
+			AUD_ERR("[RX] AIC3008_IO_CONFIG_RX: idx %d is out of range.", idx);
+			rc = -EFAULT;
+			break;
+		}
+
 		aic3008_AmpSwitch(aic3008_rx_mode, 0);
 		if(!aic3008_power_ctl->isPowerOn)
 		{
-			AUD_ERR("[RX] AIC3008 is power off now, can't do IO CONFIG RX = %d, please check this condition!!", idx);
-			AUD_ERR("[RX] Since IO CONFIG RX can't be done, it maybe no sound on device");
+			if(idx!=DOWNLINK_PATH_OFF)
+			{
+				AUD_INFO("[RX] AIC3008 is power off now, can't do IO CONFIG RX = %d, please check this condition!!", idx);
+				AUD_INFO("[RX] Since IO CONFIG RX = %d can't be done, it maybe no sound on device", idx);
+			}
 			break;
 		}
 		if(!first_boot_path && idx == 10)
@@ -1039,6 +1059,7 @@ static int aic3008_set_config(int config_tbl, int idx, int en)
 			aic3008_rx_config(DOWNLINK_PATH_OFF);
 			aic3008_rx_mode = DOWNLINK_PATH_OFF;
 		}
+
 		if ((aic3008_tx_mode == UPLINK_PATH_OFF) && (aic3008_rx_mode == DOWNLINK_PATH_OFF))
 		{
 			AUD_INFO("[RX] AIC3008_IO_CONFIG_RX: PATH OFF Call aic3008_powerdown()");
@@ -1125,6 +1146,13 @@ static int aic3008_set_config(int config_tbl, int idx, int en)
 			aic3008_config(HS_UNMUTE, ARRAY_SIZE(HS_UNMUTE));
 			break;
 		}
+		else if(idx < 0 || idx >= End_Audio_Effect)
+		{
+			AUD_ERR("[DSP] AIC3008_IO_CONFIG_MEDIA: idx %d is out of range.", idx);
+			rc = -EFAULT;
+			break;
+		}
+		/* else regular DSP index */
 		if(!aic3008_power_ctl->isPowerOn)
 		{
 //			AUD_ERR("[DSP] AIC3008 is power off now, do you want change DSP = %d??", idx);
@@ -1133,29 +1161,46 @@ static int aic3008_set_config(int config_tbl, int idx, int en)
 			AUD_INFO("[DSP] Recovery this condition, AIC3008 is power up now and DSP %d will be config", idx);
 		}
 		if (aic3008_minidsp == NULL) {
-			AUD_INFO("[DSP] AIC3008_IO_CONFIG_MEDIA: aic3008_minidsp == NULL");
+			AUD_ERR("[DSP] AIC3008_IO_CONFIG_MEDIA: aic3008_minidsp == NULL");
 			rc = -EFAULT;
 			break;
 		}
+		if (aic3008_minidsp[idx] == NULL) {
+			AUD_ERR("[DSP] AIC3008_IO_CONFIG_MEDIA: aic3008_minidsp[%d] == NULL.", idx);
+			rc = -EFAULT;
+			break;
+		}
+
 		/* we use this value to dump dsp. */
 		aic3008_dsp_mode = idx;
 
-		len = (aic3008_minidsp[idx][0].reg << 8) | aic3008_minidsp[idx][0].data;
+		AUD_INFO("[DSP] AIC3008_IO_CONFIG_MEDIA: Original RX %d, TX %d. start DSP = %d ++.",
+				aic3008_rx_mode, aic3008_tx_mode, idx);
 
-		AUD_INFO("[DSP] AIC3008_IO_CONFIG_MEDIA: Original RX %d, TX %d. start DSP = %d, len = %d ++. ",
-				aic3008_rx_mode, aic3008_tx_mode, idx, len);
+		len = (((int)(aic3008_minidsp[idx][0].reg) & 0xFF) << 8) | ((int)(aic3008_minidsp[idx][0].data) & 0xFF);
 
 		t1 = ktime_to_ms(ktime_get());
-		/* step 1: path off first */
-		if (aic3008_rx_mode != DOWNLINK_PATH_OFF)
-			aic3008_rx_config(DOWNLINK_PATH_OFF);
+		/* step 1: path off first
+			Symptom:
+				If downlink wasn't path_off, it could have noise when config DSP.
+			Solution:
+				1.) Add the Speaker_AmpSwitch and Headset_Mute here to prevent noise.
+				2.) After we config DSP setting and I/O sequence, it will be unmute.
+		*/
+		if (aic3008_rx_mode != DOWNLINK_PATH_OFF) {
+			aic3008_AmpSwitch(aic3008_rx_mode, 0);
+			aic3008_config(HS_MUTE, ARRAY_SIZE(HS_MUTE));
+		}
 
 		/* step 2: config DSP */
 		aic3008_config(&aic3008_minidsp[idx][1], len);
 
 		t2 = ktime_to_ms(ktime_get()) - t1;
 
-		AUD_INFO("[DSP] AIC3008_IO_CONFIG_MEDIA: configure miniDSP index(%d) time: %lldms --\n", idx, (t2));
+		AUD_INFO("[DSP] AIC3008_IO_CONFIG_MEDIA: configure miniDSP index(%d) len = %d, time: %lldms --\n", idx, len, (t2));
+		break;
+	default:
+		AUD_ERR("aic3008_set_config case error\n");
 		break;
 	}
 
@@ -1674,26 +1719,46 @@ static int __devinit aic3008_probe(struct snd_soc_codec *codec)
 	struct aic3008_priv *aic3008 = snd_soc_codec_get_drvdata(codec);
 
 	AUD_INFO("aic3008_probe() start... aic3008_codec:%p", codec);
-	aic3008->codec = codec;
-	aic3008->codec->control_data = (void *)codec_spi_dev;
 
 	if (!aic3008) {
-		AUD_ERR("%s: Codec not registered, SPI device not yet probed\n",
-				aic3008->codec->name);
+		AUD_ERR("AIC3008: Codec not registered, SPI device not yet probed\n");
 		return -ENODEV;
 	}
+	aic3008->codec = codec;
+	aic3008->codec->control_data = (void *)codec_spi_dev;
 	aic3008_sw_reset(codec); // local call to reset codec
 	aic3008_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 
 	// request space for SPI commands data of AIC3008
 	aic3008_uplink = init_2d_array(IO_CTL_ROW_MAX, IO_CTL_COL_MAX);
+	if (aic3008_uplink == NULL) {
+		AUD_ERR("aic3008_probe() aic3008_uplink alloc failed.");
+		goto err;
+	}
+
 	aic3008_downlink = init_2d_array(IO_CTL_ROW_MAX, IO_CTL_COL_MAX);
+	if (aic3008_downlink == NULL) {
+		AUD_ERR("aic3008_probe() aic3008_downlink alloc failed.");
+		goto err;
+	}
+
 	aic3008_minidsp = init_2d_array(MINIDSP_ROW_MAX, MINIDSP_COL_MAX);
+	if (aic3008_minidsp == NULL) {
+		AUD_ERR("aic3008_probe() aic3008_minidsp alloc failed.");
+		goto err;
+	}
+
 	bulk_tx = kcalloc(MINIDSP_COL_MAX * 2 , sizeof(uint8_t), GFP_KERNEL);
+	if (bulk_tx == NULL) {
+		AUD_ERR("aic3008_probe() bulk_tx alloc failed.");
+		goto err;
+	}
 
 	AUD_INFO("Audio Codec Driver init complete in %lld ms\n",
 			 ktime_to_ms(ktime_get()) - drv_up_time);
 	return ret;
+err:
+	return -ENOMEM;
 }
 
 static int __devexit aic3008_remove(struct snd_soc_codec *codec)

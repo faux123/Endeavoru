@@ -851,6 +851,7 @@ static int hdmi_pcm_open(struct hda_pcm_stream *hinfo,
        {
 				snd_printk(KERN_WARNING
 					   "hdmi_pcm_open(): eld is null\n");
+			return -EINVAL;
        }
 
        if(codec==0 )
@@ -858,17 +859,23 @@ static int hdmi_pcm_open(struct hda_pcm_stream *hinfo,
 				snd_printk(KERN_WARNING
 					   "hdmi_pcm_open(): codec is null\n");
        }
-       if(codec->preset==0)
+       if(codec && codec->preset==0)
        {
 				snd_printk(KERN_WARNING
 					   "hdmi_pcm_open(): codec preset is null\n");
+			return -EINVAL;
        }
 #ifdef CONFIG_SND_HDA_PLATFORM_NVIDIA_TEGRA
-#if 0 //Remove Audio delay for ELD
+#if 0
+	if(!codec)
+		return -EINVAL;
 	if ((codec->preset->id == 0x10de0020) &&
 	    (!eld->eld_valid || !eld->sad_count)) {
 		int err = 0;
 		unsigned long timeout;
+
+		snd_printk(KERN_WARNING
+			   "hdmi_pcm_open(): step1\n");
 
 		if (!eld->eld_valid) {
 			err = tegra_hdmi_setup_hda_presence();
@@ -878,6 +885,9 @@ static int hdmi_pcm_open(struct hda_pcm_stream *hinfo,
 				return -ENODEV;
 			}
 		}
+
+		snd_printk(KERN_WARNING
+			   "hdmi_pcm_open(): step2\n");
 
 		timeout = jiffies + msecs_to_jiffies(5000);
 		for (;;) {
@@ -893,8 +903,13 @@ static int hdmi_pcm_open(struct hda_pcm_stream *hinfo,
 		}
 	}
 #else
+	if(!codec)
+		return -EINVAL;
 	if ((codec->preset->id == 0x10de0020) &&
 	    (!eld->eld_valid || !eld->sad_count || !eld->lpcm_sad_ready)) {
+
+		snd_printk(KERN_WARNING
+			   "hdmi_pcm_open(): step1\n");
 
 		if (!eld->eld_valid) {
 			if (tegra_hdmi_setup_hda_presence() < 0) {
@@ -903,6 +918,8 @@ static int hdmi_pcm_open(struct hda_pcm_stream *hinfo,
 				return -ENODEV;
 			}
 		}
+		snd_printk(KERN_WARNING
+			   "hdmi_pcm_open(): step2\n");
 
 		if (!eld->lpcm_sad_ready)
 			return -EAGAIN;

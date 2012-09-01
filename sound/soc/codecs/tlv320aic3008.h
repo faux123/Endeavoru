@@ -209,9 +209,13 @@ enum htc_audio_sound_effect {
 	VOIP_Speaker,
 	VOIP_Headset,
 	VOIP_BT = 35,
-	SKYPE_Receiver = 36,
+	VOIP_Receiver_HW_AEC = 36,
+	VOIP_Speaker_HW_AEC,
+	VOIP_Headset_HW_AEC,
+	VOIP_BT_HW_AEC = 39,
+	SKYPE_Receiver = 40,
 	SKYPE_Speaker,
-	SPYPE_Headset = 38,
+	SPYPE_Headset = 42,
     End_Audio_Effect,
 };
 

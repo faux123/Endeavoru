@@ -501,6 +501,8 @@ static int add_mute(struct hda_codec *codec, const char *name, int index,
 	knew.private_value = pval;
 	snprintf(tmp, sizeof(tmp), "%s %s Switch", name, dir_sfx[dir]);
 	*kctlp = snd_ctl_new1(&knew, codec);
+	if(!(*kctlp))
+		return -1;
 	(*kctlp)->id.subdevice = HDA_SUBDEV_AMP_FLAG;
 	return snd_hda_ctl_add(codec, 0, *kctlp);
 }
@@ -515,6 +517,8 @@ static int add_volume(struct hda_codec *codec, const char *name,
 	knew.private_value = pval;
 	snprintf(tmp, sizeof(tmp), "%s %s Volume", name, dir_sfx[dir]);
 	*kctlp = snd_ctl_new1(&knew, codec);
+	if(!(*kctlp))
+		return -1;
 	(*kctlp)->id.subdevice = HDA_SUBDEV_AMP_FLAG;
 	return snd_hda_ctl_add(codec, 0, *kctlp);
 }
@@ -533,12 +537,18 @@ static void fix_volume_caps(struct hda_codec *codec, hda_nid_t dac)
 
 static int add_vmaster(struct hda_codec *codec, hda_nid_t dac)
 {
+	if(!codec)
+		return -1;
 	struct cs_spec *spec = codec->spec;
+	if(!spec)
+		return -1;
 	unsigned int tlv[4];
 	int err;
 
 	spec->vmaster_sw =
 		snd_ctl_make_virtual_master("Master Playback Switch", NULL);
+	if(!spec->vmaster_sw)
+		return -1;
 	err = snd_hda_ctl_add(codec, dac, spec->vmaster_sw);
 	if (err < 0)
 		return err;
@@ -546,6 +556,8 @@ static int add_vmaster(struct hda_codec *codec, hda_nid_t dac)
 	snd_hda_set_vmaster_tlv(codec, dac, HDA_OUTPUT, tlv);
 	spec->vmaster_vol =
 		snd_ctl_make_virtual_master("Master Playback Volume", tlv);
+	if(!spec->vmaster_vol)
+		return -1;
 	err = snd_hda_ctl_add(codec, dac, spec->vmaster_vol);
 	if (err < 0)
 		return err;
@@ -555,7 +567,11 @@ static int add_vmaster(struct hda_codec *codec, hda_nid_t dac)
 static int add_output(struct hda_codec *codec, hda_nid_t dac, int idx,
 		      int num_ctls, int type)
 {
+	if(!codec)
+		return -1;
 	struct cs_spec *spec = codec->spec;
+	if(!spec)
+		return -1;
 	const char *name;
 	int err, index;
 	struct snd_kcontrol *kctl;
@@ -597,6 +613,8 @@ static int add_output(struct hda_codec *codec, hda_nid_t dac, int idx,
 		       HDA_COMPOSE_AMP_VAL(dac, 3, 0, HDA_OUTPUT), 0, &kctl);
 	if (err < 0)
 		return err;
+	if(!spec->vmaster_sw)
+		return -1;
 	err = snd_ctl_add_slave(spec->vmaster_sw, kctl);
 	if (err < 0)
 		return err;
@@ -796,8 +814,10 @@ static int build_input(struct hda_codec *codec)
 	}
 	
 	if (spec->num_inputs > 1 && !spec->mic_detect) {
-		err = snd_hda_ctl_add(codec, 0,
-				      snd_ctl_new1(&cs_capture_source, codec));
+		struct snd_kcontrol *SND_CTL = snd_ctl_new1(&cs_capture_source, codec);
+		if(!SND_CTL)
+			return -1;
+		err = snd_hda_ctl_add(codec, 0, SND_CTL);
 		if (err < 0)
 			return err;
 	}

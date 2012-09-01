@@ -908,7 +908,8 @@ static int __devexit tegra30_i2s_platform_remove(struct platform_device *pdev)
 	iounmap(i2s->regs);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	release_mem_region(res->start, resource_size(res));
+	if(res != NULL)
+		release_mem_region(res->start, resource_size(res));
 
 	clk_put(i2s->clk_pll_a_out0);
 	clk_put(i2s->clk_audio_2x);

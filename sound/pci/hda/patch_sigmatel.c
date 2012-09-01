@@ -1101,8 +1101,10 @@ static int stac92xx_build_controls(struct hda_codec *codec)
 			spec->spdif_mute = 1;
 		}
 		stac_smux_mixer.count = spec->num_smuxes;
-		err = snd_hda_ctl_add(codec, 0,
-				  snd_ctl_new1(&stac_smux_mixer, codec));
+		struct snd_kcontrol *SND_CTL = snd_ctl_new1(&stac_smux_mixer, codec);
+		if(!SND_CTL)
+			return -1;
+		err = snd_hda_ctl_add(codec, 0, SND_CTL);
 		if (err < 0)
 			return err;
 	}
