@@ -66,8 +66,8 @@ NORET_TYPE void panic(const char * fmt, ...)
 	va_list args;
 	long i, i_next = 0;
 	int state = 0;
-#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || \
-    defined(CONFIG_MACH_VERTEXF) || defined(CONFIG_MACH_VERTEXFP)
+#if defined(CONFIG_MACH_ENDEAVORU) || defined(CONFIG_MACH_ENDEAVORTD) || defined(CONFIG_MACH_ERAU) || \
+    defined(CONFIG_MACH_VERTEXFP)
 	set_ramdump_reason("Kernel panic");
 #endif
 	/*

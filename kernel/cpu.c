@@ -297,7 +297,10 @@ static int __cpuinit _cpu_up(unsigned int cpu, int tasks_frozen)
 	unsigned long mod = tasks_frozen ? CPU_TASKS_FROZEN : 0;
 
 	if (cpu_online(cpu) || !cpu_present(cpu))
+	{
+		printk(KERN_ERR "%s:%s", __func__, cpu_online(cpu) ? "cpu already on" : "cpu not present");
 		return -EINVAL;
+	}
 
 	cpu_hotplug_begin();
 	ret = __cpu_notify(CPU_UP_PREPARE | mod, hcpu, -1, &nr_calls);
@@ -319,7 +322,10 @@ static int __cpuinit _cpu_up(unsigned int cpu, int tasks_frozen)
 
 out_notify:
 	if (ret != 0)
+	{
+		printk(KERN_ERR "%s: failed to notify CPU_ONLINE\n", __func__);
 		__cpu_notify(CPU_UP_CANCELED | mod, hcpu, nr_calls, NULL);
+	}
 	cpu_hotplug_done();
 
 	return ret;
@@ -375,6 +381,7 @@ int __cpuinit cpu_up(unsigned int cpu)
 	cpu_maps_update_begin();
 
 	if (cpu_hotplug_disabled) {
+		printk(KERN_ERR "%s: cpu hotplug disabled.\n", __func__);
 		err = -EBUSY;
 		goto out;
 	}

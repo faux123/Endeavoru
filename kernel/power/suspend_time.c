@@ -24,6 +24,8 @@
 
 static struct timespec suspend_time_before;
 static unsigned int time_in_suspend_bins[32];
+static struct timespec suspend_time_dvfs = {0, 0};
+static unsigned int dvfs_suspend = 0;
 
 #ifdef CONFIG_DEBUG_FS
 static int suspend_time_debug_show(struct seq_file *s, void *data)
@@ -89,6 +91,24 @@ static void suspend_time_syscore_resume(void)
 
 	pr_info("Suspended for %lu.%03lu seconds\n", after.tv_sec,
 		after.tv_nsec / NSEC_PER_MSEC);
+
+	dvfs_suspend = 1;
+	suspend_time_dvfs = timespec_add(suspend_time_dvfs, after);
+}
+
+u32 get_suspend_time(void)
+{
+	u32 suspend_ms;
+
+	if (!dvfs_suspend)
+		return 0;
+
+	suspend_ms = suspend_time_dvfs.tv_sec * MSEC_PER_SEC + suspend_time_dvfs.tv_nsec / NSEC_PER_MSEC;
+
+	dvfs_suspend = 0;
+	suspend_time_dvfs = timespec_sub(suspend_time_dvfs, suspend_time_dvfs);
+
+	return suspend_ms;
 }
 
 static struct syscore_ops suspend_time_syscore_ops = {
