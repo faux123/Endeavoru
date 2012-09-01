@@ -977,8 +977,10 @@ struct fib6_node * fib6_locate(struct fib6_node *root,
 
 static struct rt6_info *fib6_find_prefix(struct net *net, struct fib6_node *fn)
 {
-	if (fn->fn_flags&RTN_ROOT)
-		return net->ipv6.ip6_null_entry;
+	if (fn != NULL) {
+		if (fn->fn_flags&RTN_ROOT)
+			return net->ipv6.ip6_null_entry;
+	}
 
 	while(fn) {
 		if(fn->left)

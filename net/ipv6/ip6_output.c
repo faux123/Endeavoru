@@ -1156,7 +1156,7 @@ int ip6_append_data(struct sock *sk, int getfrag(void *from, char *to,
 	int hh_len;
 	int mtu;
 	int copy;
-	int err;
+	int err = 0;
 	int offset = 0;
 	int csummode = CHECKSUM_NONE;
 	__u8 tx_flags = 0;

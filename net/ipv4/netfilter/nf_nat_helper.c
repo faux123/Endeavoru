@@ -394,6 +394,11 @@ nf_nat_seq_adjust(struct sk_buff *skb,
 	this_way = &nat->seq[dir];
 	other_way = &nat->seq[!dir];
 
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (this_way == NULL)
+        printk("[NET] this_way == NULL in %s\n", __func__);
+#endif
+
 	if (!skb_make_writable(skb, ip_hdrlen(skb) + sizeof(*tcph)))
 		return 0;
 

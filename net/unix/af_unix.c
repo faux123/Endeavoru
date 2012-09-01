@@ -1212,7 +1212,12 @@ out_unlock:
 		unix_state_unlock(other);
 
 out:
-	kfree_skb(skb);
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (skb)
+#endif
+	    kfree_skb(skb);
+
 	if (newsk)
 		unix_release_sock(newsk, 0);
 	if (other)

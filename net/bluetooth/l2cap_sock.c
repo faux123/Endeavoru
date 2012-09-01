@@ -858,6 +858,9 @@ static int l2cap_sock_shutdown(struct socket *sock, int how)
 	struct l2cap_chan *chan = l2cap_pi(sk)->chan;
 	int err = 0;
 
+	if (IS_ERR(sk))
+		return PTR_ERR(sk);
+
 	BT_DBG("sock %p, sk %p", sock, sk);
 
 	if (!sk)

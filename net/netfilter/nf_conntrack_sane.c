@@ -76,6 +76,12 @@ static int help(struct sk_buff *skb,
 	struct sane_reply_net_start *reply;
 
 	ct_sane_info = &nfct_help(ct)->help.ct_sane_info;
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (ct_sane_info == NULL)
+        printk("[NET] ct_sane_info = NULL in %s\n", __func__);
+#endif
+
 	/* Until there's been traffic both ways, don't look in packets. */
 	if (ctinfo != IP_CT_ESTABLISHED &&
 	    ctinfo != IP_CT_ESTABLISHED+IP_CT_IS_REPLY)
@@ -126,6 +132,12 @@ static int help(struct sk_buff *skb,
 	}
 
 	reply = sb_ptr;
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (reply == NULL)
+        printk("[NET] reply is NULL in %s\n", __func__);
+#endif
+
 	if (reply->status != htonl(SANE_STATUS_SUCCESS)) {
 		/* saned refused the command */
 		pr_debug("nf_ct_sane: unsuccessful SANE_STATUS = %u\n",

@@ -791,6 +791,11 @@ static ssize_t do_tcp_sendpages(struct sock *sk, struct page **pages, int poffse
 		int offset = poffset % PAGE_SIZE;
 		int size = min_t(size_t, psize, PAGE_SIZE - offset);
 
+#ifdef CONFIG_HTC_NET_MODIFY
+        if (skb == NULL)
+            printk("[NET] skb = NULL in %s\n", __func__);
+#endif
+
 		if (!tcp_send_head(sk) || (copy = size_goal - skb->len) <= 0) {
 new_segment:
 			if (!sk_stream_memory_free(sk))
@@ -963,6 +968,12 @@ int tcp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 			int max = size_goal;
 
 			skb = tcp_write_queue_tail(sk);
+
+#ifdef CONFIG_HTC_NET_MODIFY
+        if (skb == NULL)
+            printk("[NET] skb = NULL in %s\n", __func__);
+#endif
+
 			if (tcp_send_head(sk)) {
 				if (skb->ip_summed == CHECKSUM_NONE)
 					max = mss_now;

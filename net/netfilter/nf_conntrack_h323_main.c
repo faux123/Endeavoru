@@ -124,6 +124,11 @@ static int get_tpkt_data(struct sk_buff *skb, unsigned int protoff,
 	int tpktlen;
 	int tpktoff;
 
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (info == NULL)
+        printk("[NET] info = NULL in %s\n", __func__);
+#endif
+
 	/* Get TCP header */
 	th = skb_header_pointer(skb, protoff, sizeof(_tcph), &_tcph);
 	if (th == NULL)
@@ -1259,6 +1264,12 @@ static int expect_q931(struct sk_buff *skb, struct nf_conn *ct,
 	struct nf_conntrack_expect *exp;
 	typeof(nat_q931_hook) nat_q931;
 
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (info == NULL)
+        printk("[NET] info = NULL in %s\n", __func__);
+#endif
+
 	/* Look for the first related address */
 	for (i = 0; i < count; i++) {
 		if (get_h225_addr(ct, *data, &taddr[i], &addr, &port) &&
@@ -1369,6 +1380,12 @@ static int process_rrq(struct sk_buff *skb, struct nf_conn *ct,
 	int ret;
 	typeof(set_ras_addr_hook) set_ras_addr;
 
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (info == NULL)
+        printk("[NET] info = NULL in %s\n", __func__);
+#endif
+
 	pr_debug("nf_ct_ras: RRQ\n");
 
 	ret = expect_q931(skb, ct, ctinfo, data,
@@ -1405,6 +1422,11 @@ static int process_rcf(struct sk_buff *skb, struct nf_conn *ct,
 	int ret;
 	struct nf_conntrack_expect *exp;
 	typeof(set_sig_addr_hook) set_sig_addr;
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (info == NULL)
+        printk("[NET] info = NULL in %s\n", __func__);
+#endif
 
 	pr_debug("nf_ct_ras: RCF\n");
 
@@ -1454,6 +1476,12 @@ static int process_urq(struct sk_buff *skb, struct nf_conn *ct,
 	int ret;
 	typeof(set_sig_addr_hook) set_sig_addr;
 
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (info == NULL)
+        printk("[NET] info = NULL in %s\n", __func__);
+#endif
+
 	pr_debug("nf_ct_ras: URQ\n");
 
 	set_sig_addr = rcu_dereference(set_sig_addr_hook);
@@ -1486,6 +1514,11 @@ static int process_arq(struct sk_buff *skb, struct nf_conn *ct,
 	__be16 port;
 	union nf_inet_addr addr;
 	typeof(set_h225_addr_hook) set_h225_addr;
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (info == NULL)
+        printk("[NET] info = NULL in %s\n", __func__);
+#endif
 
 	pr_debug("nf_ct_ras: ARQ\n");
 

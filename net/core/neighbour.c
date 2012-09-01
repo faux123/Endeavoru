@@ -948,7 +948,11 @@ static void neigh_timer_handler(unsigned long arg)
 		write_unlock(&neigh->lock);
 		neigh->ops->solicit(neigh, skb);
 		atomic_inc(&neigh->probes);
-		kfree_skb(skb);
+
+#ifdef CONFIG_HTC_NET_MODIFY
+		if (skb)
+#endif
+		  kfree_skb(skb);
 	} else {
 out:
 		write_unlock(&neigh->lock);

@@ -1314,6 +1314,7 @@ static void l2cap_retransmit_one_frame(struct l2cap_chan *chan, u16 tx_seq)
 	struct sk_buff *skb, *tx_skb;
 	u16 fcs;
 	u32 control;
+	int err;
 
 	skb = skb_peek(&chan->tx_q);
 	if (!skb)
@@ -1336,6 +1337,12 @@ static void l2cap_retransmit_one_frame(struct l2cap_chan *chan, u16 tx_seq)
 
 	tx_skb = skb_clone(skb, GFP_ATOMIC);
 	bt_cb(skb)->retries++;
+
+        if (IS_ERR(tx_skb)) {
+		err = PTR_ERR(tx_skb);
+		BT_ERR("tx_skb err:%d", err);
+		return;
+	}
 
 	control = __get_control(chan, tx_skb->data + L2CAP_HDR_SIZE);
 	control &= __get_sar_mask(chan);
@@ -1379,6 +1386,9 @@ static int l2cap_ertm_send(struct l2cap_chan *chan)
 		tx_skb = skb_clone(skb, GFP_ATOMIC);
 
 		bt_cb(skb)->retries++;
+
+		if (IS_ERR(tx_skb))
+			return PTR_ERR(tx_skb);
 
 		control = __get_control(chan, tx_skb->data + L2CAP_HDR_SIZE);
 		control &= __get_sar_mask(chan);
@@ -2783,8 +2793,12 @@ static inline int l2cap_config_req(struct l2cap_conn *conn, struct l2cap_cmd_hdr
 	}
 
 	/* Store config. */
-	memcpy(chan->conf_req + chan->conf_len, req->data, len);
-	chan->conf_len += len;
+	if (len < 65) {
+		memcpy(chan->conf_req + chan->conf_len, req->data, len);
+		chan->conf_len += len;
+	} else {
+		BT_ERR("Buffer overflow in conf_req");
+	}
 
 	if (flags & 0x0001) {
 		/* Incomplete config. Send empty response. */
@@ -3757,6 +3771,13 @@ static void l2cap_check_srej_gap(struct l2cap_chan *chan, u16 tx_seq)
 			break;
 
 		skb = skb_dequeue(&chan->srej_q);
+
+		if (IS_ERR(skb)) {
+			err = PTR_ERR(skb);
+			BT_ERR("tx_skb err:%d", err);
+			return;
+		}
+
 		control = __set_ctrl_sar(chan, bt_cb(skb)->sar);
 		err = l2cap_reassemble_sdu(chan, skb, control);
 

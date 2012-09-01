@@ -1376,14 +1376,13 @@ static int pair_device(struct sock *sk, u16 index, unsigned char *data, u16 len)
 		auth_type = HCI_AT_DEDICATED_BONDING_MITM;
 
 	entry = hci_find_adv_entry(hdev, &cp->bdaddr);
-/* BlueTi Start */
+
 	if (entry)
 		conn = hci_connect(hdev, LE_LINK, 0, &cp->bdaddr, BT_ADDR_INVALID, sec_level,
 								auth_type);
 	else
 		conn = hci_connect(hdev, ACL_LINK, 0, &cp->bdaddr, BT_ADDR_INVALID, sec_level,
 								auth_type);
-/* BlueTi End */
 
 	if (IS_ERR(conn)) {
 		err = PTR_ERR(conn);
@@ -1511,7 +1510,6 @@ static int cancel_resolve_name(struct sock *sk, u16 index, unsigned char *data, 
 	return err;
 }
 
-/* BlueTi Start */
 static int read_rssi_level(struct sock *sk, u16 index, unsigned char *data, u16 len)
 {
 	struct mgmt_cp_read_rssi_level *mgmt_cp = (void *) data;
@@ -1560,8 +1558,6 @@ failed:
 
 	return err;
 }
-
-/* BlueTi End */
 
 static void encrypt_complete(struct pending_cmd *cmd, u8 status)
 {
@@ -2262,11 +2258,9 @@ int mgmt_control(struct sock *sk, struct msghdr *msg, size_t msglen)
 	case MGMT_OP_CANCEL_RESOLVE_NAME:
 		err = cancel_resolve_name(sk, index, buf + sizeof(*hdr), len);
 		break;
-/* BlueTi Start */
 	case MGMT_OP_READ_RSSI_LEVEL:
 		err = read_rssi_level(sk, index, buf + sizeof(*hdr), len);
 		break;
-/* BlueTi End */
 	default:
 		BT_DBG("Unknown op %u", opcode);
 		err = cmd_status(sk, index, opcode, 0x01);
@@ -2503,7 +2497,6 @@ int mgmt_pin_code_request(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 secure)
 									NULL);
 }
 
-/* BlueTi Start */
 int mgmt_read_rssi_complete(struct hci_dev *hdev, bdaddr_t* bdaddr, s8 rssi)
 {
 	struct mgmt_rp_read_rssi_level rp;
@@ -2525,7 +2518,18 @@ int mgmt_read_rssi_complete(struct hci_dev *hdev, bdaddr_t* bdaddr, s8 rssi)
 
 	return err;
 }
-/* BlueTi End */
+
+int mgmt_remote_features(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 features[8])
+{
+	struct mgmt_ev_remote_features ev;
+
+	memset(&ev, 0, sizeof(ev));
+
+	bacpy(&ev.bdaddr, bdaddr);
+	memcpy(ev.features, features, sizeof(ev.features));
+
+	return mgmt_event(MGMT_EV_REMOTE_FEATURES, hdev, &ev, sizeof(ev), NULL);
+}
 
 int mgmt_pin_code_reply_complete(struct hci_dev *hdev, bdaddr_t *bdaddr,
 								u8 status)

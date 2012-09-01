@@ -112,6 +112,11 @@ static bool rt_mt6(const struct sk_buff *skb, struct xt_action_param *par)
 					sizeof(_reserved),
 					&_reserved);
 
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (rp == NULL)
+        printk("[NET] rp = NULL in %s\n", __func__);
+#endif
+
 		ret = (*rp == 0);
 	}
 

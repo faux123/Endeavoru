@@ -567,6 +567,11 @@ config NET_CLS_IND
 	  classification based on the incoming device. This option is
 	  likely to disappear in favour of the metadata ematch.
 
+config HTC_NET_MODIFY
+	tristate "HTC_NET_MODIFY"
+	---help---
+	This is for klockwork issu
+
 endif # NET_SCHED
 
 config NET_SCH_FIFO

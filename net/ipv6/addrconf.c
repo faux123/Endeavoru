@@ -2189,7 +2189,7 @@ static int inet6_addr_add(struct net *net, int ifindex, struct in6_addr *pfx,
 
 	ifp = ipv6_add_addr(idev, pfx, plen, scope, ifa_flags);
 
-	if (!IS_ERR(ifp)) {
+	if (!IS_ERR(ifp) && ifp != NULL) {
 		spin_lock_bh(&ifp->lock);
 		ifp->valid_lft = valid_lft;
 		ifp->prefered_lft = prefered_lft;
@@ -2294,7 +2294,7 @@ static void add_addr(struct inet6_dev *idev, const struct in6_addr *addr,
 	struct inet6_ifaddr *ifp;
 
 	ifp = ipv6_add_addr(idev, addr, plen, scope, IFA_F_PERMANENT);
-	if (!IS_ERR(ifp)) {
+	if (!IS_ERR(ifp) && ifp != NULL) {
 		spin_lock_bh(&ifp->lock);
 		ifp->flags &= ~IFA_F_TENTATIVE;
 		spin_unlock_bh(&ifp->lock);
@@ -2388,7 +2388,7 @@ static void addrconf_add_linklocal(struct inet6_dev *idev, struct in6_addr *addr
 
 
 	ifp = ipv6_add_addr(idev, addr, 64, IFA_LINK, addr_flags);
-	if (!IS_ERR(ifp)) {
+	if (!IS_ERR(ifp) && ifp != NULL) {
 		addrconf_prefix_route(&ifp->addr, ifp->prefix_len, idev->dev, 0, 0);
 		addrconf_dad_start(ifp, 0);
 		in6_ifa_put(ifp);

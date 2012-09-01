@@ -975,6 +975,16 @@ __be32 inet_select_addr(const struct net_device *dev, __be32 dst, int scope)
 	struct net *net = dev_net(dev);
 
 	rcu_read_lock();
+
+	if (IS_ERR(dev) || (!dev)) {
+		printk(KERN_ERR "[NET] dev is NULL in %s!\n", __func__);
+		return addr;
+	}
+	if (IS_ERR(net) || (!net)) {
+		printk(KERN_ERR "[NET] net is NULL in %s!\n", __func__);
+		return addr;
+	}
+
 	in_dev = __in_dev_get_rcu(dev);
 	if (!in_dev)
 		goto no_in_dev;

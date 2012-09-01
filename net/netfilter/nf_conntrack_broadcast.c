@@ -56,7 +56,7 @@ int nf_conntrack_broadcast_help(struct sk_buff *skb,
 		goto out;
 
 	exp = nf_ct_expect_alloc(ct);
-	if (exp == NULL)
+	if (exp == NULL || help == NULL)
 		goto out;
 
 	exp->tuple                = ct->tuplehash[IP_CT_DIR_REPLY].tuple;

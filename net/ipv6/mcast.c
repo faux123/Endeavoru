@@ -1218,9 +1218,13 @@ int igmp6_event_query(struct sk_buff *skb)
 				else
 					ma->mca_flags &= ~MAF_GSQUERY;
 			}
-			if (!(ma->mca_flags & MAF_GSQUERY) ||
-			    mld_marksources(ma, ntohs(mlh2->mld2q_nsrcs), mlh2->mld2q_srcs))
-				igmp6_group_queried(ma, max_delay);
+			if (mlh2 != NULL) {
+				if (!(ma->mca_flags & MAF_GSQUERY) ||
+				    mld_marksources(ma, ntohs(mlh2->mld2q_nsrcs), mlh2->mld2q_srcs))
+					igmp6_group_queried(ma, max_delay);
+			} else {
+				printk(KERN_ERR "[NET]mlh2 = null at ipv6 mcast.c\n");
+			}
 			spin_unlock_bh(&ma->mca_lock);
 			break;
 		}

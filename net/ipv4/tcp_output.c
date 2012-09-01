@@ -2239,6 +2239,11 @@ void tcp_xmit_retransmit_queue(struct sock *sk)
 		last_lost = tp->snd_una;
 	}
 
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (skb == NULL)
+        printk("[NET] skb = NULL in %s\n", __func__);
+#endif
+
 	tcp_for_write_queue_from(skb, sk) {
 		__u8 sacked = TCP_SKB_CB(skb)->sacked;
 

@@ -364,6 +364,12 @@ found:
 		fq->q.fragments = skb;
 
 	dev = skb->dev;
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (dev == NULL)
+        printk("[NET] dev = NULL in %s\n", __func__);
+#endif
+
 	if (dev) {
 		fq->iif = dev->ifindex;
 		skb->dev = NULL;

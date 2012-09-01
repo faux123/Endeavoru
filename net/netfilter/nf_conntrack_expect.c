@@ -51,7 +51,7 @@ void nf_ct_unlink_expect_report(struct nf_conntrack_expect *exp,
 	net->ct.expect_count--;
 
 	hlist_del(&exp->lnode);
-	if (!(exp->flags & NF_CT_EXPECT_USERSPACE))
+	if (!(exp->flags & NF_CT_EXPECT_USERSPACE) && master_help != NULL)
 		master_help->expecting[exp->class]--;
 
 	nf_ct_expect_event_report(IPEXP_DESTROY, exp, pid, report);
@@ -353,10 +353,13 @@ static void evict_oldest_expect(struct nf_conn *master,
 	struct nf_conntrack_expect *exp, *last = NULL;
 	struct hlist_node *n;
 
-	hlist_for_each_entry(exp, n, &master_help->expectations, lnode) {
-		if (exp->class == new->class)
-			last = exp;
-	}
+	if (master_help != NULL) {
+		hlist_for_each_entry(exp, n, &master_help->expectations, lnode) {
+			if (exp->class == new->class)
+				last = exp;
+		}
+	} else
+		printk(KERN_WARNING "[NET] master_help=NULL in evict_oldest_expect()\n");
 
 	if (last && del_timer(&last->timeout)) {
 		nf_ct_unlink_expect(last);
@@ -368,6 +371,11 @@ static inline int refresh_timer(struct nf_conntrack_expect *i)
 {
 	struct nf_conn_help *master_help = nfct_help(i->master);
 	const struct nf_conntrack_expect_policy *p;
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (master_help == NULL)
+        printk("[NET] master_help = NULL in %s\n", __func__);
+#endif
 
 	if (!del_timer(&i->timeout))
 		return 0;
@@ -438,7 +446,7 @@ out:
 	return ret;
 }
 
-int nf_ct_expect_related_report(struct nf_conntrack_expect *expect, 
+int nf_ct_expect_related_report(struct nf_conntrack_expect *expect,
 				u32 pid, int report)
 {
 	int ret;

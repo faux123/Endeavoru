@@ -788,7 +788,11 @@ static int __ip_append_data(struct sock *sk, struct sk_buff_head *queue,
 	int exthdrlen;
 	int mtu;
 	int copy;
+#ifdef CONFIG_HTC_NET_MODIFY
+    int err=-1;
+#else
 	int err;
+#endif
 	int offset = 0;
 	unsigned int maxfraglen, fragheaderlen;
 	int csummode = CHECKSUM_NONE;

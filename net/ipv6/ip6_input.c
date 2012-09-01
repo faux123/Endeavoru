@@ -149,7 +149,8 @@ err:
 	IP6_INC_STATS_BH(net, idev, IPSTATS_MIB_INHDRERRORS);
 drop:
 	rcu_read_unlock();
-	kfree_skb(skb);
+	if (skb != NULL)
+		kfree_skb(skb);
 	return NET_RX_DROP;
 }
 

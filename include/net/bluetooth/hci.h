@@ -771,7 +771,6 @@ struct hci_cp_write_page_scan_activity {
 	#define PAGE_SCAN_TYPE_STANDARD		0x00
 	#define PAGE_SCAN_TYPE_INTERLACED	0x01
 
-/* BlueTi Start */
 #define HCI_OP_READ_RSSI			0x1405
 struct hci_cp_read_rssi {
 	__le16   handle;
@@ -782,7 +781,6 @@ struct hci_rp_read_rssi {
 	__le16   handle;
 	__s8   	 rssi;
 } __packed;
-/* BlueTi End */
 
 #define HCI_OP_READ_LOCAL_AMP_INFO	0x1409
 struct hci_rp_read_local_amp_info {

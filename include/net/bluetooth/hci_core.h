@@ -529,11 +529,11 @@ void hci_conn_check_pending(struct hci_dev *hdev);
 struct hci_chan *hci_chan_create(struct hci_conn *conn);
 int hci_chan_del(struct hci_chan *chan);
 void hci_chan_hash_flush(struct hci_conn *conn);
-/* BlueTi Start */
+
 struct hci_conn *hci_connect(struct hci_dev *hdev, int type, __u16 pkt_type, 
                         bdaddr_t *dst, __u8 addr_type, __u8 sec_level, 
                         __u8 auth_type);
-/* BlueTi End */
+
 int hci_conn_check_link_mode(struct hci_conn *conn);
 int hci_conn_check_secure(struct hci_conn *conn, __u8 sec_level);
 int hci_conn_security(struct hci_conn *conn, __u8 sec_level, __u8 auth_type);
@@ -954,11 +954,12 @@ int mgmt_device_unblocked(struct hci_dev *hdev, bdaddr_t *bdaddr);
 int mgmt_has_pending_stop_discov(struct hci_dev *hdev);
 int mgmt_interleaved_discovery(struct hci_dev *hdev);
 int mgmt_is_interleaved_discovery(struct hci_dev *hdev);
-/* BlueTi Start */
+
 int mgmt_read_rssi_complete(struct hci_dev *hdev, bdaddr_t* bdaddr, s8 rssi);
-/* BlueTi End */
 
 int mgmt_incomming_remote_class(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 dev_class[3]);
+int mgmt_remote_features(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 features[8]);
+
 
 /* HCI info for socket */
 #define hci_pi(sk) ((struct hci_pinfo *) sk)

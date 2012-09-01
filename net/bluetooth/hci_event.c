@@ -1856,8 +1856,10 @@ static inline void hci_remote_features_evt(struct hci_dev *hdev, struct sk_buff 
 	if (!conn)
 		goto unlock;
 
-	if (!ev->status)
+	if (!ev->status){
 		memcpy(conn->features, ev->features, 8);
+		mgmt_remote_features(hdev, &conn->dst, ev->features);
+	}
 
 	if (conn->state != BT_CONFIG)
 		goto unlock;
@@ -2048,11 +2050,10 @@ static inline void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *sk
 	case HCI_OP_WRITE_CA_TIMEOUT:
 		hci_cc_write_ca_timeout(hdev, skb);
 		break;
-/* BlueTi Start */
+
 	case HCI_OP_READ_RSSI:
 		hci_cc_read_rssi(hdev,skb);
 		break;
-/* BlueTi End */
 
 	case HCI_OP_READ_LOCAL_AMP_INFO:
 		hci_cc_read_local_amp_info(hdev, skb);

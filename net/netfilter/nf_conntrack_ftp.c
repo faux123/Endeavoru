@@ -393,6 +393,11 @@ static int help(struct sk_buff *skb,
 	ends_in_nl = (fb_ptr[datalen - 1] == '\n');
 	seq = ntohl(th->seq) + datalen;
 
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (ct_ftp_info == NULL)
+        printk("[NET] ct_ftp_info = NULL in %s\n", __func__);
+#endif
+
 	/* Look up to see if we're just after a \n. */
 	if (!find_nl_seq(ntohl(th->seq), ct_ftp_info, dir)) {
 		/* Now if this ends in \n, update ftp info. */

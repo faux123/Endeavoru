@@ -19,3 +19,7 @@ config UNIX
 
 	  Say Y unless you know what you are doing.
 
+config HTC_NET_MODIFY
+	tristate "HTC_NET_MODIFY"
+	---help---
+	This is for klockwork issu

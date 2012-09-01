@@ -790,8 +790,12 @@ static int ipv6_gso_send_check(struct sk_buff *skb)
 		ipv6_gso_pull_exthdrs(skb, ipv6h->nexthdr)]);
 
 	if (likely(ops && ops->gso_send_check)) {
-		skb_reset_transport_header(skb);
-		err = ops->gso_send_check(skb);
+		if (skb != NULL) {
+			skb_reset_transport_header(skb);
+			err = ops->gso_send_check(skb);
+		}
+		else
+			printk(KERN_ERR "[NET]skb == NULL in af_inet6.c ->skb_reset_transport_header\n");
 	}
 	rcu_read_unlock();
 

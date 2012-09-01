@@ -94,6 +94,11 @@ static int __xfrm6_output(struct sk_buff *skb)
 	struct dst_entry *dst = skb_dst(skb);
 	struct xfrm_state *x = dst->xfrm;
 
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (x == NULL)
+        printk("[NET] x = NULL in %s\n", __func__);
+#endif
+
 	if ((x && x->props.mode == XFRM_MODE_TUNNEL) &&
 	    ((skb->len > ip6_skb_dst_mtu(skb) && !skb_is_gso(skb)) ||
 		dst_allfrag(skb_dst(skb)))) {

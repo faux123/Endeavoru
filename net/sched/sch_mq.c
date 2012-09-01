@@ -145,6 +145,14 @@ static int mq_graft(struct Qdisc *sch, unsigned long cl, struct Qdisc *new,
 	struct netdev_queue *dev_queue = mq_queue_get(sch, cl);
 	struct net_device *dev = qdisc_dev(sch);
 
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (dev_queue == NULL)
+        printk("[NET] dev_queue is NULL in %s\n", __func__);
+
+    if (dev == NULL)
+        printk("[NET] dev is NULL in %s\n", __func__);
+#endif
+
 	if (dev->flags & IFF_UP)
 		dev_deactivate(dev);
 
@@ -179,6 +187,11 @@ static int mq_dump_class(struct Qdisc *sch, unsigned long cl,
 			 struct sk_buff *skb, struct tcmsg *tcm)
 {
 	struct netdev_queue *dev_queue = mq_queue_get(sch, cl);
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (dev_queue == NULL)
+        printk("[NET] dev_queue is NULL in %s\n", __func__);
+#endif
 
 	tcm->tcm_parent = TC_H_ROOT;
 	tcm->tcm_handle |= TC_H_MIN(cl);

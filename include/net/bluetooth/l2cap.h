@@ -497,9 +497,8 @@ struct l2cap_chan {
 
 	void		*data;
 	struct l2cap_ops *ops;
-/* BlueTi Start */
+
 	__u32 		addr_type;
-/* BlueTi End */
 };
 
 struct l2cap_ops {

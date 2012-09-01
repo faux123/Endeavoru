@@ -578,7 +578,13 @@ static int rawv6_push_pending_frames(struct sock *sk, struct flowi6 *fl6,
 		skb = csum_skb;
 	}
 
-	offset += skb_transport_offset(skb);
+	if (skb != NULL)
+		offset += skb_transport_offset(skb);
+	else {
+		printk(KERN_ERR "[NET]skb == NULL in raw.c at rawv6_push_pending_frames\n");
+		goto out;
+	}
+
 	if (skb_copy_bits(skb, offset, &csum, 2))
 		BUG();
 

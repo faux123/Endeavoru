@@ -243,7 +243,6 @@ struct mgmt_cp_resolve_name {
 	bdaddr_t bdaddr;
 } __packed;
 
-/* BlueTi Start */
 #define MGMT_OP_READ_RSSI_LEVEL		0x00F1
 struct mgmt_cp_read_rssi_level {
 	bdaddr_t bdaddr;
@@ -252,7 +251,12 @@ struct mgmt_rp_read_rssi_level {
 	bdaddr_t bdaddr;
 	__s8 rssi;
 } __packed;
-/* BlueTi End */
+
+#define MGMT_EV_REMOTE_FEATURES		0x00F2
+struct mgmt_ev_remote_features {
+	bdaddr_t bdaddr;
+	uint8_t features[8];
+} __packed;
 
 #define MGMT_EV_CMD_COMPLETE		0x0001
 struct mgmt_ev_cmd_complete {

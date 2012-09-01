@@ -146,6 +146,11 @@ void nf_ct_gre_keymap_destroy(struct nf_conn *ct)
 	struct nf_conn_help *help = nfct_help(ct);
 	enum ip_conntrack_dir dir;
 
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (help == NULL)
+        printk("[NET] help = NULL in %s\n", __func__);
+#endif
+
 	pr_debug("entering for ct %p\n", ct);
 
 	write_lock_bh(&net_gre->keymap_lock);

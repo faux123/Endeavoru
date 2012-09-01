@@ -991,6 +991,11 @@ static void trie_rebalance(struct trie *t, struct tnode *tn)
 	t_key cindex, key;
 	struct tnode *tp;
 
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (tn == NULL)
+        printk("[NET] tn == NULL in %s\n", __func__);
+#endif
+
 	key = tn->key;
 
 	while (tn != NULL && (tp = node_parent((struct rt_trie_node *)tn)) != NULL) {
@@ -1359,6 +1364,8 @@ static int check_leaf(struct fib_table *tb, struct trie *t, struct leaf *l,
 
 			if (fa->fa_tos && fa->fa_tos != flp->flowi4_tos)
 				continue;
+			if (fi->fib_dead)
+				continue;
 			if (fa->fa_info->fib_scope < flp->flowi4_scope)
 				continue;
 			fib_alias_accessed(fa);
@@ -1680,6 +1687,12 @@ int fib_table_delete(struct fib_table *tb, struct fib_config *cfg)
 		  &cfg->fc_nlinfo, 0);
 
 	l = fib_find_node(t, key);
+
+#ifdef CONFIG_HTC_NET_MODIFY
+    if (l == NULL)
+        printk("[NET] l=NULL in %s\n", __func__);
+#endif
+
 	li = find_leaf_info(l, plen);
 
 	list_del_rcu(&fa->fa_list);
@@ -1792,6 +1805,11 @@ static struct leaf *trie_nextleaf(struct leaf *l)
 
 	if (!p)
 		return NULL;	/* trie with just one leaf */
+
+	if(IS_ERR(p)) {
+		printk(KERN_ERR "[NET]trie_nextleaf: p has been overide\n");
+		return NULL;
+	}
 
 	return leaf_walk_rcu(p, c);
 }

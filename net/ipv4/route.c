@@ -2620,6 +2620,10 @@ static struct rtable *ip_route_output_slow(struct net *net,
 		fl4.saddr = FIB_RES_PREFSRC(net, res);
 
 	dev_out = FIB_RES_DEV(res);
+	if (dev_out == NULL) {
+		printk(KERN_ERR "[NET] dev_null is NULL in %s!\n", __func__);
+		goto out;
+	}
 	fl4.flowi4_oif = dev_out->ifindex;
 
 
