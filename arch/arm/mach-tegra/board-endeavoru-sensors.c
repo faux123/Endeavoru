@@ -842,6 +842,8 @@ int __init endeavor_sensors_init(void)
 {
 	int ret = 0;
 
+	psensor_init();
+
         if(machine_is_erau()){
 		pr_info("[GYRO]Use Invensense solution");
 	}
