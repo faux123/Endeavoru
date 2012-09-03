@@ -15,8 +15,10 @@
 
 #include "base.h"
 
+#if defined (CONFIG_HOTPLUG_CPU) && !defined (CONFIG_CPUQUIET_FRAMEWORK)
 static struct work_struct cpuplug_work;
 extern struct workqueue_struct *cpuplug_wq;
+#endif
 
 static struct sysdev_class_attribute *cpu_sysdev_class_attrs[];
 
@@ -28,8 +30,7 @@ EXPORT_SYMBOL(cpu_sysdev_class);
 
 static DEFINE_PER_CPU(struct sys_device *, cpu_sys_devices);
 
-#ifdef CONFIG_HOTPLUG_CPU
-
+#if defined (CONFIG_HOTPLUG_CPU) && !defined (CONFIG_CPUQUIET_FRAMEWORK)
 static long int target_number_of_online_cpus = 0;
 static long int cpu_on_mdelay = 0;
 
@@ -340,8 +341,9 @@ int __init cpu_dev_init(void)
 		err = sched_create_sysfs_power_savings_entries(&cpu_sysdev_class);
 #endif
 
+#if defined (CONFIG_HOTPLUG_CPU) && !defined (CONFIG_CPUQUIET_FRAMEWORK)
 	INIT_WORK(&cpuplug_work, tegra_cpuplug_work_func);
-
+#endif
 	return err;
 }
 
@@ -355,7 +357,9 @@ static struct sysdev_class_attribute *cpu_sysdev_class_attrs[] = {
 	&cpu_attrs[2].attr,
 	&attr_kernel_max,
 	&attr_offline,
+#if defined (CONFIG_HOTPLUG_CPU) && !defined (CONFIG_CPUQUIET_FRAMEWORK)
 	&attr_cpu_on,
 	&attr_cpu_on_mdelay,
+#endif
 	NULL
 };
