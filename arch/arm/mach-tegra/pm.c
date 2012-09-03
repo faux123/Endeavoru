@@ -142,6 +142,11 @@ struct suspend_context tegra_sctx;
 #define PMC_CPUPWROFF_TIMER	0xcc
 #define PMC_COREPWROFF_TIMER	PMC_WAKE_DELAY
 
+#define PMC_PWRGATE_TOGGLE	0x30
+#define PWRGATE_TOGGLE_START	(1 << 8)
+#define UN_PWRGATE_CPU		\
+	(PWRGATE_TOGGLE_START | TEGRA_CPU_POWERGATE_ID(TEGRA_POWERGATE_CPU))
+
 #ifdef CONFIG_TEGRA_CLUSTER_CONTROL
 #define PMC_SCRATCH4_WAKE_CLUSTER_MASK	(1<<31)
 #endif
@@ -598,7 +603,17 @@ unsigned int tegra_idle_lp2_last(unsigned int sleep_time, unsigned int flags)
 	if (flags & TEGRA_POWER_CLUSTER_MASK) {
 		set_power_timers(pdata->cpu_timer, 0,
 			clk_get_rate_all_locked(tegra_pclk));
-		tegra_cluster_switch_prolog(mode);
+		if (flags & TEGRA_POWER_CLUSTER_G) {
+			/*
+			 * To reduce the vdd_cpu up latency when LP->G
+			 * transition. Before the transition, enable
+			 * the vdd_cpu rail.
+			 */
+			if (is_lp_cluster())
+				writel(UN_PWRGATE_CPU,
+				       pmc + PMC_PWRGATE_TOGGLE);
+		}
+		tegra_cluster_switch_prolog(flags);
 	} else {
 		set_power_timers(pdata->cpu_timer, pdata->cpu_off_timer,
 			clk_get_rate_all_locked(tegra_pclk));
