@@ -45,6 +45,8 @@ static bool emc_enable;
 #endif
 module_param(emc_enable, bool, 0644);
 
+u8 tegra_emc_bw_efficiency = 35;
+
 #define EMC_MIN_RATE_DDR3		25500000
 #define EMC_STATUS_UPDATE_TIMEOUT	100
 #define TEGRA_EMC_TABLE_MAX_SIZE 	16
@@ -1218,6 +1220,21 @@ static int eack_state_set(void *data, u64 val)
 DEFINE_SIMPLE_ATTRIBUTE(eack_state_fops, eack_state_get,
 			eack_state_set, "%llu\n");
 
+static int efficiency_get(void *data, u64 *val)
+{
+	*val = tegra_emc_bw_efficiency;
+	return 0;
+}
+static int efficiency_set(void *data, u64 val)
+{
+	tegra_emc_bw_efficiency = (val > 100) ? 100 : val;
+	if (emc)
+		tegra_clk_shared_bus_update(emc);
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(efficiency_fops, efficiency_get,
+                       efficiency_set, "%llu\n");
 
 static int dram_temperature_get(void *data, u64 *val)
 {
@@ -1263,6 +1280,10 @@ static int __init tegra_emc_debug_init(void)
 
 	if (!debugfs_create_file("over_temp_state", S_IRUGO | S_IWUSR,
 				 emc_debugfs_root, NULL, &over_temp_state_fops))
+		goto err_out;
+
+	if (!debugfs_create_file("efficiency", S_IRUGO | S_IWUSR,
+				emc_debugfs_root, NULL, &efficiency_fops))
 		goto err_out;
 
 	return 0;
