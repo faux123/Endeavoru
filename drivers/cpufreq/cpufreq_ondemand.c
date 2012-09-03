@@ -51,7 +51,6 @@
 #define DEF_IO_IS_BUSY				(1)
 #define DEF_UI_DYNAMIC_SAMPLING_RATE		(30000)
 #define DEF_UI_COUNTER				(5)
-#define DBS_INPUT_EVENT_MIN_FREQ		(950000)
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -71,9 +70,6 @@ static unsigned int def_sampling_rate;
 #define LATENCY_MULTIPLIER			(1000)
 #define MIN_LATENCY_MULTIPLIER			(100)
 #define TRANSITION_LATENCY_LIMIT		(10 * 1000 * 1000)
-
-#define POWERSAVE_BIAS_MAXLEVEL			(1000)
-#define POWERSAVE_BIAS_MINLEVEL			(-1000)
 
 static void do_dbs_timer(struct work_struct *work);
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
@@ -129,10 +125,6 @@ static unsigned int g_ui_counter = 0;
  * dbs_mutex protects dbs_enable in governor start/stop.
  */
 static DEFINE_MUTEX(dbs_mutex);
-
-static struct workqueue_struct *input_wq;
-
-static DEFINE_PER_CPU(struct work_struct, dbs_refresh_work);
 
 static struct dbs_tuners {
 	unsigned int sampling_rate;
@@ -372,6 +364,7 @@ static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 		return -EINVAL;
 	dbs_tuners_ins.sampling_rate = max(input, min_sampling_rate);
 	dbs_tuners_ins.origin_sampling_rate = dbs_tuners_ins.sampling_rate;
+	update_sampling_rate(dbs_tuners_ins.sampling_rate);
 	return count;
 }
 
@@ -1010,24 +1003,11 @@ static void dbs_refresh_callback(struct work_struct *unused)
 
 static DECLARE_WORK(dbs_refresh_work, dbs_refresh_callback);
 
-static unsigned int enable_dbs_input_event = 1;
 static void dbs_input_event(struct input_handle *handle, unsigned int type,
 		unsigned int code, int value)
 {
-	int i;
-
-	if (enable_dbs_input_event || dbs_tuners_ins.touch_poke) {
-
-		if ((dbs_tuners_ins.powersave_bias == POWERSAVE_BIAS_MAXLEVEL) ||
-			(dbs_tuners_ins.powersave_bias == POWERSAVE_BIAS_MINLEVEL)) {
-			/* nothing to do */
-			return;
-		}
-
-		for_each_online_cpu(i) {
-			queue_work_on(i, input_wq, &per_cpu(dbs_refresh_work, i));
-		}
-	}
+	if (dbs_tuners_ins.touch_poke)
+		schedule_work(&dbs_refresh_work);
 }
 
 static int input_dev_filter(const char* input_dev_name)
@@ -1224,7 +1204,6 @@ static int __init cpufreq_gov_dbs_init(void)
 	cputime64_t wall;
 	u64 idle_time;
 	int cpu = get_cpu();
-	int i;
 
 	idle_time = get_cpu_idle_time_us(cpu, &wall);
 	put_cpu();
@@ -1246,15 +1225,6 @@ static int __init cpufreq_gov_dbs_init(void)
 	}
 	def_sampling_rate = DEF_SAMPLING_RATE;
 
-	input_wq = create_workqueue("iewq");
-	if (!input_wq) {
-		printk(KERN_ERR "Failed to create iewq workqueue\n");
-		return -EFAULT;
-	}
-	for_each_possible_cpu(i) {
-		INIT_WORK(&per_cpu(dbs_refresh_work, i), dbs_refresh_callback);
-	}
-
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	cpufreq_gov_lcd_status = 1;
 
@@ -1272,19 +1242,6 @@ static void __exit cpufreq_gov_dbs_exit(void)
 {
 	cpufreq_unregister_governor(&cpufreq_gov_ondemand);
 }
-
-static int set_enable_dbs_input_event_param(const char *val, struct kernel_param *kp)
-{
-	int ret = 0;
-
-	ret = param_set_uint(val, kp);
-	if (ret)
-		pr_err("%s: error setting value %d\n", __func__, ret);
-
-	return ret;
-}
-module_param_call(enable_dbs_input_event, set_enable_dbs_input_event_param, param_get_uint,
-		&enable_dbs_input_event, S_IWUSR | S_IRUGO);
 
 MODULE_AUTHOR("Venkatesh Pallipadi <venkatesh.pallipadi@intel.com>");
 MODULE_AUTHOR("Alexey Starikovskiy <alexey.y.starikovskiy@intel.com>");
