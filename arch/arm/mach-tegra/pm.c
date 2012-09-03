@@ -592,7 +592,6 @@ unsigned int tegra_idle_lp2_last(unsigned int sleep_time, unsigned int flags)
 		mode |= TEGRA_POWER_PWRREQ_OE;
 	mode &= ~TEGRA_POWER_EFFECT_LP0;
 	pmc_32kwritel(mode, PMC_CTRL);
-	mode |= flags;
 
 	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_start);
 
@@ -623,7 +622,7 @@ unsigned int tegra_idle_lp2_last(unsigned int sleep_time, unsigned int flags)
 		tegra_lp2_set_trigger(sleep_time);
 
 	cpu_complex_pm_enter();
-	suspend_cpu_complex(mode);
+	suspend_cpu_complex(flags);
 	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_prolog);
 	flush_cache_all();
 	/*
@@ -642,7 +641,7 @@ unsigned int tegra_idle_lp2_last(unsigned int sleep_time, unsigned int flags)
 	tegra_init_cache(false);
 #endif
 	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_switch);
-	restore_cpu_complex(mode);
+	restore_cpu_complex(flags);
 	cpu_complex_pm_exit();
 
 	remain = tegra_lp2_timer_remain();
