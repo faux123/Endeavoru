@@ -1185,8 +1185,9 @@ static void cpufreq_gov_suspend(struct early_suspend *h)
 {
 	mutex_lock(&dbs_mutex);
 	cpufreq_gov_lcd_status = 0;
-	stored_sampling_rate = min_sampling_rate;
-	min_sampling_rate = MICRO_FREQUENCY_MIN_SAMPLE_RATE * 2;
+	stored_sampling_rate = dbs_tuners_ins.sampling_rate;
+	dbs_tuners_ins.sampling_rate = DEF_SAMPLING_RATE * 6;
+	update_sampling_rate(dbs_tuners_ins.sampling_rate);
 	mutex_unlock(&dbs_mutex);
 }
 
@@ -1194,7 +1195,8 @@ static void cpufreq_gov_resume(struct early_suspend *h)
 {
 	mutex_lock(&dbs_mutex);
 	cpufreq_gov_lcd_status = 1;
-	min_sampling_rate = stored_sampling_rate;
+	dbs_tuners_ins.sampling_rate = stored_sampling_rate;
+	update_sampling_rate(dbs_tuners_ins.sampling_rate);
 	mutex_unlock(&dbs_mutex);
 }
 #endif
