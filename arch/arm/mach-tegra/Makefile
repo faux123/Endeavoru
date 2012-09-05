@@ -84,7 +84,7 @@ ifeq ($(CONFIG_CPUQUIET_FRAMEWORK),y)
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += cpuquiet.o
 else
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += cpu-tegra3.o
-obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += cpuplug.lib
+#obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += cpuplug.lib
 endif
 endif
 obj-$(CONFIG_TEGRA_PCI)                 += pcie.o

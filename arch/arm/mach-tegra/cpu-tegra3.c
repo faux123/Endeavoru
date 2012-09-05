@@ -217,15 +217,15 @@ static struct kernel_param_ops tegra_hp_state_ops = {
 };
 module_param_cb(auto_hotplug, &tegra_hp_state_ops, &hp_state, 0644);
 
-unsigned int NwNs_Threshold[] = {13, 30, 15, 11, 17, 11, 0, 11};
-unsigned int TwTs_Threshold[] = {140, 0, 140, 190, 140, 190, 0, 190};
+static unsigned int NwNs_Threshold[] = {13, 30, 15, 11, 17, 11, 0, 11};
+static unsigned int TwTs_Threshold[] = {140, 0, 140, 190, 140, 190, 0, 190};
+extern unsigned int get_rq_info(void);
 
 static unsigned int NwNs[8] = {13, 30, 15, 11, 17, 11, 0, 11};
 module_param_array(NwNs, uint, NULL, 0644);
 static unsigned int TwTs[8] = {140, 0, 140, 190, 140, 190, 0, 190};
 module_param_array(TwTs, uint, NULL, 0644);
 extern unsigned int set_rq_poll_ms(unsigned int poll_ms);
-extern int __cpu_plug(void);
 
 static int mp_policy = 0;
 
@@ -347,13 +347,11 @@ void printCPUTotalActiveTime(void)
 {
 	updateCurrentCPUTotalActiveTime();
 
-#ifdef CONFIG_PWR_STORY
 	pr_pwr_story("CPUs total active time:%llu,%llu,%llu,%llu",
 					cpu_hp_active_time_stats[0].total_active_Time,
 					cpu_hp_active_time_stats[1].total_active_Time,
 					cpu_hp_active_time_stats[2].total_active_Time,
 					cpu_hp_active_time_stats[3].total_active_Time);
-#endif
 }
 
 
@@ -463,7 +461,6 @@ static void tegra_auto_cpuplug_work_func(struct work_struct *work)
 {
 	bool up = false;
 	unsigned int cpu = nr_cpu_ids;
-	unsigned int min_cpus;
 
 	mutex_lock(tegra3_cpu_lock);
 	if (hp_state != TEGRA_HP_DISABLED) {
@@ -478,13 +475,8 @@ static void tegra_auto_cpuplug_work_func(struct work_struct *work)
 		case TEGRA_HP_DOWN:
 			cpu = tegra_get_slowest_cpu_n();
 			if (cpu < nr_cpu_ids) {
-				min_cpus = pm_qos_request(PM_QOS_MIN_ONLINE_CPUS);
-				if (min_cpus < num_online_cpus()) {
-					up = false;
-					hp_stats_update(cpu, false);
-				} else {
-					cpu = nr_cpu_ids;
-				}
+				up = false;
+				hp_stats_update(cpu, false);
 			} else if (!is_lp_cluster() && !no_lp) {
 				if (!clk_set_parent(cpu_clk, cpu_lp_clk)) {
 					CPU_DEBUG_PRINTK(CPU_DEBUG_HOTPLUG, " ENTER LPCPU");
@@ -521,6 +513,56 @@ static void tegra_auto_cpuplug_work_func(struct work_struct *work)
 	mutex_unlock(tegra3_cpu_lock);
 }
 
+static int mp_decision(void)
+{
+	static bool first_call = true;
+	int new_state = TEGRA_HP_IDLE;
+	int nr_cpu_online;
+	int index;
+	unsigned int rq_depth;
+	static cputime64_t total_time = 0;
+	static cputime64_t last_time;
+	cputime64_t current_time;
+	cputime64_t this_time = 0;
+
+	current_time = ktime_to_ms(ktime_get());
+	if (first_call) {
+		first_call = false;
+	} else {
+		this_time = current_time - last_time;
+	}
+	total_time += this_time;
+
+	rq_depth = get_rq_info();
+	CPU_DEBUG_PRINTK(CPU_DEBUG_HOTPLUG, " rq_deptch = %u", rq_depth);
+	nr_cpu_online = num_online_cpus();
+
+	if (nr_cpu_online) {
+		index = (nr_cpu_online - 1) * 2;
+		if ((nr_cpu_online < 4) && (rq_depth >= NwNs_Threshold[index])) {
+			if (total_time >= TwTs_Threshold[index]) {
+				new_state = TEGRA_HP_UP;
+			}
+		} else if (rq_depth <= NwNs_Threshold[index+1]) {
+			if (total_time >= TwTs_Threshold[index+1] ) {
+				new_state = TEGRA_HP_DOWN;
+			}
+		} else {
+			total_time = 0;
+		}
+	} else {
+		total_time = 0;
+	}
+
+	if (new_state != TEGRA_HP_IDLE) {
+		total_time = 0;
+	}
+
+	last_time = ktime_to_ms(ktime_get());
+
+	return new_state;
+}
+
 void gcpu_plug(unsigned int cpu_freq)
 {
 	unsigned long up_delay, top_freq, bottom_freq;
@@ -529,7 +571,6 @@ void gcpu_plug(unsigned int cpu_freq)
 	static cputime64_t last_time;
 	cputime64_t current_time;
 	cputime64_t this_time = 0;
-	unsigned int min_cpus;
 
 	if (is_plugging) {
 		return;
@@ -547,20 +588,8 @@ void gcpu_plug(unsigned int cpu_freq)
 	top_freq = idle_bottom_freq;
 	bottom_freq = idle_bottom_freq;
 
-	min_cpus = pm_qos_request(PM_QOS_MIN_ONLINE_CPUS);
-	if (min_cpus > num_online_cpus()) {
-		if (hp_state != TEGRA_HP_UP) {
-			hp_state = TEGRA_HP_UP;
-		}
-		is_plugging = true;
-		last_state = TEGRA_HP_UP;
-		queue_work(cpuplug_wq, &cpuplug_work);
-		total_time = 0;
-		return;
-	}
-
 	if (smp_processor_id() == 0)
-		mp_state = __cpu_plug();
+		mp_state = mp_decision();
 	else
 		mp_state = TEGRA_HP_IDLE;
 
@@ -603,7 +632,7 @@ void gcpu_plug(unsigned int cpu_freq)
 			break;
 		/* cpu speed is up, but skewed - remove one core */
 		case TEGRA_CPU_SPEED_SKEWED:
-			if (total_time >= down_time) {
+			if ((total_time >= down_time) && (mp_state == TEGRA_HP_DOWN)) {
 				is_plugging = true;
 				last_state = TEGRA_HP_DOWN;
 				queue_work(cpuplug_wq, &cpuplug_work);
@@ -618,19 +647,12 @@ void gcpu_plug(unsigned int cpu_freq)
 			break;
 		}
 	} else if (hp_state == TEGRA_HP_DOWN) {
-		if (total_time >= down_time) {
+		if ((total_time >= down_time) && (mp_state == TEGRA_HP_DOWN))  {
 			is_plugging = true;
 			last_state = TEGRA_HP_DOWN;
 			queue_work(cpuplug_wq, &cpuplug_work);
 			total_time = 0;
 		}
-	}
-
-	if (!is_plugging && (num_online_cpus() > 1) && (mp_state == TEGRA_HP_DOWN)) {
-		is_plugging = true;
-		last_state = TEGRA_HP_DOWN;
-		queue_work(cpuplug_wq, &cpuplug_work);
-		total_time = 0;
 	}
 
 	last_time = ktime_to_ms(ktime_get());
@@ -932,3 +954,4 @@ void tegra_auto_hotplug_exit(void)
 	pm_qos_remove_request(&max_cpu_req);
 #endif
 }
+
