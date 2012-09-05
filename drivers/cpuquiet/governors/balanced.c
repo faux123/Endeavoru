@@ -172,7 +172,7 @@ static unsigned int count_slow_cpus(unsigned int limit)
 #define NR_FSHIFT	2
 static unsigned int nr_run_thresholds[] = {
 /*      1,  2,  3,  4 - on-line cpus target */
-	5,  9, 10, UINT_MAX /* avg run threads * 4 (e.g., 9 = 2.25 threads) */
+	5,  7,  9, UINT_MAX /* avg run threads * 4 (e.g., 9 = 2.25 threads) */
 };
 static unsigned int nr_run_hysteresis = 2;	/* 0.5 thread */
 static unsigned int nr_run_last;
