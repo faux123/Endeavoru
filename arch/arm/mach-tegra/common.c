@@ -28,6 +28,7 @@
 #include <linux/memblock.h>
 #include <linux/bitops.h>
 #include <linux/sched.h>
+#include <linux/cpufreq.h>
 
 #include <asm/hardware/cache-l2x0.h>
 #include <asm/system.h>
@@ -1179,268 +1180,54 @@ void __init tegra_release_bootloader_fb(void)
 						tegra_bootloader_fb_size))
 			pr_err("Failed to free bootloader fb.\n");
 }
-#if defined CONFIG_TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND \
-	|| defined CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
-static char cpufreq_gov_default[32];
-static char saved_boost_factor[32];
-static char saved_go_maxspeed_load[32];
-static char saved_max_boost[32];
-static char saved_sustain_load[32];
 
-static char saved_up_threshold[32];
-static char saved_down_threshold[32];
-static char saved_freq_step[32];
+#ifdef CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
+char cpufreq_default_gov[CONFIG_NR_CPUS][MAX_GOV_NAME_LEN];
+char *cpufreq_conservative_gov = "conservative";
 
-
-void cpufreq_set_governor(char *governor)
+void cpufreq_store_default_gov(void)
 {
-	struct file *scaling_gov = NULL;
-	mm_segment_t old_fs;
-	char    buf[128];
-	int i = 0;
-	loff_t offset = 0;
+	unsigned int cpu;
+	struct cpufreq_policy *policy;
 
-	if (governor == NULL)
-		return;
+	for (cpu = 0; cpu < CONFIG_NR_CPUS; cpu++) {
+		policy = cpufreq_cpu_get(cpu);
+		if (policy) {
+			sprintf(cpufreq_default_gov[cpu], "%s",
+					policy->governor->name);
+			cpufreq_cpu_put(policy);
+		}
+	}
+}
 
-	/* change to KERNEL_DS address limit */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
+int cpufreq_change_gov(char *target_gov)
+{
+	unsigned int cpu = 0;
 #ifndef CONFIG_TEGRA_AUTO_HOTPLUG
-//	for_each_online_cpu(i)
+	for_each_online_cpu(cpu)
 #endif
-	{
-		sprintf(buf, CPUFREQ_SYSFS_PLACE_HOLDER, i);
-		scaling_gov = filp_open(buf, O_RDWR, 0);
-		if (IS_ERR_OR_NULL(scaling_gov)) {
-			pr_err("%s. Can't open %s\n", __func__, buf);
-		} else {
-			if (scaling_gov->f_op != NULL &&
-				scaling_gov->f_op->write != NULL)
-				scaling_gov->f_op->write(scaling_gov,
-						governor,
-						strlen(governor),
-						&offset);
-			else
-				pr_err("f_op might be null\n");
+	return cpufreq_set_gov(target_gov, cpu);
+}
 
-			filp_close(scaling_gov, NULL);
+int cpufreq_restore_default_gov(void)
+{
+	int ret = 0;
+	unsigned int cpu;
+
+	for (cpu = 0; cpu < CONFIG_NR_CPUS; cpu++) {
+		if (strlen((const char *)&cpufreq_default_gov[cpu])) {
+			ret = cpufreq_set_gov(cpufreq_default_gov[cpu], cpu);
+			if (ret < 0)
+				/* Unable to restore gov for the cpu as
+				 * It was online on suspend and becomes
+				 * offline on resume.
+				 */
+				pr_info("Unable to restore gov:%s for cpu:%d,"
+						, cpufreq_default_gov[cpu]
+							, cpu);
 		}
+		cpufreq_default_gov[cpu][0] = '\0';
 	}
-	set_fs(old_fs);
+	return ret;
 }
-
-static void cpufreq_read_governor_param(char *param_path, char *name, char *value)
-{
-	struct file *gov_param = NULL;
-	mm_segment_t old_fs;
-	static char buf[128];
-	loff_t offset = 0;
-
-	if (!value || !param_path || !name)
-		return;
-
-	/* change to KERNEL_DS address limit */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	sprintf(buf, CPUFREQ_GOV_PARAM, param_path, name);
-	gov_param = filp_open(buf, O_RDONLY, 0);
-	if (gov_param != NULL) {
-		if (gov_param->f_op != NULL &&
-			gov_param->f_op->read != NULL)
-			gov_param->f_op->read(gov_param,
-					value,
-					32,
-					&offset);
-		else
-			pr_err("f_op might be null\n");
-
-		filp_close(gov_param, NULL);
-	} else {
-		pr_err("%s. Can't open %s\n", __func__, buf);
-	}
-	set_fs(old_fs);
-}
-
-static void set_governor_param(char *param_path, char *name, char *value)
-{
-	struct file *gov_param = NULL;
-	mm_segment_t old_fs;
-	static char buf[128];
-	loff_t offset = 0;
-
-	/* change to KERNEL_DS address limit */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	sprintf(buf, CPUFREQ_GOV_PARAM, param_path, name);
-	gov_param = filp_open(buf, O_RDWR, 0);
-	if (gov_param != NULL) {
-		if (gov_param->f_op != NULL &&
-			gov_param->f_op->write != NULL)
-			gov_param->f_op->write(gov_param,
-					value,
-					strlen(value),
-					&offset);
-		else
-			pr_err("f_op might be null\n");
-		
-		filp_close(gov_param, NULL);
-	}
-	set_fs(old_fs);
-}
-
-static void set_sysfs_param(char *param_path, char *name, char *value)
-{
-	struct file *gov_param = NULL;
-	mm_segment_t old_fs;
-	static char buf[128];
-	loff_t offset = 0;
-
-	/* change to KERNEL_DS address limit */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	sprintf(buf, "%s%s", param_path, name);
-	gov_param = filp_open(buf, O_RDWR, 0);
-	if (gov_param != NULL) {
-		if (gov_param->f_op != NULL &&
-			gov_param->f_op->write != NULL)
-			gov_param->f_op->write(gov_param,
-					value,
-					strlen(value),
-					&offset);
-		else
-			pr_err("f_op might be null\n");
-
-		filp_close(gov_param, NULL);
-	}
-	set_fs(old_fs);
-}
-
-void cpufreq_set_governor_param(char *param_path, char *name, int value)
-{
-	char buf[32];
-	sprintf(buf, "%d", value);
-	set_governor_param(param_path, name, buf);
-}
-
-
-void cpufreq_save_governor(void)
-{
-	struct file *scaling_gov = NULL;
-	mm_segment_t old_fs;
-	char    buf[128];
-	loff_t offset = 0;
-
-	/* change to KERNEL_DS address limit */
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	buf[127] = 0;
-	sprintf(buf, CPUFREQ_SYSFS_PLACE_HOLDER,0);
-	scaling_gov = filp_open(buf, O_RDONLY, 0);
-	if (scaling_gov != NULL) {
-		if (scaling_gov->f_op != NULL &&
-			scaling_gov->f_op->read != NULL)
-			scaling_gov->f_op->read(scaling_gov,
-					cpufreq_gov_default,
-					32,
-					&offset);
-		else
-			pr_err("f_op might be null\n");
-
-		filp_close(scaling_gov, NULL);
-	} else {
-		pr_err("%s. Can't open %s\n", __func__, buf);
-	}
-	if (strncmp(cpufreq_gov_default,INTERACTIVE_GOVERNOR,
-				strlen(INTERACTIVE_GOVERNOR)) == 0) {
-		cpufreq_read_governor_param(INTERACTIVE_GOVERNOR, BOOST_FACTOR,
-					saved_boost_factor);
-		cpufreq_read_governor_param(INTERACTIVE_GOVERNOR, GO_MAXSPEED_LOAD,
-					saved_go_maxspeed_load);
-		cpufreq_read_governor_param(INTERACTIVE_GOVERNOR, MAX_BOOST,
-					saved_max_boost);	
-		cpufreq_read_governor_param(INTERACTIVE_GOVERNOR, SUSTAIN_LOAD,
-					saved_sustain_load);
-	} else if (strncmp(cpufreq_gov_default, CONSERVATIVE_GOVERNOR,
-				strlen(CONSERVATIVE_GOVERNOR)) == 0) {
-		cpufreq_read_governor_param(CONSERVATIVE_GOVERNOR, UP_THRESHOLD,
-					saved_up_threshold);
-		cpufreq_read_governor_param(CONSERVATIVE_GOVERNOR, DOWN_THRESHOLD,
-					saved_down_threshold);
-		cpufreq_read_governor_param(CONSERVATIVE_GOVERNOR, FREQ_STEP,
-					saved_freq_step);	
-	} else {
-	}
-	set_fs(old_fs);
-}
-
-void cpufreq_restore_governor(void)
-{
-	int cpu_process_id = tegra_cpu_process_id();
-
-	cpufreq_set_governor(cpufreq_gov_default);
-
-	if (strncmp(cpufreq_gov_default, "ondemand",
-				strlen("ondemand")) == 0) {
-
-#ifdef CONFIG_TEGRA3_VARIANT_CPU_OVERCLOCK
-		switch (cpu_process_id) {
-			case 3:
-				set_sysfs_param("/sys/devices/system/cpu/cpu0/cpufreq/",
-					"scaling_max_freq", CPUFREQ_SCALING_MAX_FREQ_V3);
-				break;
-			case 2:
-				set_sysfs_param("/sys/devices/system/cpu/cpu0/cpufreq/",
-					"scaling_max_freq", CPUFREQ_SCALING_MAX_FREQ_V2);
-				break;
-#ifdef CONFIG_TEGRA3_VARIANT_OVERRIDE
-			case 1:
-			case 0:
-				set_sysfs_param("/sys/devices/system/cpu/cpu0/cpufreq/",
-					"scaling_max_freq", CPUFREQ_SCALING_MAX_FREQ_V1);
-				if (cpu_process_id == 0)
-					pr_warn("Overclock: Variant Override Activated!\n");
-				break;
-#else
-			case 1:
-				set_sysfs_param("/sys/devices/system/cpu/cpu0/cpufreq/",
-					"scaling_max_freq", CPUFREQ_SCALING_MAX_FREQ_V1);
-				break;
-			case 0:
 #endif
-			default:
-				set_sysfs_param("/sys/devices/system/cpu/cpu0/cpufreq/",
-					"scaling_max_freq", CPUFREQ_SCALING_MAX_FREQ);
-				break;
-		}
-#else
-		set_sysfs_param("/sys/devices/system/cpu/cpu0/cpufreq/",
-				"scaling_max_freq", CPUFREQ_SCALING_MAX_FREQ);
-#endif
-
-	} else if (strncmp(cpufreq_gov_default,INTERACTIVE_GOVERNOR,
-				strlen(INTERACTIVE_GOVERNOR)) == 0) {
-		set_governor_param(INTERACTIVE_GOVERNOR, BOOST_FACTOR,
-					saved_boost_factor);
-		set_governor_param(INTERACTIVE_GOVERNOR, GO_MAXSPEED_LOAD,
-					saved_go_maxspeed_load);
-		set_governor_param(INTERACTIVE_GOVERNOR, MAX_BOOST,
-					saved_max_boost);	
-		set_governor_param(INTERACTIVE_GOVERNOR, SUSTAIN_LOAD,
-					saved_sustain_load);
-	} else if (strncmp(cpufreq_gov_default, CONSERVATIVE_GOVERNOR,
-				strlen(CONSERVATIVE_GOVERNOR)) == 0) {
-		set_governor_param(CONSERVATIVE_GOVERNOR, UP_THRESHOLD,
-					saved_up_threshold);
-		set_governor_param(CONSERVATIVE_GOVERNOR, DOWN_THRESHOLD,
-					saved_down_threshold);
-		set_governor_param(CONSERVATIVE_GOVERNOR, FREQ_STEP,
-					saved_freq_step);	
-	}
-}
-#endif /* TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND ||
-		TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND*/

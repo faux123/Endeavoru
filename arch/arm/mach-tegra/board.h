@@ -102,36 +102,14 @@ void tegra_get_pmu_board_info(struct board_info *bi);
 void tegra_get_display_board_info(struct board_info *bi);
 void tegra_get_camera_board_info(struct board_info *bi);
 
-#if defined CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND \
-	|| defined CONFIG_TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND
-#define CONSERVATIVE_GOVERNOR	"conservative"
-#define UP_THRESHOLD		"up_threshold"
-#define DOWN_THRESHOLD		"down_threshold"
-#define FREQ_STEP		"FREQ_STEP"
-#define UP_THRESHOLD_VALUE	95
-#define DOWN_THRESHOLD_VALUE	50
-#define FREQ_STEP_VALUE		3
+#ifdef CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
+#define MAX_GOV_NAME_LEN 16
+extern char cpufreq_default_gov[][MAX_GOV_NAME_LEN];
+extern char *cpufreq_conservative_gov;
 
-#define INTERACTIVE_GOVERNOR	"interactive"
-#define BOOST_FACTOR 		"boost_factor"
-#define GO_MAXSPEED_LOAD 	"go_maxspeed_load"
-#define MAX_BOOST		"max_boost"
-#define MIN_SAMPLE_TIME		"min_sample_time"
-#define SUSTAIN_LOAD 		"sustain_load"
-#define BOOST_FACTOR_VALUE	2
-#define GO_MAXSPEED_LOAD_VALUE 	97
-#define MAX_BOOST_VALUE		180000
-#define MIN_SAMPLE_TIME_VALUE	20000
-#define SUSTAIN_LOAD_VALUE 	95
-
-#define CPUFREQ_SYSFS_PLACE_HOLDER \
-		"/sys/devices/system/cpu/cpu%i/cpufreq/scaling_governor"
-#define CPUFREQ_GOV_PARAM "/sys/devices/system/cpu/cpufreq/%s/%s"
-
-void cpufreq_save_governor(void);
-void cpufreq_restore_governor(void);
-void cpufreq_set_governor(char *governor);
-void cpufreq_set_governor_param(char *governor, char *name, int value);
+void cpufreq_store_default_gov(void);
+int cpufreq_restore_default_gov(void);
+int cpufreq_change_gov(char *target_gov);
 #endif
 
 int get_core_edp(void);

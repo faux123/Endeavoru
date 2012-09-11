@@ -987,26 +987,12 @@ static void tegra_cpufreq_powersave_early_suspend(struct early_suspend *h)
 	}
 
 	enter_early_suspend = 1;
+
 #ifdef CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
-	cpufreq_save_governor();
-	cpufreq_set_governor(CONSERVATIVE_GOVERNOR);
-	cpufreq_set_governor_param(CONSERVATIVE_GOVERNOR, UP_THRESHOLD,
-					UP_THRESHOLD_VALUE);
-	cpufreq_set_governor_param(CONSERVATIVE_GOVERNOR, DOWN_THRESHOLD,
-					DOWN_THRESHOLD_VALUE);
-	cpufreq_set_governor_param(CONSERVATIVE_GOVERNOR, FREQ_STEP,
-					FREQ_STEP_VALUE);
-#elif defined CONFIG_TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND
-	cpufreq_save_governor();
-	cpufreq_set_governor(INTERACTIVE_GOVERNOR);
-	cpufreq_set_governor_param(INTERACTIVE_GOVERNOR, BOOST_FACTOR,
-					BOOST_FACTOR_VALUE);
-	cpufreq_set_governor_param(INTERACTIVE_GOVERNOR, GO_MAXSPEED_LOAD,
-					GO_MAXSPEED_LOAD_VALUE);
-	cpufreq_set_governor_param(INTERACTIVE_GOVERNOR, MAX_BOOST,
-					MAX_BOOST_VALUE);
-	cpufreq_set_governor_param(INTERACTIVE_GOVERNOR, SUSTAIN_LOAD,
-					SUSTAIN_LOAD_VALUE);
+	cpufreq_store_default_gov();
+	if (cpufreq_change_gov(cpufreq_conservative_gov))
+		pr_err("Early_suspend: Error changing governor to %s\n",
+				cpufreq_conservative_gov);
 #endif
 
 }
@@ -1028,9 +1014,9 @@ static void tegra_cpufreq_performance_late_resume(struct early_suspend *h)
 	pr_info("tegra_cpufreq_performance_late_resume: clean cpu freq boost\n");
 	pm_qos_update_request(&boost_cpu_freq_req, (s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
 
-#if defined CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND \
-	|| defined CONFIG_TEGRA_INTERACTIVE_GOV_ON_EARLY_SUSPEND
-	cpufreq_restore_governor();
+#ifdef CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
+	if (cpufreq_restore_default_gov())
+		pr_err("Early_suspend: Unable to restore governor\n");
 #endif
 }
 
