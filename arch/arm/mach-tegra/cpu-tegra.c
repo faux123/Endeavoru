@@ -990,9 +990,7 @@ static void tegra_cpufreq_powersave_early_suspend(struct early_suspend *h)
 
 #ifdef CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
 	cpufreq_store_default_gov();
-	if (cpufreq_change_gov(cpufreq_conservative_gov))
-		pr_err("Early_suspend: Error changing governor to %s\n",
-				cpufreq_conservative_gov);
+	cpufreq_change_gov(cpufreq_conservative_gov);
 #endif
 
 }
@@ -1015,8 +1013,7 @@ static void tegra_cpufreq_performance_late_resume(struct early_suspend *h)
 	pm_qos_update_request(&boost_cpu_freq_req, (s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
 
 #ifdef CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
-	if (cpufreq_restore_default_gov())
-		pr_err("Early_suspend: Unable to restore governor\n");
+	cpufreq_restore_default_gov();
 #endif
 }
 
