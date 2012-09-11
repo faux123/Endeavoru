@@ -446,6 +446,13 @@ config TEGRA3_VARIANT_OVERRIDE
 	help
 	  Variant Overclocking Override
 
+config TEGRA_RUNNABLE_THREAD
+	bool "Tegra3 runnable thread hotplug"
+	depends on ARCH_TEGRA_3x_SOC
+	default n
+	help
+	  Tegra3 Runnable Thread calculations for CPU hotplug
+
 config TEGRA3_GAMING_FIX
 	bool "CPU Limiter for Quadcore Gaming"
 	default n
