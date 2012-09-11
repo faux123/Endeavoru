@@ -989,8 +989,10 @@ static void tegra_cpufreq_powersave_early_suspend(struct early_suspend *h)
 	enter_early_suspend = 1;
 
 #ifdef CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
+	mutex_lock(&tegra_cpu_lock);
 	cpufreq_store_default_gov();
 	cpufreq_change_gov(cpufreq_conservative_gov);
+	mutex_unlock(&tegra_cpu_lock);
 #endif
 
 }
@@ -1013,7 +1015,9 @@ static void tegra_cpufreq_performance_late_resume(struct early_suspend *h)
 	pm_qos_update_request(&boost_cpu_freq_req, (s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
 
 #ifdef CONFIG_TEGRA_CONSERVATIVE_GOV_ON_EARLY_SUSPEND
+	mutex_lock(&tegra_cpu_lock);
 	cpufreq_restore_default_gov();
+	mutex_unlock(&tegra_cpu_lock);
 #endif
 }
 
