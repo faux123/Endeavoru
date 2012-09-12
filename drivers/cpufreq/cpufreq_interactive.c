@@ -1130,6 +1130,9 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			pcpu->floor_validate_time =
 				pcpu->freq_change_time;
 			pcpu->governor_enabled = 1;
+			pcpu->idle_exit_time = pcpu->freq_change_time;
+			mod_timer(&pcpu->cpu_timer,
+					jiffies + usecs_to_jiffies(timer_rate));
 			smp_wmb();
 		}
 
