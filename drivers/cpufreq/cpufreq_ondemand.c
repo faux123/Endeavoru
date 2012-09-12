@@ -1147,7 +1147,6 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 
 		mutex_unlock(&dbs_mutex);
 
-		mutex_init(&this_dbs_info->timer_mutex);
 		dbs_timer_init(this_dbs_info);
 		break;
 
@@ -1205,6 +1204,7 @@ static int __init cpufreq_gov_dbs_init(void)
 {
 	cputime64_t wall;
 	u64 idle_time;
+	unsigned int i;
 	int cpu = get_cpu();
 
 	idle_time = get_cpu_idle_time_us(cpu, &wall);
@@ -1236,6 +1236,12 @@ static int __init cpufreq_gov_dbs_init(void)
 	cpufreq_gov_early_suspend.resume = cpufreq_gov_resume;
 	register_early_suspend(&cpufreq_gov_early_suspend);
 #endif
+
+	for_each_possible_cpu(i) {
+		struct cpu_dbs_info_s *this_dbs_info =
+			&per_cpu(od_cpu_dbs_info, i);
+		mutex_init(&this_dbs_info->timer_mutex);
+	}
 
 	return cpufreq_register_governor(&cpufreq_gov_ondemand);
 }
