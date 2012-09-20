@@ -119,7 +119,9 @@ struct cpu_dbs_info_s {
 static DEFINE_PER_CPU(struct cpu_dbs_info_s, od_cpu_dbs_info);
 
 static unsigned int dbs_enable;	/* number of CPUs using this policy */
+#if 0
 static unsigned int g_ui_counter = 0;
+#endif
 
 /*
  * dbs_mutex protects dbs_enable in governor start/stop.
@@ -415,9 +417,10 @@ static ssize_t store_ui_sampling_rate(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
-
+#if 0
 	dbs_tuners_ins.ui_sampling_rate = max(input, min_sampling_rate);
-
+	update_sampling_rate(dbs_tuners_ins.ui_sampling_rate);
+#endif
 	return count;
 }
 
@@ -712,11 +715,13 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		}
 	}
 
+#if 0
 	if (g_ui_counter > 0){
 		g_ui_counter--;
 		if(g_ui_counter == 0)
 			dbs_tuners_ins.sampling_rate = dbs_tuners_ins.origin_sampling_rate;
 	}
+#endif
 
 	/* Check for frequency increase */
 	if (max_load_freq > dbs_tuners_ins.up_threshold * policy->cur) {
@@ -976,9 +981,12 @@ static void dbs_refresh_callback(struct work_struct *unused)
 	this_dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
 	policy = this_dbs_info->cur_policy;
 
+#if 0
 	g_ui_counter = dbs_tuners_ins.ui_counter;
+
 	if(dbs_tuners_ins.ui_counter > 0)
 		dbs_tuners_ins.sampling_rate = dbs_tuners_ins.ui_sampling_rate;
+#endif
 	if (Touch_poke_boost_duration_ms)
 		Touch_poke_boost_till_jiffies =
 			jiffies + msecs_to_jiffies(Touch_poke_boost_duration_ms);
