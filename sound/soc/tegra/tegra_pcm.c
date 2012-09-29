@@ -39,8 +39,12 @@
 
 #include "tegra_pcm.h"
 
+#include <linux/pm_qos_params.h>
+
 #define DRV_NAME "tegra-pcm-audio"
 #define INT_DURATION_THRESHOLD 32
+
+static struct pm_qos_request_list playback_cpu_freq_req;
 
 static const struct snd_pcm_hardware tegra_pcm_hardware = {
 	.info			= SNDRV_PCM_INFO_MMAP |
@@ -242,6 +246,7 @@ static int tegra_pcm_hw_free(struct snd_pcm_substream *substream)
 	return 0;
 }
 
+#define PLAYBACK_CPU_FREQ_MAX 427000
 static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
@@ -250,6 +255,8 @@ static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
+		pm_qos_update_request(&playback_cpu_freq_req,
+				(s32)PLAYBACK_CPU_FREQ_MAX);
 		prtd->dma_pos = 0;
 		prtd->dma_pos_end = frames_to_bytes(runtime, runtime->periods * runtime->period_size);
 		prtd->period_index = 0;
@@ -275,6 +282,8 @@ static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 			prtd->dma_req[0].complete(&prtd->dma_req[0]);
 		if (prtd->dma_req[1].status == -TEGRA_DMA_REQ_ERROR_ABORTED)
 			prtd->dma_req[1].complete(&prtd->dma_req[1]);
+		pm_qos_update_request(&playback_cpu_freq_req,
+					(s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
 		break;
 	default:
 		return -EINVAL;
@@ -423,12 +432,18 @@ static struct platform_driver tegra_pcm_driver = {
 
 static int __init snd_tegra_pcm_init(void)
 {
+
+	pm_qos_add_request(&playback_cpu_freq_req,
+			PM_QOS_CPU_FREQ_MIN,
+			(s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
+
 	return platform_driver_register(&tegra_pcm_driver);
 }
 module_init(snd_tegra_pcm_init);
 
 static void __exit snd_tegra_pcm_exit(void)
 {
+	pm_qos_remove_request(&playback_cpu_freq_req);
 	platform_driver_unregister(&tegra_pcm_driver);
 }
 module_exit(snd_tegra_pcm_exit);
