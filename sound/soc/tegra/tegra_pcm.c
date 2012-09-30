@@ -246,7 +246,7 @@ static int tegra_pcm_hw_free(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-#define PLAYBACK_CPU_FREQ_MAX 427000
+#define PLAYBACK_CPU_FREQ_MAX 370000
 static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
@@ -255,8 +255,6 @@ static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
-		pm_qos_update_request(&playback_cpu_freq_req,
-				(s32)PLAYBACK_CPU_FREQ_MAX);
 		prtd->dma_pos = 0;
 		prtd->dma_pos_end = frames_to_bytes(runtime, runtime->periods * runtime->period_size);
 		prtd->period_index = 0;
@@ -270,6 +268,8 @@ static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		spin_unlock_irqrestore(&prtd->lock, flags);
 		tegra_pcm_queue_dma(prtd);
 		tegra_pcm_queue_dma(prtd);
+		pm_qos_update_request(&playback_cpu_freq_req,
+					(s32)PLAYBACK_CPU_FREQ_MAX);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
@@ -435,7 +435,7 @@ static int __init snd_tegra_pcm_init(void)
 
 	pm_qos_add_request(&playback_cpu_freq_req,
 			PM_QOS_CPU_FREQ_MIN,
-			(s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
+			(s32)PLAYBACK_CPU_FREQ_MAX);
 
 	return platform_driver_register(&tegra_pcm_driver);
 }
