@@ -44,6 +44,8 @@
 #define DRV_NAME "tegra-pcm-audio"
 #define INT_DURATION_THRESHOLD 32
 
+#define PLAYBACK_CPU_FREQ_MAX 370000
+
 static struct pm_qos_request_list playback_cpu_freq_req;
 
 static const struct snd_pcm_hardware tegra_pcm_hardware = {
@@ -200,6 +202,9 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 	if (ret < 0)
 		goto err;
 
+	pm_qos_update_request(&playback_cpu_freq_req,
+				(s32)PLAYBACK_CPU_FREQ_MAX);
+
 	return 0;
 
 err:
@@ -222,6 +227,10 @@ static int tegra_pcm_close(struct snd_pcm_substream *substream)
 
 	kfree(prtd);
 	TimeOutCounter = 0;
+
+	pm_qos_update_request(&playback_cpu_freq_req,
+				(s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
+
 	return 0;
 }
 
@@ -246,7 +255,6 @@ static int tegra_pcm_hw_free(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-#define PLAYBACK_CPU_FREQ_MAX 370000
 static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
@@ -268,8 +276,6 @@ static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		spin_unlock_irqrestore(&prtd->lock, flags);
 		tegra_pcm_queue_dma(prtd);
 		tegra_pcm_queue_dma(prtd);
-		pm_qos_update_request(&playback_cpu_freq_req,
-					(s32)PLAYBACK_CPU_FREQ_MAX);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
@@ -282,8 +288,6 @@ static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 			prtd->dma_req[0].complete(&prtd->dma_req[0]);
 		if (prtd->dma_req[1].status == -TEGRA_DMA_REQ_ERROR_ABORTED)
 			prtd->dma_req[1].complete(&prtd->dma_req[1]);
-		pm_qos_update_request(&playback_cpu_freq_req,
-					(s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
 		break;
 	default:
 		return -EINVAL;
