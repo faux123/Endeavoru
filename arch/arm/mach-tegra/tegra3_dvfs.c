@@ -371,8 +371,8 @@ static struct dvfs core_dvfs_table[] = {
 	CORE_DVFS("tvdac", core_millivolts, -1, 1, KHZ,        1, 220000, 220000, 220000, 220000, 220000,  220000,   220000),
 	CORE_DVFS("tvo", core_millivolts, -1, 1, KHZ,        1,      1, 297000, 297000, 297000, 297000,  297000,   297000),
 	CORE_DVFS("cve", core_millivolts, -1, 1, KHZ,        1,      1, 297000, 297000, 297000, 297000,  297000,   297000),
-	CORE_DVFS("dsia", core_millivolts, -1, 1, KHZ,        1, 275000, 275000, 275000, 275000, 275000,  275000,   275000),
-	CORE_DVFS("dsib", core_millivolts, -1, 1, KHZ,        1, 275000, 275000, 275000, 275000, 275000,  275000,   275000),
+	CORE_DVFS("dsia", core_millivolts, -1, 1, KHZ,  432500, 432500, 432500, 432500, 432500, 432500,  432500,   432500),
+	CORE_DVFS("dsib", core_millivolts, -1, 1, KHZ,  432500, 432500, 432500, 432500, 432500, 432500,  432500,   432500),
 	CORE_DVFS("hdmi", core_millivolts, -1, 1, KHZ,        1, 148500, 148500, 148500, 148500, 148500,  148500,   148500),
 
 	/*
